@@ -6,10 +6,13 @@ public final class MovingPlatformMotion {
 	private double travel, floor;
 	private boolean contact, riding;
 	private long movedAt, sampledAt;
+	private String resetReason = "initial";
 
 	public record Step(double dy, double previousFloor, double floor, boolean moving, boolean landed) {}
 
-	public void reset() { contact = false; riding = false; epoch = 0; travel = 0; movedAt = 0; sampledAt = 0; }
+	public void reset() { contact = false; riding = false; epoch = 0; travel = 0; movedAt = 0; sampledAt = 0; resetReason = "external reset"; }
+	/** Diagnostic only: why the latest update reset its contact. */
+	public String resetReason() { return resetReason; }
 	public int epoch() { return contact ? epoch : 0; }
 	public double travel() { return contact ? travel : 0; }
 	public boolean moving(long now) { return contact && movedAt != 0 && now - movedAt < 750; }
@@ -22,12 +25,16 @@ public final class MovingPlatformMotion {
 
 	public Step update(boolean valid, int nextEpoch, double nextTravel, double nextFloor,
 		double feetY, boolean grounded, boolean flying, double verticalSpeed, long now) {
+		resetReason = "none";
 		if (!valid || flying || !Double.isFinite(nextFloor) || !Double.isFinite(nextTravel)) {
 			reset();
+			resetReason = !valid ? "invalid support" : flying ? "flight" : "nonfinite support";
 			return new Step(0, nextFloor, nextFloor, false, false);
 		}
 		if (!contact || nextEpoch != epoch) {
+			boolean changedEpoch = contact && nextEpoch != epoch;
 			reset();
+			resetReason = changedEpoch ? "epoch changed" : "no contact";
 			double top = collisionHeight(nextFloor);
 			// A rising platform may already be above the falling feet by the
 			// first client tick that sees it. Catch that crossing on attachment.
@@ -43,7 +50,7 @@ public final class MovingPlatformMotion {
 					movedAt = now;
 					return new Step(top - feetY, nextFloor, nextFloor, true, true);
 				}
-			}
+			} else resetReason += ": attachment height gap";
 			return new Step(0, nextFloor, nextFloor, false, false);
 		}
 		double previous = floor, change = nextTravel - travel;
@@ -53,6 +60,11 @@ public final class MovingPlatformMotion {
 			|| (grounded && Math.abs(feetY - previousTop) > .25 && Math.abs(feetY - nextTop) > .2)
 			|| feetY > Math.max(previousTop, nextTop) + 4.0 || feetY < Math.min(previousTop, nextTop) - .5) {
 			reset();
+			resetReason = elapsed < 0 ? "clock reversed"
+				: elapsed > 250 && Math.abs(change) > .05 ? "sample delay"
+				: Math.abs(change) > .05 + 24 * Math.min(elapsed, 250) / 1000.0 ? "travel discontinuity"
+				: grounded && Math.abs(feetY - previousTop) > .25 && Math.abs(feetY - nextTop) > .2 ? "grounded height gap"
+				: feetY > Math.max(previousTop, nextTop) + 4.0 ? "feet above support" : "feet below support";
 			return new Step(0, previous, nextFloor, false, false);
 		}
 		boolean movingSurface = moving(now) || Math.abs(change) > .002;

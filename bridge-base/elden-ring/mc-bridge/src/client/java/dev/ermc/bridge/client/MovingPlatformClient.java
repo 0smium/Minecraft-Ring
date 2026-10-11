@@ -21,6 +21,10 @@ public final class MovingPlatformClient {
 	private static int carriedEpoch, carriedTick;
 	private static double carriedY;
 	private static boolean renderCarry;
+	private static final org.slf4j.Logger TRACE = org.slf4j.LoggerFactory.getLogger("erbridge");
+	private static long traceUntil;
+	private static boolean traceTick;
+	private static int traceTickId;
 	private MovingPlatformClient() {}
 
 	private static void clearCarry() { carriedPlayer = null; carriedY = 0; renderCarry = false; }
@@ -28,18 +32,41 @@ public final class MovingPlatformClient {
 
 	public static void tick(Minecraft mc) {
 		clearCarry();
+		traceTick = false;
+		long now = System.currentTimeMillis();
+		int startEpoch = MOTION.epoch();
+		boolean wasMoving = MOTION.moving(now);
 		var map = CoordMap.get();
 		if (mc.player == null || mc.level == null || !TerrainManager.isBridgeWorld() || !Overlay.active() || Overlay.hostMode()
 			|| !TerrainManager.recallSettled(400) || map == null || !ErLink.get().snapshot(STATE) || map.zone() != STATE.stageId) {
-			MOTION.reset(); return;
+			MOTION.reset();
+			if (startEpoch != 0 && (wasMoving || now < traceUntil) && mc.player != null && mc.level != null) {
+				traceTick = true; traceTickId = mc.player.tickCount;
+				TRACE.info("[platform-trace] client START tick {} gate unavailable: y {} yo {} ground {} vy {} shapeTop {} epoch {} -> {} reset {}",
+					traceTickId, mc.player.getY(), mc.player.yo, mc.player.onGround(), mc.player.getDeltaMovement().y,
+					TerrainManager.platformTraceShapeTop(mc.level, mc.player), startEpoch, MOTION.epoch(), MOTION.resetReason());
+			}
+			return;
 		}
 		BOARDING.refresh(mc.level, map, null);
 		var support = map.toMc(STATE.supportPos[0], STATE.supportPos[1], STATE.supportPos[2]);
 		boolean valid = STATE.has(Protocol.STATE_SUPPORT_VALID)
 			&& Math.abs(mc.player.getX() - support.x) < .6 && Math.abs(mc.player.getZ() - support.z) < .6;
 		int previousEpoch = MOTION.epoch();
+		double startY = mc.player.getY(), startYo = mc.player.yo, startVy = mc.player.getDeltaMovement().y;
+		boolean startGround = mc.player.onGround();
 		var step = MOTION.update(valid, STATE.supportEpoch, STATE.supportTravelY / map.unitsPerMeter(), support.y,
 			mc.player.getY(), mc.player.onGround(), mc.player.getAbilities().flying, mc.player.getDeltaMovement().y, System.currentTimeMillis());
+		if (wasMoving || step.moving()) traceUntil = now + 750;
+		boolean resetContact = previousEpoch != 0 && previousEpoch != MOTION.epoch();
+		traceTick = now < traceUntil && (mc.player.tickCount % 5 == 0 || resetContact);
+		if (traceTick) {
+			traceTickId = mc.player.tickCount;
+			TRACE.info("[platform-trace] client START tick {}: y {} yo {} ground {} vy {} shapeTop {}; valid {} nativeEpoch {} floor {} travel {}; epoch {} -> {} reset {}; carry {} landed {} moving {}",
+				traceTickId, startY, startYo, startGround, startVy, TerrainManager.platformTraceShapeTop(mc.level, mc.player),
+				valid, STATE.supportEpoch, support.y, STATE.supportTravelY / map.unitsPerMeter(), previousEpoch, MOTION.epoch(),
+				MOTION.resetReason(), step.dy(), step.landed(), step.moving());
+		}
 		if (step.moving()) MovingPlatformTerrain.move(mc.level, mc.player.position(), step.previousFloor(), step.floor());
 		if (step.dy() != 0 || step.landed()) {
 			double beforeY = mc.player.getY();
@@ -64,17 +91,26 @@ public final class MovingPlatformClient {
 
 	/** Keep START's physical carry, but restore its old render endpoint after the vanilla tick. */
 	public static void afterTick(Minecraft mc) {
-		if (carriedPlayer == null) return;
-		if (mc.player != carriedPlayer || mc.player.tickCount != carriedTick + 1
-			|| MOTION.epoch() != carriedEpoch || mc.player.getAbilities().flying
-			|| !Overlay.active() || Overlay.hostMode()) {
-			clearCarry(); return;
+		boolean applied = false;
+		if (carriedPlayer != null) {
+			if (mc.player != carriedPlayer || mc.player.tickCount != carriedTick + 1
+				|| MOTION.epoch() != carriedEpoch || mc.player.getAbilities().flying
+				|| !Overlay.active() || Overlay.hostMode()) {
+				clearCarry();
+			} else {
+				// ClientLevel.setOldPosAndRot copied the already-carried feet to both fields.
+				// Undo only that copy; the current position, collision and movement packet stay intact.
+				mc.player.yo -= carriedY;
+				mc.player.yOld -= carriedY;
+				renderCarry = true;
+				applied = true;
+			}
 		}
-		// ClientLevel.setOldPosAndRot copied the already-carried feet to both fields.
-		// Undo only that copy; the current position, collision and movement packet stay intact.
-		mc.player.yo -= carriedY;
-		mc.player.yOld -= carriedY;
-		renderCarry = true;
+		if (traceTick && mc.player != null && mc.level != null) {
+			TRACE.info("[platform-trace] client END startTick {} tick {}: y {} yo {} ground {} vy {} shapeTop {} epoch {} renderApplied {} renderCarry {} carriedY {}",
+				traceTickId, mc.player.tickCount, mc.player.getY(), mc.player.yo, mc.player.onGround(), mc.player.getDeltaMovement().y,
+				TerrainManager.platformTraceShapeTop(mc.level, mc.player), MOTION.epoch(), applied, renderCarry, carriedY);
+		}
 	}
 
 	public static void copyControl(ControlState control, float partialTick) {

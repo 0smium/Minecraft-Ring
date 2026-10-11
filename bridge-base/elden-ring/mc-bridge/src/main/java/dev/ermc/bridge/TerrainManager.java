@@ -118,6 +118,8 @@ public final class TerrainManager {
 	private static boolean preferTravel = true;
 	private static long coarseBatches, lastBatchMs, maxBatchMs;
 	private static final java.util.Map<java.util.UUID, MovingPlatformMotion> PLATFORM_MOTION = new java.util.HashMap<>();
+	private static final List<ServerPlayer> PLATFORM_TRACE_PLAYERS = new ArrayList<>();
+	private static long platformTraceUntil;
 	private static final LongOpenHashSet MOVING_COLUMNS = new LongOpenHashSet();
 	private static final MovingPlatformBoarding PLATFORM_BOARDING = new MovingPlatformBoarding();
 
@@ -148,6 +150,8 @@ public final class TerrainManager {
 		WAITING_DETAIL.clear();
 		LAST_POSITIONS.clear();
 		PLATFORM_MOTION.clear();
+		PLATFORM_TRACE_PLAYERS.clear();
+		platformTraceUntil = 0;
 		MOVING_COLUMNS.clear();
 		preferBackground = false;
 		coarseBatches = lastBatchMs = maxBatchMs = 0;
@@ -406,19 +410,37 @@ public final class TerrainManager {
 			if (!TerrainTravelClearance.busy()) preferTravel = true;
 		}
 		logAttrStats();
+		for (ServerPlayer player : PLATFORM_TRACE_PLAYERS) {
+			LOG.info("[platform-trace] server support AFTER tick {} gameTime {}: y {} yo {} ground {} vy {} shapeTop {}",
+				player.tickCount, level.getGameTime(), player.getY(), player.yo, player.onGround(), player.getDeltaMovement().y,
+				platformTraceShapeTop(level, player));
+		}
 	}
 
 	private static void updateMovingSupport(ServerLevel level, CoordMap.Mapping map, List<ServerPlayer> players) {
+		PLATFORM_TRACE_PLAYERS.clear();
 		LongOpenHashSet previous = new LongOpenHashSet(MOVING_COLUMNS);
 		MOVING_COLUMNS.clear();
 		Vec3 support = map.toMc(STATE.supportPos[0], STATE.supportPos[1], STATE.supportPos[2]);
 		if (map.zone() == STATE.stageId && recallSettled(400)) PLATFORM_BOARDING.refresh(level, map, MOVING_COLUMNS);
 		for (ServerPlayer player : players) {
 			MovingPlatformMotion motion = PLATFORM_MOTION.computeIfAbsent(player.getUUID(), id -> new MovingPlatformMotion());
+			long traceNow = System.currentTimeMillis();
+			int previousEpoch = motion.epoch();
+			boolean wasMoving = motion.moving(traceNow);
 			boolean valid = STATE.has(Protocol.STATE_SUPPORT_VALID) && map.zone() == STATE.stageId && recallSettled(400)
 				&& Math.abs(player.getX() - support.x) < .75 && Math.abs(player.getZ() - support.z) < .75;
 			var step = motion.update(valid, STATE.supportEpoch, STATE.supportTravelY / map.unitsPerMeter(), support.y,
 				player.getY(), player.onGround(), player.getAbilities().flying, player.getDeltaMovement().y, System.currentTimeMillis());
+			if (wasMoving || step.moving()) platformTraceUntil = traceNow + 750;
+			boolean resetContact = previousEpoch != 0 && previousEpoch != motion.epoch();
+			if (traceNow < platformTraceUntil && (player.tickCount % 5 == 0 || resetContact)) {
+				PLATFORM_TRACE_PLAYERS.add(player);
+				LOG.info("[platform-trace] server support BEFORE tick {} gameTime {}: y {} yo {} ground {} vy {} shapeTop {}; valid {} nativeEpoch {} floor {} travel {}; epoch {} -> {} reset {}; carry {} landed {} moving {}",
+					player.tickCount, level.getGameTime(), player.getY(), player.yo, player.onGround(), player.getDeltaMovement().y,
+					platformTraceShapeTop(level, player), valid, STATE.supportEpoch, support.y, STATE.supportTravelY / map.unitsPerMeter(),
+					previousEpoch, motion.epoch(), motion.resetReason(), step.dy(), step.landed(), step.moving());
+			}
 			if (!step.moving()) continue;
 			MovingPlatformTerrain.move(level, player.position(), step.previousFloor(), step.floor());
 			for (int x = Mth.floor(player.getX() - .3); x <= Mth.floor(player.getX() + .3); x++)
@@ -436,6 +458,21 @@ public final class TerrainManager {
 	}
 
 	public static boolean movingColumn(int x, int z) { return MOVING_COLUMNS.contains(ChunkPos.asLong(x, z)); }
+
+	/** Read only: highest real collision surface overlapping the feet within the local one-block window. */
+	public static double platformTraceShapeTop(net.minecraft.world.level.Level level, net.minecraft.world.entity.Entity player) {
+		AABB body = player.getBoundingBox();
+		AABB feet = new AABB(body.minX + 1e-5, player.getY() - .75, body.minZ + 1e-5,
+			body.maxX - 1e-5, player.getY() + 1.0, body.maxZ - 1e-5);
+		double highest = Double.NEGATIVE_INFINITY;
+		for (var shape : level.getBlockCollisions(player, feet)) {
+			for (AABB box : shape.toAabbs()) {
+				if (box.maxX > feet.minX && box.minX < feet.maxX && box.maxZ > feet.minZ && box.minZ < feet.maxZ
+					&& box.maxY >= feet.minY && box.maxY <= feet.maxY + 1e-5) highest = Math.max(highest, box.maxY);
+			}
+		}
+		return Double.isFinite(highest) ? highest : Double.NaN;
+	}
 
 	// -- ray-sampled terrain ----------------------------------------------------------------------
 
