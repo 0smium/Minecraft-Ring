@@ -138,8 +138,18 @@ native = r'''
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 using UINT=unsigned;using UINT64=uint64_t;using LONG64=int64_t;using HWND=int;
 constexpr unsigned kGpuSlots=6,ERMC_FRAME_SLOTS=3;
+constexpr uint32_t ERMC_CTRL_COMPOSITE=1u<<4;
+struct ErmcControl {uint32_t seq=0,flags=0;};
+ErmcControl inputControl;
+bool readableControl=false;uint64_t clockMs=0;
+uint64_t now_ms() {return clockMs;}
+bool control_snapshot(ErmcControl* out) {if(!readableControl) return false;*out=inputControl;return true;}
+uint32_t g_lastCompositeCtrlSeq=0;uint64_t g_lastCompositeCtrlChangeMs=0;
+ErmcControl g_lastCompositeCtrl;
+bool g_haveLastCompositeCtrl=false,g_compositeCtrlTimedOut=false;
 struct Fence {UINT64 value=0;UINT64 GetCompletedValue() {return value;}} ready,copies;
 Fence *g_gpuReady=&ready,*g_fence=&copies;
 UINT64 g_gpuAckFence[kGpuSlots]={},g_gpuAckFrame[kGpuSlots]={};
@@ -162,8 +172,30 @@ bool g_f8Down=false,g_focusSeenInit=false;uint32_t g_focusSeen=0;
 '''
 native += function(ER / 'er-bridge/src/gpu_transport.h', 'static void gpu_acknowledge(') + '\n'
 native += function(ER / 'er-bridge/src/game.cpp', 'static void handle_switching()') + '\n'
+native += function(ER / 'er-bridge/src/compositor.cpp', 'static bool composite_control_active(') + '\n'
 native += r'''
 int main() {
+    // A stopped/crashed Minecraft leaves a perfectly readable final control block.
+    // The compositor must expire it, while tolerating short seqlock write gaps.
+    ErmcControl control;
+    assert(!composite_control_active(&control));
+    readableControl=true;inputControl={2,ERMC_CTRL_COMPOSITE};clockMs=100;
+    assert(composite_control_active(&control) && (control.flags&ERMC_CTRL_COMPOSITE));
+    readableControl=false;clockMs=500;
+    assert(composite_control_active(&control) && control.seq==2);
+    clockMs=1100;assert(composite_control_active(&control));
+    clockMs=1101;assert(!composite_control_active(&control));
+    readableControl=true;clockMs=5000;
+    assert(!composite_control_active(&control)); // Reading the old sequence is not a heartbeat.
+    inputControl.seq=4;clockMs=5001;
+    assert(composite_control_active(&control) && control.seq==4); // New publications recover.
+    inputControl={6,0};clockMs=5002;
+    assert(composite_control_active(&control) && !(control.flags&ERMC_CTRL_COMPOSITE)); // F8 is immediate.
+    inputControl={8,ERMC_CTRL_COMPOSITE};clockMs=5003;
+    assert(composite_control_active(&control));
+    readableControl=false;clockMs=6004;
+    assert(!composite_control_active(&control)); // A writer dying with an odd sequence also expires.
+    puts("PASS: compositor releases stopped clients, tolerates torn reads and resumes fresh controls");
     handle_switching();keyDown=true;shared.hostFocusReq++;handle_switching();
     for(int i=0;i<10;i++) handle_switching();
     assert(foreground==1 && shared.mcSwitchReq==0);

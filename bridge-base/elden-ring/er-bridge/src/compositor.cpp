@@ -899,6 +899,40 @@ static double perf_ms() {
 }
 static double g_perfCopy = 0, g_perfWait = 0, g_perfComposite = 0, g_perfPresent = 0;
 static UINT g_perfCount = 0;
+
+static uint32_t g_lastCompositeCtrlSeq = 0;
+static uint64_t g_lastCompositeCtrlChangeMs = 0;
+static ErmcControl g_lastCompositeCtrl;
+static bool g_haveLastCompositeCtrl = false;
+static bool g_compositeCtrlTimedOut = false;
+
+static bool composite_control_active(ErmcControl* out) {
+    ErmcControl c;
+    memset(&c, 0, sizeof(c));
+    uint64_t now = now_ms();
+    if (control_snapshot(&c)) {
+        g_lastCompositeCtrl = c;
+        g_haveLastCompositeCtrl = true;
+        if (c.seq != g_lastCompositeCtrlSeq) {
+            g_lastCompositeCtrlSeq = c.seq;
+            g_lastCompositeCtrlChangeMs = now;
+            g_compositeCtrlTimedOut = false;
+        }
+    } else if (!g_haveLastCompositeCtrl) {
+        return false;
+    }
+    // Match the game-thread control timeout, using a separate Present-thread cache.
+    // A brief torn read keeps the last good frame; a stopped client must release it.
+    if (now - g_lastCompositeCtrlChangeMs > 1000) {
+        if (!g_compositeCtrlTimedOut && (g_lastCompositeCtrl.flags & ERMC_CTRL_COMPOSITE))
+            log("compositor: Minecraft control timed out; retiring its last frame");
+        g_compositeCtrlTimedOut = true;
+        return false;
+    }
+    *out = g_lastCompositeCtrl;
+    return true;
+}
+
 static void composite(IDXGISwapChain* sc, UINT flags) {
     if (flags & DXGI_PRESENT_TEST) return;
     if (!g_presentThread) {
@@ -949,7 +983,7 @@ static void composite(IDXGISwapChain* sc, UINT flags) {
     }
     ErmcControl ctrl;
     memset(&ctrl, 0, sizeof(ctrl));
-    bool mc = control_snapshot(&ctrl) && (ctrl.flags & ERMC_CTRL_COMPOSITE) && frames_open();
+    bool mc = composite_control_active(&ctrl) && (ctrl.flags & ERMC_CTRL_COMPOSITE) && frames_open();
     // F8 stops drawing Minecraft, but its last copies still need their GPU
     // completion acknowledgements. Retire unselected publications too; neither
     // side should need a new Minecraft frame to release the old capture ring.
