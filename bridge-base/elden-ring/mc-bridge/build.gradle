@@ -29,6 +29,20 @@ dependencies {
 	mappings loom.officialMojangMappings()
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Optional fixed LB experiment. Loom remaps production mods for runClient.
+	def lbJar = providers.gradleProperty('lbJar').orNull
+	if (lbJar != null) {
+		modRuntimeOnly files(lbJar)
+		modRuntimeOnly 'net.fabricmc:fabric-language-kotlin:1.13.0+kotlin.2.1.0'
+		// Loom strips the parent mod's nested-jar list in development runs.
+		def nestedDir = providers.gradleProperty('lbNestedDir').orNull
+		if (nestedDir != null) {
+			fileTree(nestedDir).matching { include '*.jar' }.files.sort().each { nestedJar ->
+				modRuntimeOnly files(nestedJar)
+			}
+		}
+	}
 }
 
 processResources {

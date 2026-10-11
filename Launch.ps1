@@ -1,8 +1,22 @@
+param([switch]$LiquidBounce)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = $PSScriptRoot
 $Install = Get-Content -LiteralPath "$ProjectRoot\installation.json" -Raw | ConvertFrom-Json
 $GameExe = Join-Path $Install.game_dir 'eldenring.exe'
 if (!(Test-Path -LiteralPath $GameExe)) { throw "Elden Ring was not found: $GameExe" }
+$LbGradleArgs = @()
+if ($LiquidBounce) {
+    $LbJar = Join-Path $ProjectRoot 'runtime\downloads\liquidbounce.jar'
+    $LbNested = Join-Path $ProjectRoot 'runtime\downloads\liquidbounce-3530-libs'
+    if (!(Test-Path -LiteralPath $LbJar)) { throw 'LB Build #3530 has not been prepared; see docs/experiments.' }
+    $LbHash = (Get-FileHash -LiteralPath $LbJar -Algorithm SHA256).Hash
+    if ($LbHash -ne '1824011D91046F8F8B388CFA63782F38CDF754F12CB997317EAB8E69E67EF20D') {
+        throw 'LiquidBounce JAR differs from the verified v0.22.0 / Build #3530.'
+    }
+    if (!(Test-Path -LiteralPath $LbNested)) { throw 'LB nested dependencies have not been prepared.' }
+    $LbGradleArgs = @("-PlbJar=$LbJar", "-PlbNestedDir=$LbNested")
+    Write-Output "LiquidBounce v0.22.0 / Build #3530 enabled (SHA-256 $LbHash)."
+}
 $env:ERMC_DIR = Join-Path $ProjectRoot 'runtime'
 $env:ERBRIDGE = '1'
 $env:JAVA_HOME = (Get-ChildItem "$ProjectRoot\.tools\java" -Directory | Select-Object -First 1).FullName
@@ -70,5 +84,5 @@ Set-MinecraftSetting (Join-Path $MinecraftRun 'options.txt') 'fullscreen' 'false
 Set-MinecraftSetting (Join-Path $MinecraftRun 'config\fullscreenfix.properties') 'startInFullscreen' 'false'
 Write-Output 'Starting Minecraft in windowed mode... The runClient task stays active while you play.'
 $Gradle = (Get-ChildItem "$ProjectRoot\.tools\gradle" -Directory | Select-Object -First 1).FullName + '\bin\gradle.bat'
-& $Gradle '-p' "$ProjectRoot\bridge-base\elden-ring\mc-bridge" '--no-daemon' '--no-configuration-cache' 'remapJar' 'runClient'
+& $Gradle '-p' "$ProjectRoot\bridge-base\elden-ring\mc-bridge" '--no-daemon' '--no-configuration-cache' @LbGradleArgs 'remapJar' 'runClient'
 if ($LASTEXITCODE -ne 0) { throw 'Minecraft launch failed; see the console and run/logs/latest.log.' }
