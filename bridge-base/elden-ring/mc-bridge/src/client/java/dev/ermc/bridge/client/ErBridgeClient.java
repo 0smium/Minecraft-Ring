@@ -48,6 +48,7 @@ public class ErBridgeClient implements ClientModInitializer {
 			InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F6, "category.erbridge"));
 
 		ClientTickEvents.START_CLIENT_TICK.register(MovingPlatformClient::tick);
+		ClientTickEvents.END_CLIENT_TICK.register(MovingPlatformClient::afterTick);
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			while (cameraModeKey.consumeClick()) {
 				CameraSync.toggleMode();

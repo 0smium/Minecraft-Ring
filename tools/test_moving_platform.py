@@ -61,6 +61,38 @@ public class PlatformTest {
             fastFeet+=step.dy();
             check(Math.abs(fastFeet-MovingPlatformMotion.collisionHeight(fastFloor))<1e-8,"Finish the entire fast ride without falling");
         }
+        // The real client updates before vanilla movement. A descending
+        // passenger can return next tick with onGround=false and one gravity
+        // step, even though they never jumped or left the platform.
+        var lostGround=new MovingPlatformMotion();
+        double rideFeet=10;
+        lostGround.update(true,20,0,10,rideFeet,true,false,0,1000);
+        for(int i=1;i<=40;i++) {
+            double inputFeet=rideFeet-.0784;
+            double rideFloor=10-i*.3;
+            var step=lostGround.update(true,20,-i*.3,rideFloor,inputFeet,false,false,-.0784,1000+i*50);
+            check(lostGround.epoch()==20 && step.moving() && step.landed(),"Retain the descending passenger after vanilla clears onGround");
+            check(step.dy()<0,"Carry the passenger down instead of only acknowledging travel");
+            rideFeet=MovingPlatformMotion.collisionHeight(step.floor());
+            check(Math.abs(inputFeet+step.dy()-rideFeet)<1e-8,"Descending recovery places the feet on the current floor");
+        }
+        // Tracking a support is not proof of riding it: a free-falling player
+        // above a descending floor must still catch it through normal physics.
+        var freeFall=new MovingPlatformMotion();
+        freeFall.update(true,21,0,10,10,false,false,-.0784,1000);
+        var uncaught=freeFall.update(true,21,-.3,9.7,9.9216,false,false,-.0784,1050);
+        check(uncaught.dy()==0 && !uncaught.landed(),"Do not bind a free-falling player merely because the old floor is nearby");
+        var leavingRide=new MovingPlatformMotion();
+        leavingRide.update(true,22,0,10,10,true,false,0,1000);
+        var jumpAway=leavingRide.update(true,22,-.3,9.7,10.1,false,false,.333,1050);
+        check(jumpAway.dy()==0 && !jumpAway.landed(),"A positive jump detaches an established descending rider");
+        var fallingNearOldFloor=leavingRide.update(true,22,-.6,9.4,9.72,false,false,-.0784,1100);
+        check(fallingNearOldFloor.dy()==0 && !fallingNearOldFloor.landed(),"A detached jump is not rebound by proximity to the previous floor");
+        var flyingAway=new MovingPlatformMotion();
+        flyingAway.update(true,23,0,10,10,true,false,0,1000);
+        check(flyingAway.update(true,23,-.3,9.7,10,false,true,-.0784,1050).dy()==0 && flyingAway.epoch()==0,"Flight clears the established ride");
+        var afterFlight=flyingAway.update(true,23,-.6,9.4,9.72,false,false,-.0784,1100);
+        check(afterFlight.dy()==0 && !afterFlight.landed(),"Turning flight off above a descending floor does not restore the old ride");
         var overtaken=new MovingPlatformMotion();
         overtaken.update(true,10,0,10,10,true,false,1000);
         check(overtaken.update(true,10,.6,10.6,10.42,false,false,.333,1050).landed(),

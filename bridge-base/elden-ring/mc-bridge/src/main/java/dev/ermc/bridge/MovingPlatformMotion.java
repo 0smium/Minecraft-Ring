@@ -4,12 +4,12 @@ package dev.ermc.bridge;
 public final class MovingPlatformMotion {
 	private int epoch;
 	private double travel, floor;
-	private boolean contact;
+	private boolean contact, riding;
 	private long movedAt, sampledAt;
 
 	public record Step(double dy, double previousFloor, double floor, boolean moving, boolean landed) {}
 
-	public void reset() { contact = false; epoch = 0; travel = 0; movedAt = 0; sampledAt = 0; }
+	public void reset() { contact = false; riding = false; epoch = 0; travel = 0; movedAt = 0; sampledAt = 0; }
 	public int epoch() { return contact ? epoch : 0; }
 	public double travel() { return contact ? travel : 0; }
 	public boolean moving(long now) { return contact && movedAt != 0 && now - movedAt < 750; }
@@ -33,11 +33,13 @@ public final class MovingPlatformMotion {
 			// first client tick that sees it. Catch that crossing on attachment.
 			if (feetY >= top - .45 && feetY <= top + .2) {
 				contact = true; epoch = nextEpoch; travel = nextTravel; floor = nextFloor; sampledAt = now;
+				riding = grounded;
 				// Native support also reports ordinary ground. An elevated footprint
 				// corner on a static slope must never catch or reposition the player.
 				boolean landed = Math.abs(nextTravel) > .002
 					&& (grounded ? feetY < top - .01 : feetY <= top + .08 && verticalSpeed <= 0);
 				if (landed) {
+					riding = true;
 					movedAt = now;
 					return new Step(top - feetY, nextFloor, nextFloor, true, true);
 				}
@@ -54,9 +56,14 @@ public final class MovingPlatformMotion {
 			return new Step(0, previous, nextFloor, false, false);
 		}
 		boolean movingSurface = moving(now) || Math.abs(change) > .002;
-		boolean landed = movingSurface && !grounded && verticalSpeed <= nextTop - previousTop && feetY <= nextTop + .08
-			&& feetY >= previousTop - .5;
+		// Vanilla can clear onGround after we move a descending passenger at
+		// START_CLIENT_TICK. Keep that established ride through one gravity tick,
+		// but an upward jump or feet away from the last floor detaches the rider.
+		boolean retainedRide = riding && !grounded && verticalSpeed <= 0 && Math.abs(feetY - previousTop) <= .125;
+		boolean landed = movingSurface && !grounded && (retainedRide
+			|| verticalSpeed <= nextTop - previousTop && feetY <= nextTop + .08 && feetY >= previousTop - .5);
 		double dy = landed ? nextTop - feetY : grounded && Math.abs(change) > .002 ? nextTop - previousTop : 0;
+		riding = grounded || retainedRide || landed;
 		travel = nextTravel; floor = nextFloor; sampledAt = now;
 		if (Math.abs(change) > .002) movedAt = now;
 		return new Step(dy, previous, nextFloor, moving(now), landed);
