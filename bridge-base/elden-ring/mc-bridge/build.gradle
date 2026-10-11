@@ -30,18 +30,37 @@ dependencies {
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-	// Optional fixed LB experiment. Loom remaps production mods for runClient.
+}
+
+// Fixed LB uses production intermediary names, including calls from its nested dependencies.
+// Keep the original jars intact and let Fabric Loader discover their nested mods.
+if (providers.gradleProperty('lbProduction').map { it.toBoolean() }.getOrElse(false)) {
 	def lbJar = providers.gradleProperty('lbJar').orNull
-	if (lbJar != null) {
-		modRuntimeOnly files(lbJar)
-		modRuntimeOnly 'net.fabricmc:fabric-language-kotlin:1.13.0+kotlin.2.1.0'
-		// Loom strips the parent mod's nested-jar list in development runs.
-		def nestedDir = providers.gradleProperty('lbNestedDir').orNull
-		if (nestedDir != null) {
-			fileTree(nestedDir).matching { include '*.jar' }.files.sort().each { nestedJar ->
-				modRuntimeOnly files(nestedJar)
-			}
+	if (lbJar == null || !file(lbJar).isFile()) {
+		throw new GradleException('productionLbClient requires -PlbJar pointing to the verified LB Build #3530 JAR')
+	}
+	configurations {
+		lbProductionMods {
+			canBeConsumed = false
+			canBeResolved = true
+			transitive = false
 		}
+	}
+	dependencies {
+		lbProductionMods 'net.fabricmc:fabric-language-kotlin:1.13.0+kotlin.2.1.0'
+		lbProductionMods "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	}
+	tasks.register('productionLbClient', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
+		group = 'fabric'
+		description = 'Run the bridge with fixed LiquidBounce in the production mapping environment'
+		mods.from tasks.named('remapJar'), file(lbJar), configurations.lbProductionMods
+		runDir = layout.projectDirectory.dir('run')
+		jvmArgs.addAll('-Xms512m', '-Xmx3g')
+		programArgs.addAll('--username', 'Steve', '--version', project.minecraft_version, '--accessToken', '0')
+		javaLauncher = javaToolchains.launcherFor {
+			languageVersion = JavaLanguageVersion.of(25)
+		}
+		useXVFB = false
 	}
 }
 
