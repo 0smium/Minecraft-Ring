@@ -4,6 +4,7 @@ import dev.ermc.bridge.TerrainManager;
 import dev.ermc.bridge.link.ErLink;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.HolderSet;
@@ -49,7 +50,7 @@ public final class WorldBootstrap {
 	 * after the title screen has been up for 3 s (at most every 30 s, in case opening fails).
 	 */
 	public static void tick(Minecraft mc) {
-		boolean onMenu = mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen;
+		boolean onMenu = isBootstrapMenu(mc.screen);
 		if (Boolean.getBoolean("erbridge.noAutoWorld") || !onMenu) {
 			menuSinceMs = 0;
 			return;
@@ -76,6 +77,17 @@ public final class WorldBootstrap {
 				create(mc);
 			}
 		});
+	}
+
+	private static boolean isBootstrapMenu(Screen screen) {
+		if (screen instanceof TitleScreen || screen instanceof AccessibilityOnboardingScreen) {
+			return true;
+		}
+		// LiquidBounce 0.22.0 (e5a0dbf) wraps its TITLE route in VrScreen with this literal title.
+		// Match only that route, without requiring LiquidBounce when running Core by itself.
+		return screen != null
+			&& "net.ccbluex.liquidbounce.integration.VrScreen".equals(screen.getClass().getName())
+			&& "VS-TITLE".equals(screen.getTitle().getString());
 	}
 
 	private static void create(Minecraft mc) {
