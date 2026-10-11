@@ -28,7 +28,16 @@ public final class MovingPlatformClient {
 	private MovingPlatformClient() {}
 
 	private static void clearCarry() { carriedPlayer = null; carriedY = 0; renderCarry = false; }
-	public static void onTeleport() { MOTION.reset(); BOARDING.reset(); clearCarry(); }
+	public static void onTeleport() {
+		long now = System.currentTimeMillis();
+		var player = Minecraft.getInstance().player;
+		if (player != null && (MOTION.moving(now) || now < traceUntil)) {
+			TRACE.info("[platform-trace] position packet reset tick {}: x {} y {} z {} ground {} vy {}; epoch {} travel {} renderCarry {} carriedY {}",
+				player.tickCount, player.getX(), player.getY(), player.getZ(), player.onGround(), player.getDeltaMovement().y,
+				MOTION.epoch(), MOTION.travel(), renderCarry, carriedY);
+		}
+		MOTION.reset(); BOARDING.reset(); clearCarry();
+	}
 
 	public static void tick(Minecraft mc) {
 		clearCarry();

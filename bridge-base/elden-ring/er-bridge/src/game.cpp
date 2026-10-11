@@ -49,6 +49,7 @@ constexpr uintptr_t kVtPersCam = 0x2AA0A40;
 constexpr uintptr_t kVtTaskImp = 0x2C04B00;
 constexpr uintptr_t kVtDataModule = 0x2A380B8;
 constexpr uintptr_t kVtPhysModule = 0x2A3C890;
+constexpr uintptr_t kVtFallModule = 0x2A3A8B0;  // verified live RTTI: CSChrFallModule
 constexpr uintptr_t kVtActionButtonMan = 0x2B48140;
 constexpr uintptr_t kVtMsgRepository = 0x2BAD530;
 constexpr uintptr_t kVtWorldGeomMan = 0x2A89130;
@@ -72,6 +73,7 @@ constexpr size_t kChrTeamType = 0x6C;         // 6 enemy, 7 strong enemy/boss (T
 // modules
 constexpr size_t kModData = 0x00;
 constexpr size_t kModPhysics = 0x68;
+constexpr size_t kModFall = 0x70;
 // CSChrDataModule
 constexpr size_t kDataHp = 0x138;
 constexpr size_t kDataMaxHp = 0x13C;
@@ -82,7 +84,13 @@ constexpr size_t kPhysQuatInterp = 0x60;
 constexpr size_t kPhysPos = 0x70;
 constexpr size_t kPhysPosLast = 0x80;
 constexpr size_t kPhysProxyUpdate = 0x91;
-constexpr size_t kPhysGravityOff = 0x1D3;
+constexpr size_t kPhysStandingOnGround = 0x92;
+constexpr size_t kPhysIsFalling = 0x1D0;
+constexpr size_t kPhysGravityOff = 0x1D3;  // fade-out gravity gate; does not clear the fall state
+// Read-only life diagnostics; actual 2.7.1.0 field accesses checked at startup below.
+constexpr size_t kFallTimer = 0x18;
+constexpr size_t kFallQueried = 0x1C;
+constexpr size_t kFallMotionOff = 0x1E;
 constexpr size_t kPhysHitHeight = 0x2E0;      // character capsule (the player's: 1.5 x 0.4)
 constexpr size_t kPhysHitRadius = 0x2E4;
 // CSCamera / CSPersCam
@@ -110,6 +118,7 @@ constexpr uint32_t kTerrainRayFilter = 0x5D;
 
 static uintptr_t g_base = 0;
 static bool g_ok = false;
+static bool g_fallTraceOk = false;
 
 struct CodeSig {
     uintptr_t rva;
@@ -1115,6 +1124,27 @@ static uint64_t g_lastAliveMs = 0;
 static bool g_expectDeath = false;    // we killed it because Minecraft's player died: don't echo back
 static uint32_t g_mcDeathsSeen = 0;
 static bool g_mcDeathsInit = false;
+static uint64_t g_lifeTraceUntil = 0, g_lifeTraceAt = 0;
+
+// Observe the first handoff after loading without changing the game's fall state.
+static void trace_life_state(const Player& p, bool force = false) {
+    uint64_t now = now_ms();
+    if (!g_fallTraceOk || (!force && (now >= g_lifeTraceUntil || now - g_lifeTraceAt < 1000))) return;
+    g_lifeTraceAt = now;
+    uint8_t* mods = *(uint8_t**)(p.ins + kChrModules);
+    uint8_t* fall = mods && mem_readable(mods, kModFall + 8)
+        ? typed(*(void**)(mods + kModFall), rva::kVtFallModule) : nullptr;
+    if (!fall || !mem_readable(fall, 0x20) || *(uint8_t**)(fall + 8) != p.ins) {
+        log("life-trace: %s hp %d/%d MC %u; fall module unavailable", kLifeNames[g_life],
+            *(int*)(p.data + kDataHp), *(int*)(p.data + kDataMaxHp), g_standing);
+        return;
+    }
+    log("life-trace: %s hp %d/%d deathbit %u MC %u; ground %u falling %u gravityOff %u; fallTimer %.3f queried %u motionOff %u; Y %.6f",
+        kLifeNames[g_life], *(int*)(p.data + kDataHp), *(int*)(p.data + kDataMaxHp),
+        (p.ins[kChrRenderFlags] & 0x80) != 0, g_standing,
+        p.phys[kPhysStandingOnGround], p.phys[kPhysIsFalling], p.phys[kPhysGravityOff],
+        *(float*)(fall + kFallTimer), fall[kFallQueried], fall[kFallMotionOff], *(float*)(p.phys + kPhysPos + 4));
+}
 
 static void set_life(Life l, const char* why) {
     if (l == g_life) return;
@@ -1130,6 +1160,8 @@ static void start_settling(const Player& p, uint32_t minTicks, uint32_t stillTic
     g_settleZone = stable_pos(p, g_settlePos);
     memcpy(g_settleOff, g_frame.offset, 12);
     set_life(LIFE_SETTLING, why);
+    g_lifeTraceUntil = now_ms() + 45000;
+    trace_life_state(p, true);
 }
 
 // Settled: at least g_settleMin ticks since settling began, and the position, zone and
@@ -1183,6 +1215,7 @@ static void update_life(const Player* p) {
     }
 
     bool dead = is_dead(*p);
+    trace_life_state(*p, dead && g_life != LIFE_DEAD);
     switch (g_life) {
     case LIFE_NONE:
     case LIFE_DEAD:
@@ -2406,6 +2439,9 @@ bool game_init() {
         }
     }
     if (!g_ok) return false;
+    g_fallTraceOk = bytes_match(g_base + 0x44E6B3, "80 7B 1C 00 C6 43 1E 00 74 23 F3 41 0F 10 46 08 F3 0F 58 43 18") &&
+        bytes_match(g_base + 0x460A19, "88 81 D0 01 00 00");
+    log("game: read-only fall diagnostics %s", g_fallTraceOk ? "enabled" : "disabled (signature mismatch)");
     g_environmentOk = bytes_match(g_base + 0x644EF0, "44 89 4C 24 20 44 89 44 24 18 89 54 24 10 48 83 EC 28") &&
         bytes_match(g_base + 0x6480C0, "48 89 5C 24 10 48 89 74 24 20 57 48 83 EC 20") &&
         bytes_match(g_base + 0x6481B0, "40 57 48 83 EC 50 48 C7 44 24 20 FE FF FF FF") &&
