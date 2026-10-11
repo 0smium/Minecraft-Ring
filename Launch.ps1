@@ -9,7 +9,10 @@ if ($LiquidBounce) {
     $LbJar = Join-Path $ProjectRoot 'runtime\downloads\liquidbounce.jar'
     $LbNested = Join-Path $ProjectRoot 'runtime\downloads\liquidbounce-3530-libs'
     if (!(Test-Path -LiteralPath $LbJar)) { throw 'LB Build #3530 has not been prepared; see docs/experiments.' }
-    $LbHash = (Get-FileHash -LiteralPath $LbJar -Algorithm SHA256).Hash
+    $LbDigest = [Security.Cryptography.SHA256]::Create()
+    $LbInput = [IO.File]::OpenRead($LbJar)
+    try { $LbHash = [BitConverter]::ToString($LbDigest.ComputeHash($LbInput)).Replace('-', '') }
+    finally { $LbInput.Dispose(); $LbDigest.Dispose() }
     if ($LbHash -ne '1824011D91046F8F8B388CFA63782F38CDF754F12CB997317EAB8E69E67EF20D') {
         throw 'LiquidBounce JAR differs from the verified v0.22.0 / Build #3530.'
     }
