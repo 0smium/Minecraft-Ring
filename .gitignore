@@ -16,6 +16,9 @@
 !/docs/
 /docs/*
 !/docs/*.md
+!/docs/experiments/
+/docs/experiments/*
+!/docs/experiments/*.md
 !/docs/images/
 /docs/images/*
 !/docs/images/minecraft-ring.jpg
