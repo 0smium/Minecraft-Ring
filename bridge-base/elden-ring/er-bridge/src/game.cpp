@@ -130,6 +130,8 @@ static const CodeSig kSigs[] = {
     {rva::kRegisterTask, "48 89 5C 24 08 57 48 83 EC 40 48 8D 4C 24 20 49 8B D8 8B FA E8", "CSTaskImp::RegisterTask"},
     {rva::kCastRay, "40 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 70 FF FF FF 48 81 EC 90 01 00 00", "CSPhysWorld::CastRay"},
     {rva::kKill, "48 89 5C 24 08 57 48 83 EC 30 F3 0F 10 05 ?? ?? ?? ?? 48 8B D9 48 8B 89 90 01 00 00 0F B6 FA C6 44 24 28 01", "ChrIns::Kill"},
+    {0x4609F8, "44 38 B1 92 00 00 00", "CSChrPhysicsModule::standing_on_ground"},
+    {0x44E6B3, "80 7B 1C 00 C6 43 1E 00 74 23 F3 41 0F 10 46 08 F3 0F 58 43 18", "CSChrFallModule::timer"},
 };
 
 static bool bytes_match(uintptr_t addr, const char* sig) {
@@ -1118,6 +1120,7 @@ static Life g_life = LIFE_NONE;
 static bool g_lifeTicked = false;     // false until this core's first tick
 static bool g_quickSettle = false;    // hot reload into a running game: no loading screen to wait out
 static uint32_t g_settleTicks = 0, g_stillTicks = 0, g_settleMin = 0, g_stillMin = 0;
+static bool g_settleNeedsLanding = false;
 static float g_settlePos[3], g_settleOff[3];
 static uint32_t g_settleZone = 0, g_aliveZone = 0;
 static uint64_t g_lastAliveMs = 0;
@@ -1126,15 +1129,20 @@ static uint32_t g_mcDeathsSeen = 0;
 static bool g_mcDeathsInit = false;
 static uint64_t g_lifeTraceUntil = 0, g_lifeTraceAt = 0;
 
+static uint8_t* player_fall(const Player& p) {
+    uint8_t* mods = *(uint8_t**)(p.ins + kChrModules);
+    uint8_t* fall = mods && mem_readable(mods, kModFall + 8)
+        ? typed(*(void**)(mods + kModFall), rva::kVtFallModule) : nullptr;
+    return fall && mem_readable(fall, 0x20) && *(uint8_t**)(fall + 8) == p.ins ? fall : nullptr;
+}
+
 // Observe the first handoff after loading without changing the game's fall state.
 static void trace_life_state(const Player& p, bool force = false) {
     uint64_t now = now_ms();
     if (!g_fallTraceOk || (!force && (now >= g_lifeTraceUntil || now - g_lifeTraceAt < 1000))) return;
     g_lifeTraceAt = now;
-    uint8_t* mods = *(uint8_t**)(p.ins + kChrModules);
-    uint8_t* fall = mods && mem_readable(mods, kModFall + 8)
-        ? typed(*(void**)(mods + kModFall), rva::kVtFallModule) : nullptr;
-    if (!fall || !mem_readable(fall, 0x20) || *(uint8_t**)(fall + 8) != p.ins) {
+    uint8_t* fall = player_fall(p);
+    if (!fall) {
         log("life-trace: %s hp %d/%d MC %u; fall module unavailable", kLifeNames[g_life],
             *(int*)(p.data + kDataHp), *(int*)(p.data + kDataMaxHp), g_standing);
         return;
@@ -1152,11 +1160,12 @@ static void set_life(Life l, const char* why) {
     g_life = l;
 }
 
-static void start_settling(const Player& p, uint32_t minTicks, uint32_t stillTicks, const char* why) {
+static void start_settling(const Player& p, uint32_t minTicks, uint32_t stillTicks, const char* why, bool waitLanding = false) {
     g_settleTicks = 0;
     g_stillTicks = 0;
     g_settleMin = minTicks;
     g_stillMin = stillTicks;
+    g_settleNeedsLanding = waitLanding;
     g_settleZone = stable_pos(p, g_settlePos);
     memcpy(g_settleOff, g_frame.offset, 12);
     set_life(LIFE_SETTLING, why);
@@ -1165,14 +1174,20 @@ static void start_settling(const Player& p, uint32_t minTicks, uint32_t stillTic
 }
 
 // Settled: at least g_settleMin ticks since settling began, and the position, zone and
-// Havok offset unchanged for the last g_stillMin ticks.
+// Havok offset unchanged for the last g_stillMin ticks. After a load/respawn, also
+// let the real player land and leave FallLoop before NoMove freezes its state.
 static bool settled(const Player& p) {
     float s[3];
     uint32_t zone = stable_pos(p, s);
     float d = fabsf(s[0] - g_settlePos[0]) + fabsf(s[1] - g_settlePos[1]) + fabsf(s[2] - g_settlePos[2]);
     float o = fabsf(g_frame.offset[0] - g_settleOff[0]) + fabsf(g_frame.offset[1] - g_settleOff[1]) +
               fabsf(g_frame.offset[2] - g_settleOff[2]);
-    if (zone == g_settleZone && d < 0.15f && o < 0.01f) {
+    bool landingReady = true;
+    if (g_settleNeedsLanding) {
+        uint8_t* fall = player_fall(p);
+        landingReady = p.phys[kPhysStandingOnGround] && fall && *(float*)(fall + kFallTimer) == 0.0f;
+    }
+    if (zone == g_settleZone && d < 0.15f && o < 0.01f && landingReady) {
         g_stillTicks++;
     } else {
         g_stillTicks = 0;
@@ -1221,7 +1236,7 @@ static void update_life(const Player* p) {
     case LIFE_DEAD:
         if (!dead) {
             if (g_quickSettle) start_settling(*p, 10, 0, "character present");
-            else start_settling(*p, 90, 45, g_life == LIFE_DEAD ? "respawned" : "loaded");
+            else start_settling(*p, 90, 45, g_life == LIFE_DEAD ? "respawned" : "loaded", true);
             g_quickSettle = false;
         }
         break;
