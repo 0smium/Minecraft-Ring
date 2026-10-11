@@ -53,7 +53,7 @@ JAR 的 `fabric.mod.json` 声明 MC `1.21` / `1.21.1`、Loader `>=0.16.5`、Fabr
 | ER Bridge 世界连接 | 正式运行版通过到连接（日志） | 11:25:58 自动打开 ER Bridge，11:26:02 Steve 加入，11:26:09 GPU sharing / 原生合成；视觉与输入由用户确认 |
 | ClickGUI / HUD 最终合成 | 初步通过（用户反馈） | 对静止 60 秒、打开 ClickGUI / 搜索 HUD / Esc 关闭及鼠标操作的请求，用户回复“好像没啥问题呢”；未提供逐项细分或最终录屏 |
 | GUI 开关、鼠标 | 初步未发现异常（用户反馈） | 同上泛反馈，保留原话，不代替录屏验收 |
-| GUI 关闭 / 打开时 F8 输入归属 | 人工待验 | 已给出两种状态的 F8 往返步骤，结果待回复 |
+| GUI 关闭 / 打开时 F8 输入归属 | GUI 打开时不通过原判据；用户接受，不修 | 用户报告“开clickgui的时候F8不会切回来。这个应该不用修吧。我觉得挺好的”；采用 Esc 先关闭 GUI、再 F8 的操作流程 |
 | Fly / Velocity | 未执行 | 本轮不启用 |
 
 启动日志包含 `No matching environment detected`、可选 ViaVersion/Sodium 类缺失的 Mixin 警告、Graal fallback runtime 和字体图集缩减信息。进程继续到浏览器就绪；这些信息保留为待评估项，不能据此写成“所有注入已兼容”或“GUI 已通过”。
@@ -82,12 +82,18 @@ JAR 的 `fabric.mod.json` 声明 MC `1.21` / `1.21.1`、Loader `>=0.16.5`、Fabr
 
 该反馈后的配置文件快照发现开启项已变为 **HUD、NoJumpDelay、Speed、TranslationFix**（Fly/Velocity 仍关闭），与最初只开 HUD + TranslationFix 的配置不同；变更时刻和人工操作未逐项确认。不把这段运行写成纯 UI 配置 B，也不据此声称 Speed/NoJumpDelay 行为验证通过。已请用户先关闭 Speed/NoJumpDelay，再完成 F8 两种状态的检查；不擅自覆盖用户正在使用的配置文件。
 
+F8 人工反馈：用户报告“开clickgui的时候F8不会切回来。这个应该不用修吧。我觉得挺好的”。用户明确接受此限制，故不追加键盘注入或放开 GUI 的游戏按键透传。操作流程为 Esc 关闭 ClickGUI，再按 F8。现有代码及实际 MC 1.21.1 字节码表明打开 Screen 时 vanilla 不发 `KeyMapping.click()`，Bridge 的 `consumeClick()` 接收不到 F8；LB 自己将按键交给浏览器。日志记录了关闭界面情况下 ER/MC 的往返，不据日志单独认定鼠标逐项通过。现场 `core-08c-f8-manual-native.log`、`core-08c-f8-manual-minecraft.log`、`lb-ui-f8-modules.json`。
+
+后一个 F8 配置文件快照的开启项为 **HUD、KeepSprint、NoJumpDelay、Sprint、TranslationFix**，Speed 已关闭、Fly/Velocity 仍关闭。用户继续在 GUI 中调整了配置，尚未确认这些状态变更的具体时刻；仅保存文件快照，不将其作为速度、冲刺或跳跃模块的行为验收。
+
+本轮结论：共载和 GUI/HUD 可用性已取得用户初步认可；GUI 打开时 F8 往返未达到原文档判据，按用户明确豁免保留，不继续调试。视频待补，未达到完整关卡 1.5 的世界空间效果与录屏条件；关卡 0 平台等基线继续保持未通过。已请求一段约 15 秒包含 ER 背景、HUD 与 ClickGUI 开关的本地录屏，不要求用户上传或把视频加入 Git。
+
 ## 人工下一步与证据路径
 
 1. 法环已经选择 Continue；MC 重启后确认自动进入 ER Bridge 并连接。保持 MC 控制静止 60 秒、先不 F8，记录是否自行死亡；观察法环背景与 HUD 合成。
 2. 按 Right Shift 打开 ClickGUI，搜索、修改一个 UI 参数、关闭；确认鼠标位置、透明度和文本可见。
-3. 分别在 ClickGUI 关闭与打开时来回切换 F8，检查输入归属与恢复；保持 Fly、Velocity 关闭。
-4. 记录实际结果与最终合成画面；未观察的项目保持待验。Core 基线与平台问题继续使用原有记录，不因本轮 UI 预检改成通过。
+3. 用户接受 GUI 打开时 F8 不切换；以后先 Esc 关闭 GUI，再 F8。保持 Fly、Velocity 关闭，不修这项接受的限制。
+4. 保存约 15 秒包含 ER 背景、HUD 与 ClickGUI 开关的本地视频；视频尚未取得时保持待补。Core 基线与平台问题继续使用原有记录，不因本轮 UI 预检改成通过。
 
 本轮日志与配置路径：
 
@@ -99,6 +105,7 @@ JAR 的 `fabric.mod.json` 声明 MC `1.21` / `1.21.1`、Loader `>=0.16.5`、Fabr
 - `runtime/experiments/lb-ui-initial-modules.json`：初始模块配置。
 - `runtime/experiments/lb-ui-production-modules.json`、`core-08c-production-connected-status.json`：正式运行版展开配置及实际连接状态快照。
 - `runtime/experiments/core-08c-ui-manual-native.log`、`core-08c-ui-manual-minecraft.log`、`lb-ui-manual-modules.json`：用户初步 UI 反馈时的日志与配置文件快照。
+- `runtime/experiments/core-08c-f8-manual-native.log`、`core-08c-f8-manual-minecraft.log`、`lb-ui-f8-modules.json`：F8 人工反馈后的日志与配置文件快照。
 - `bridge-base/elden-ring/mc-bridge/run/LiquidBounce/modules.json`：运行展开后的实际配置。
 - `bridge-base/elden-ring/mc-bridge/run/logs/latest.log`、`runtime/er-bridge.log`：MC 与 native 后续运行日志。
 - `runtime/downloads/liquidbounce-build-3530-download.json`：来源、哈希、JAR 元数据与嵌套依赖。
