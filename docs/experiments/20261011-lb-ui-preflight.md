@@ -51,8 +51,9 @@ JAR 的 `fabric.mod.json` 声明 MC `1.21` / `1.21.1`、Loader `>=0.16.5`、Fabr
 | 本轮启动 | 正式运行版已连接（日志） | 执行 `start.bat -LiquidBounce`；ER PID `8668`，正式 MC PID `40396`，原始固定 LB/FLK/API 通过 `fabric.addMods` 加载 |
 | 首次 JCEF 下载与初始化 | 通过 | 11:13:34 开始下载；11:15:08 解包完成；11:15:09 `Chromium Embedded Framework initialized` / `Browser is ready`；11:15:10 UI WebSocket 连接成功 |
 | ER Bridge 世界连接 | 正式运行版通过到连接（日志） | 11:25:58 自动打开 ER Bridge，11:26:02 Steve 加入，11:26:09 GPU sharing / 原生合成；视觉与输入由用户确认 |
-| ClickGUI / HUD 最终合成 | 未执行 / 人工待验 | 未收到人工观察或最终合成录屏 |
-| GUI 开关、鼠标、F8 输入归属 | 未执行 / 人工待验 | 尚未验证界面开关状态下的切换与输入恢复 |
+| ClickGUI / HUD 最终合成 | 初步通过（用户反馈） | 对静止 60 秒、打开 ClickGUI / 搜索 HUD / Esc 关闭及鼠标操作的请求，用户回复“好像没啥问题呢”；未提供逐项细分或最终录屏 |
+| GUI 开关、鼠标 | 初步未发现异常（用户反馈） | 同上泛反馈，保留原话，不代替录屏验收 |
+| GUI 关闭 / 打开时 F8 输入归属 | 人工待验 | 已给出两种状态的 F8 往返步骤，结果待回复 |
 | Fly / Velocity | 未执行 | 本轮不启用 |
 
 启动日志包含 `No matching environment detected`、可选 ViaVersion/Sodium 类缺失的 Mixin 警告、Graal fallback runtime 和字体图集缩减信息。进程继续到浏览器就绪；这些信息保留为待评估项，不能据此写成“所有注入已兼容”或“GUI 已通过”。
@@ -77,6 +78,10 @@ JAR 的 `fabric.mod.json` 声明 MC `1.21` / `1.21.1`、Loader `>=0.16.5`、Fabr
 
 实际正式 MC PID 40396，11:25:12 Loader 0.19.5 / MC 1.21.1，11:25:40 `Intermediary environment detected`，之前的 `No matching environment detected` 不再出现。11:25:58 自动开世界，11:26:02 Steve 加入，11:26:09 GPU sharing 与原生合成开始。`core-08c-production-connected-status.json` 记录 host 8668 / MC 40396、core_status=1、player_valid/camera_override/compositing=true；`lb-ui-production-modules.json` 仍只有 HUD + TranslationFix 开启，Fly/Velocity 关闭。启动后出现 `Invalid standard cursor 0x00000000` 和 JCEF 原生右键菜单缺少 window handle 的日志，未终止捕获；是否影响所需 GUI 鼠标操作待人工观察，不能擅自认定兼容。
 
+人工初步反馈：上述正式运行后，按请求观察 MC 控制静止约 60 秒、右 Shift 打开 ClickGUI / 搜索 HUD / Esc 关闭、查看法环背景与 HUD / 鼠标操作，用户回复“好像没啥问题呢”。因此记录为初步未发现异常，保留反馈的概括性质，不虚构逐项测量或录屏。至该反馈的日志中正式运行继续捕获/合成，未新增 reported exception；用户未再报告自行死亡。仍需 GUI 打开 / 关闭时的 F8 往返与最终视频证据。现场另存 `core-08c-ui-manual-native.log`、`core-08c-ui-manual-minecraft.log`、`lb-ui-manual-modules.json`；本轮沿用已真正落地的同一 ER 进程，不能替代 Core-only 新启动 / 新加载的完整死亡复验。
+
+该反馈后的配置文件快照发现开启项已变为 **HUD、NoJumpDelay、Speed、TranslationFix**（Fly/Velocity 仍关闭），与最初只开 HUD + TranslationFix 的配置不同；变更时刻和人工操作未逐项确认。不把这段运行写成纯 UI 配置 B，也不据此声称 Speed/NoJumpDelay 行为验证通过。已请用户先关闭 Speed/NoJumpDelay，再完成 F8 两种状态的检查；不擅自覆盖用户正在使用的配置文件。
+
 ## 人工下一步与证据路径
 
 1. 法环已经选择 Continue；MC 重启后确认自动进入 ER Bridge 并连接。保持 MC 控制静止 60 秒、先不 F8，记录是否自行死亡；观察法环背景与 HUD 合成。
@@ -93,6 +98,7 @@ JAR 的 `fabric.mod.json` 声明 MC `1.21` / `1.21.1`、Loader `>=0.16.5`、Fabr
 - `runtime/experiments/lb-bootstrap-fix-build.log`：LB 主菜单入场修复构建。
 - `runtime/experiments/lb-ui-initial-modules.json`：初始模块配置。
 - `runtime/experiments/lb-ui-production-modules.json`、`core-08c-production-connected-status.json`：正式运行版展开配置及实际连接状态快照。
+- `runtime/experiments/core-08c-ui-manual-native.log`、`core-08c-ui-manual-minecraft.log`、`lb-ui-manual-modules.json`：用户初步 UI 反馈时的日志与配置文件快照。
 - `bridge-base/elden-ring/mc-bridge/run/LiquidBounce/modules.json`：运行展开后的实际配置。
 - `bridge-base/elden-ring/mc-bridge/run/logs/latest.log`、`runtime/er-bridge.log`：MC 与 native 后续运行日志。
 - `runtime/downloads/liquidbounce-build-3530-download.json`：来源、哈希、JAR 元数据与嵌套依赖。
