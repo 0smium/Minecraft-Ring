@@ -905,6 +905,26 @@ static uint64_t g_lastCompositeCtrlChangeMs = 0;
 static ErmcControl g_lastCompositeCtrl;
 static bool g_haveLastCompositeCtrl = false;
 static bool g_compositeCtrlTimedOut = false;
+static uint32_t g_lastCompositeStateFlags = 0;
+
+static bool composite_host_ready() {
+    ErmcGameState* state = shm_state();
+    for (int tries = 0; tries < 64; tries++) {
+        uint32_t seq = state->seq;
+        __asm__ __volatile__("" ::: "memory");
+        if (seq & 1) { YieldProcessor(); continue; }
+        uint32_t flags = state->flags;
+        __asm__ __volatile__("" ::: "memory");
+        if (state->seq == seq && seq != 0) {
+            g_lastCompositeStateFlags = flags;
+            break;
+        }
+    }
+    // Keep the last complete state through a brief torn read. Before the first
+    // publication, or during death/loading/settling, the host owns the whole image.
+    return (g_lastCompositeStateFlags & ERMC_STATE_PLAYER_VALID)
+        && !(g_lastCompositeStateFlags & (ERMC_STATE_HOST_BUSY | ERMC_STATE_PLAYER_DEAD));
+}
 
 static bool composite_control_active(ErmcControl* out) {
     ErmcControl c;
@@ -983,7 +1003,8 @@ static void composite(IDXGISwapChain* sc, UINT flags) {
     }
     ErmcControl ctrl;
     memset(&ctrl, 0, sizeof(ctrl));
-    bool mc = composite_control_active(&ctrl) && (ctrl.flags & ERMC_CTRL_COMPOSITE) && frames_open();
+    bool hostReady = composite_host_ready();
+    bool mc = composite_control_active(&ctrl) && (ctrl.flags & ERMC_CTRL_COMPOSITE) && hostReady && frames_open();
     // F8 stops drawing Minecraft, but its last copies still need their GPU
     // completion acknowledgements. Retire unselected publications too; neither
     // side should need a new Minecraft frame to release the old capture ring.

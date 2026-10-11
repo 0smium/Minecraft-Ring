@@ -142,6 +142,11 @@ native = r'''
 using UINT=unsigned;using UINT64=uint64_t;using LONG64=int64_t;using HWND=int;
 constexpr unsigned kGpuSlots=6,ERMC_FRAME_SLOTS=3;
 constexpr uint32_t ERMC_CTRL_COMPOSITE=1u<<4;
+constexpr uint32_t ERMC_STATE_PLAYER_VALID=1u<<1,ERMC_STATE_PLAYER_DEAD=1u<<7,ERMC_STATE_HOST_BUSY=1u<<8;
+struct ErmcGameState {uint32_t seq=0,flags=0;} inputState;
+ErmcGameState* shm_state() {return &inputState;}
+void YieldProcessor() {}
+uint32_t g_lastCompositeStateFlags=0;
 struct ErmcControl {uint32_t seq=0,flags=0;};
 ErmcControl inputControl;
 bool readableControl=false;uint64_t clockMs=0;
@@ -155,6 +160,8 @@ Fence *g_gpuReady=&ready,*g_fence=&copies;
 UINT64 g_gpuAckFence[kGpuSlots]={},g_gpuAckFrame[kGpuSlots]={};
 UINT g_gpuGeneration=7;
 alignas(8) unsigned char data[512]={};unsigned char *g_frames=data;
+bool g_haveFrame=false;UINT64 g_lastUploaded=0;
+bool frames_open() {return true;}
 struct ErmcFrameHeader {UINT seq=0,width=0,height=0,flags=0;UINT64 frameId=0;};
 alignas(8) unsigned char headers[ERMC_FRAME_SLOTS][64]={};
 ErmcFrameHeader* slot_header(unsigned i) {return (ErmcFrameHeader*)headers[i];}
@@ -172,9 +179,31 @@ bool g_f8Down=false,g_focusSeenInit=false;uint32_t g_focusSeen=0;
 '''
 native += function(ER / 'er-bridge/src/gpu_transport.h', 'static void gpu_acknowledge(') + '\n'
 native += function(ER / 'er-bridge/src/game.cpp', 'static void handle_switching()') + '\n'
+native += function(ER / 'er-bridge/src/compositor.cpp', 'static bool composite_host_ready(') + '\n'
 native += function(ER / 'er-bridge/src/compositor.cpp', 'static bool composite_control_active(') + '\n'
+composite = function(ER / 'er-bridge/src/compositor.cpp', 'static void composite(')
+gate_start = composite.index('    ErmcControl ctrl;')
+gate_end = composite.index('    // Pipeline objects', gate_start)
+fresh_line = next(line for line in composite.splitlines() if 'bool fresh = slot &&' in line)
+frame_guard = next(line for line in composite.splitlines() if 'if (mc && !uploaded && !g_haveFrame)' in line)
+# Run the actual host/control gate and retirement path, with a completed-copy mock
+# for the subsequent freshness guard. D3D12 device setup is outside this harness.
+native += 'void composite_gate_for_test(bool& draw) {\n    bool test=false;\n'
+native += composite[gate_start:gate_end]
+native += '    ErmcFrameHeader* slot=slot_header(0);\n' + fresh_line + '\n'
+native += '    bool uploaded=fresh;\n' + frame_guard + '\n    draw=true;\n}\n'
 native += r'''
 int main() {
+    inputState={0,ERMC_STATE_PLAYER_VALID};
+    assert(!composite_host_ready()); // No complete host publication yet.
+    inputState={2,ERMC_STATE_PLAYER_VALID};assert(composite_host_ready());
+    inputState={3,ERMC_STATE_HOST_BUSY};assert(composite_host_ready()); // Brief torn read keeps last good state.
+    inputState={4,ERMC_STATE_PLAYER_VALID|ERMC_STATE_HOST_BUSY|ERMC_STATE_PLAYER_DEAD};
+    assert(!composite_host_ready()); // Death must suppress even a still-valid player.
+    inputState={6,ERMC_STATE_HOST_BUSY};assert(!composite_host_ready()); // Loading/settling.
+    inputState={8,0};assert(!composite_host_ready()); // No character.
+    inputState={9,ERMC_STATE_PLAYER_VALID};assert(!composite_host_ready()); // Do not resume on a torn publication.
+    inputState={10,ERMC_STATE_PLAYER_VALID};assert(composite_host_ready());
     // A stopped/crashed Minecraft leaves a perfectly readable final control block.
     // The compositor must expire it, while tolerating short seqlock write gaps.
     ErmcControl control;
@@ -225,6 +254,23 @@ int main() {
     publication[2]=103;gpu_acknowledge(100,true);assert(ack[2]==0);
     ready.value=103;gpu_acknowledge(100,true);assert(ack[2]==103);
     puts("PASS: held and delayed F8 handoffs and safe GPU acknowledgements during pause");
+    // A live Minecraft may not have received the host's death yet. Its final
+    // control and GPU publication must be retired by the native host gate.
+    memset(data,0,sizeof(data));g_haveFrame=true;g_lastUploaded=199;
+    *(UINT64*)(data+0x10)=200;publication[0]=200;ready.value=200;
+    slot_header(0)->frameId=200;slot_header(0)->flags=0;
+    readableControl=true;inputControl={10,ERMC_CTRL_COMPOSITE};clockMs=7000;
+    inputState={20,ERMC_STATE_PLAYER_VALID};bool draw=false;
+    composite_gate_for_test(draw);assert(draw);
+    inputState={22,ERMC_STATE_PLAYER_VALID|ERMC_STATE_PLAYER_DEAD|ERMC_STATE_HOST_BUSY};
+    clockMs=7001;draw=false;composite_gate_for_test(draw);
+    assert(!draw && !g_haveFrame && g_lastUploaded==200 && ack[0]==200);
+    inputState={24,ERMC_STATE_HOST_BUSY};draw=false;composite_gate_for_test(draw);assert(!draw);
+    inputState={26,ERMC_STATE_PLAYER_VALID};clockMs=7002;draw=false;
+    composite_gate_for_test(draw);assert(!draw && !g_haveFrame); // Old pre-loading frame cannot return.
+    inputControl.seq=12;slot_header(0)->frameId=201;*(UINT64*)(data+0x10)=201;
+    clockMs=7003;draw=false;composite_gate_for_test(draw);assert(draw); // Fresh gameplay frame resumes.
+    puts("PASS: death/loading suppress live Minecraft, retire GPU frames and resume only fresh gameplay");
 }
 '''
 (OUT / 'native.cpp').write_text(native, encoding='utf-8')
