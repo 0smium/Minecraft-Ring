@@ -51,7 +51,7 @@ JAR 的 `fabric.mod.json` 声明 MC `1.21` / `1.21.1`、Loader `>=0.16.5`、Fabr
 | 本轮启动 | 正式运行版已连接（日志） | 执行 `start.bat -LiquidBounce`；ER PID `8668`，正式 MC PID `40396`，原始固定 LB/FLK/API 通过 `fabric.addMods` 加载 |
 | 首次 JCEF 下载与初始化 | 通过 | 11:13:34 开始下载；11:15:08 解包完成；11:15:09 `Chromium Embedded Framework initialized` / `Browser is ready`；11:15:10 UI WebSocket 连接成功 |
 | ER Bridge 世界连接 | 正式运行版通过到连接（日志） | 11:25:58 自动打开 ER Bridge，11:26:02 Steve 加入，11:26:09 GPU sharing / 原生合成；视觉与输入由用户确认 |
-| ClickGUI / HUD 最终合成 | 初步通过（用户反馈） | 对静止 60 秒、打开 ClickGUI / 搜索 HUD / Esc 关闭及鼠标操作的请求，用户回复“好像没啥问题呢”；未提供逐项细分或最终录屏 |
+| ClickGUI / HUD 最终合成 | 通过本轮基础展示（用户及视频） | 用户反馈未发现异常；本地视频确认 ER 背景、LB HUD、ClickGUI、搜索 hud 与关闭面板后画面，详见录屏证据 |
 | GUI 开关、鼠标 | 初步未发现异常（用户反馈） | 同上泛反馈，保留原话，不代替录屏验收 |
 | GUI 关闭 / 打开时 F8 输入归属 | GUI 打开时不通过原判据；用户接受，不修 | 用户报告“开clickgui的时候F8不会切回来。这个应该不用修吧。我觉得挺好的”；采用 Esc 先关闭 GUI、再 F8 的操作流程 |
 | Fly / Velocity | 未执行 | 本轮不启用 |
@@ -86,14 +86,22 @@ F8 人工反馈：用户报告“开clickgui的时候F8不会切回来。这个�
 
 后一个 F8 配置文件快照的开启项为 **HUD、KeepSprint、NoJumpDelay、Sprint、TranslationFix**，Speed 已关闭、Fly/Velocity 仍关闭。用户继续在 GUI 中调整了配置，尚未确认这些状态变更的具体时刻；仅保存文件快照，不将其作为速度、冲刺或跳跃模块的行为验收。
 
-本轮结论：共载和 GUI/HUD 可用性已取得用户初步认可；GUI 打开时 F8 往返未达到原文档判据，按用户明确豁免保留，不继续调试。视频待补，未达到完整关卡 1.5 的世界空间效果与录屏条件；关卡 0 平台等基线继续保持未通过。已请求一段约 15 秒包含 ER 背景、HUD 与 ClickGUI 开关的本地录屏，不要求用户上传或把视频加入 Git。
+本轮结论：共载和 GUI/HUD 可用性已取得用户认可，并保存最终合成录屏；GUI 打开时 F8 往返未达到原文档判据，按用户明确豁免保留，不继续调试。完成本轮 GUI/HUD 基础展示，Breadcrumbs、JumpEffect 等世界空间视觉仍未执行，完整关卡 1.5 不写通过；关卡 0 平台等基线继续保持未通过。接下来回到不加载 LB 的 Core 基线，不提前测试 FlyCreative/Velocity。
+
+### 最终合成录屏
+
+用户提供桌面文件 `D:/Users/yanbiao/Desktop/QQ录屏20261011113335.mp4`。原样复制到忽略目录 `runtime/experiments/lb-ui-08.mp4`，保留原文件；原始/副本均为 36,691,384 bytes。SHA-256 `81DDA845299E1B1F79F09B64992222C730E9CF8716EE2E3D8F57E8FD17842D9C`，时长 30.594 秒，1598×898，528 帧，平均录屏帧率 17.2583 FPS（不是游戏帧率）。
+
+仅从该视频提取五张完整原始帧做核对，位于 `runtime/experiments/lb-ui-08-frames/`，无裁剪编辑、无 computer-use。4.764 秒有 ER 背景、LB logo、模块列表、通知与 MC 方块；9.851 秒有 Scaffold Disabled 通知与方块阶梯；14.941 秒 ClickGUI/参数面板打开，部分被 Codex 窗口遮挡；21.017 秒在完整 ClickGUI 中搜索 `hud` 并定位 HUD；27.243 秒已关闭 ClickGUI，ER 背景、HUD 与游戏画面继续显示。证明本轮最终合成中界面和 HUD 可见，不据截图独立声称鼠标定位精度、行为同步或持续性能通过。
+
+视频同时显示用户临时启用/停用 Scaffold，且 HUD 中有 NoJumpDelay、KeepSprint、Sprint；因此属于实际 GUI 交互与配置探索，不能改写为整个录屏期间所有行为模块都关闭的纯 B 配置，也不能把 Scaffold 的行为作为正式验收结果。原始视频包含中途切到 Codex 的片段，保留原样。视频、原始帧、配置与日志均不提交 Git。
 
 ## 人工下一步与证据路径
 
 1. 法环已经选择 Continue；MC 重启后确认自动进入 ER Bridge 并连接。保持 MC 控制静止 60 秒、先不 F8，记录是否自行死亡；观察法环背景与 HUD 合成。
 2. 按 Right Shift 打开 ClickGUI，搜索、修改一个 UI 参数、关闭；确认鼠标位置、透明度和文本可见。
 3. 用户接受 GUI 打开时 F8 不切换；以后先 Esc 关闭 GUI，再 F8。保持 Fly、Velocity 关闭，不修这项接受的限制。
-4. 保存约 15 秒包含 ER 背景、HUD 与 ClickGUI 开关的本地视频；视频尚未取得时保持待补。Core 基线与平台问题继续使用原有记录，不因本轮 UI 预检改成通过。
+4. 本轮约 30.6 秒录屏已保存；下一步返回 Core-only 基线。Core 平台等结果不因本轮 UI 展示改成通过。
 
 本轮日志与配置路径：
 
@@ -106,6 +114,7 @@ F8 人工反馈：用户报告“开clickgui的时候F8不会切回来。这个�
 - `runtime/experiments/lb-ui-production-modules.json`、`core-08c-production-connected-status.json`：正式运行版展开配置及实际连接状态快照。
 - `runtime/experiments/core-08c-ui-manual-native.log`、`core-08c-ui-manual-minecraft.log`、`lb-ui-manual-modules.json`：用户初步 UI 反馈时的日志与配置文件快照。
 - `runtime/experiments/core-08c-f8-manual-native.log`、`core-08c-f8-manual-minecraft.log`、`lb-ui-f8-modules.json`：F8 人工反馈后的日志与配置文件快照。
+- `runtime/experiments/lb-ui-08.mp4`、`lb-ui-08-frames/`：用户提供的完整录屏副本与五张原始采样帧。
 - `bridge-base/elden-ring/mc-bridge/run/LiquidBounce/modules.json`：运行展开后的实际配置。
 - `bridge-base/elden-ring/mc-bridge/run/logs/latest.log`、`runtime/er-bridge.log`：MC 与 native 后续运行日志。
 - `runtime/downloads/liquidbounce-build-3530-download.json`：来源、哈希、JAR 元数据与嵌套依赖。
