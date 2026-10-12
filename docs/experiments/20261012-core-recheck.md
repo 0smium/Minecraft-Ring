@@ -1,6 +1,6 @@
-# 2026-10-12：返回 Core 基线，第九轮
+# 2026-10-12：Core 基线复验与升降平台定位
 
-状态：Core-only 首次接管静止 60 秒未死亡（用户），落地修复本项复验通过。第九轮平台下行仍失败：开头、中段和末段均抖动、悬空或坠落，中后段较严重。已构建第十轮碰撞时序候选修复，等待现场复测。关卡 0 仍未通过。此前两轮退出恢复与创造悬停 120 秒通过；平台飞行、三次相同攻击与末影珍珠基线仍未执行。此前结果见 [关卡 0 记录](20261011-core-gate0.md)，提前进行的 LB 界面预检及录屏见 [LB UI 记录](20261011-lb-ui-preflight.md)。
+状态：Core-only 首次接管静止 60 秒未死亡（用户），落地修复本项复验通过。第九、十轮平台下行仍失败。第十轮用户认为静止时稍好，但跟随不足，仍有悬空、坠落及抖动，不能算通过。关卡 0 仍未通过。此前两轮退出恢复与创造悬停 120 秒通过；平台飞行、三次相同攻击与末影珍珠基线仍未执行。此前结果见 [关卡 0 记录](20261011-core-gate0.md)，提前进行的 LB 界面预检及录屏见 [LB UI 记录](20261011-lb-ui-preflight.md)。
 
 ## 实际版本与配置
 
@@ -35,7 +35,28 @@
 
 Fabric `build` 退出 0（26 秒）；现有 moving-platform 和 stable-terrain 回归退出 0。日志 `runtime/experiments/fabric-platform-packet-fix-build.log`、`test-platform-packet-fix.log`、`test-stable-terrain-packet-fix.log`。Fabric JAR SHA-256 为 `E0E6795E87C5D515D8058A1A932E6D1C4592C1C66A59BA78C68B205CD7DB29CE`。额外用本地实际 MC 1.21.1 `Shapes` 做几何探针（JShell exit 0）：旧地板阻挡下降并触发 new-collision，及时更新地板后允许 -0.375 位移；普通静态落地和侧墙阻挡仍有效，六项通过。输入/输出为 `runtime/experiments/platform-packet-geometry.jsh`、`platform-packet-geometry.log`，未新增测试框架。此探针验证碰撞时序机制，不能替代 live hook 执行或平台完整上下行。
 
-用户退出 MC 后，确认 PID `36000` 已不存在；ER PID `22560` 保持运行。只通过 `start.bat` 重启 Core `runClient` 载入候选，不更新 DLL，不重跑安装器。第十轮启动日志为 `runtime/experiments/core-launch-10-platform-packet-fix.log`，启动时 HEAD 为上述 `c7d0f52`。MC PID `25244`：00:23:01 自动进入 ER Bridge，00:23:06 Steve 加入，没有阻塞 Mixin 注入错误；快照 `core_status=1 / live=true / player_valid=true / camera_override=true / compositing=true`。已请求一趟下行，实际碰撞刷新 hook 日志和用户结果待反馈，尚未声称平台修复通过。
+用户退出 MC 后，确认 PID `36000` 已不存在；ER PID `22560` 保持运行。只通过 `start.bat` 重启 Core `runClient` 载入候选，不更新 DLL，不重跑安装器。第十轮启动日志为 `runtime/experiments/core-launch-10-platform-packet-fix.log`，启动时 HEAD 为上述 `c7d0f52`。MC PID `25244`：00:23:01 自动进入 ER Bridge，00:23:06 Steve 加入，没有阻塞 Mixin 注入错误；快照 `core_status=1 / live=true / player_valid=true / camera_override=true / compositing=true`。
+
+### 第十轮现场失败与剩余问题
+
+用户反馈“不动的话还好……还是有悬空+坠落。抖动依然存在”。保存 `core-10-platform-native.log`、`core-10-platform-minecraft.log`、`core-10-platform-status.json`。本轮 MC 快照有 126 次 server packet collision refresh、10 次 position packet reset、182 次 client START；包含多段平台移动，不能直接将 30→10 的总数解释为归一化的改善幅度。刷新 hook 确实执行，完整平台行为仍失败。
+
+- 第一段下行：client tick 1940 正常携带；1944 收到位置纠正，清掉 epoch/ack；native 00:24:50.305 记录 grounded feet gap 约 `0.643`、ack `0`；server 2039 / client 1945 随后接收无效支撑。
+- 第二段下行：client tick 3170 START 脚高 `37.625`，native floor `37.106506`，桥接直接携带到量化高度 `37.125`，实际 carry `-0.5`；END 脚高却为 `37.3125`，实际碰撞面也是 `37.3125`。普通 tick 又抬高 `0.1875`。3172 位置纠正清掉 ack；native 00:25:51.707 grounded feet gap 约 `0.881` 后丢失支撑。
+- MC 日志仅到秒，不能给出跨日志毫秒级顺序；native 使用 ack `0` 的数据依赖支持“位置纠正清除跟随状态→失去平台延迟补偿→丢支撑”。额外抬高是已测事实，但尚未采到具体碰撞体或服务端拒绝分支，不能认定每次都是旧方块包导致。
+- `copyControl` 与 `CameraSync` 使用相同 partialTick，POSE 一起发布脚位和支撑 ack，未发现正负号或拆帧错误。纯携带下公式一致；上述额外物理位移会使脚位脱离 Motion 的平台快照。1/16 量化最多产生不足 `0.0625` 格的高度差，无法单独解释大幅悬空。不会通过扩大 native 脚差阈值、忽略纠正包或把所有 END 位移算作平台 carry 掩盖碰撞问题。
+
+静态检查补充：服务器地形更新能通过 `loadAdditional` 整片覆盖客户端 cells，但正常 MC 时序为 runAllTasks→START→实体 tick→END，包覆盖发生在额外抬高中间尚未证实。服务端 `move` 前刷新只覆盖旧脚印，而后续新碰撞验证使用 request 脚印，目标旁的陈旧平台 cell 也是候选。不能盲目扩大覆盖范围抹掉井壁。
+
+下一轮只加诊断：记录携带后、vanilla move 前后实际脚位和碰撞面，以及服务端新碰撞拒绝时 old/current/lastGood/request 与实际 collider。没有新增运动修复，不称作“已修好”；只请求一次完整下行。若仍不足以定位，先停止平台反复试改，补受击及珍珠基线，平台保持失败，不越过关卡 0 冒称通过。
+
+### 第十一轮诊断制品，现场未执行
+
+诊断代码提交 `802bda1beeac113bf9b3ae4f09c0519a982e0496`。客户端增加携带后的实际 xyz / shapeTop 及 LocalPlayer.move 前后采样；服务端只在原版新碰撞判据返回 true 时记录 epoch、old/current/lastGood/request、packetGround 与首个拒绝形状。至多报告两个确实与目标 AABB 相交的 box，至多读取六个附近 block；只有完整碰撞形状几何一致才归属到 block/state/cell，否则记 unknown/entity。诊断异常只记 failed 和异常类型，不改原版返回值。
+
+`build` 退出 0（18 秒），日志 `runtime/experiments/fabric-platform-collision-diagnostics-build.log`；JAR SHA-256 `29F1C9FC044648A85AAB9788821EB3EAFB6B752F82027A18052380D9A23B93EE`，制品检查包含新诊断 class 与注册配置。`git diff --check` 通过。此处仅确认编译/打包；Mixin 的现场执行、具体拒绝分支及平台行为尚未验证。没有变更 native DLL、死亡逻辑、支撑阈值、平台运动、渲染 ack 或安装配置。
+
+当前 ER PID `22560` / MC PID `25244` 仍为第十轮运行。计划让用户只退出 MC、保持法环运行，再以 Core `start.bat` 重启，单次下行采样；未操作前不能声称第十一轮已加载。
 
 ## 本轮人工复验
 
@@ -52,6 +73,9 @@ Fabric `build` 退出 0（26 秒）；现有 moving-platform 和 stable-terrain 
 - `runtime/experiments/core-09-platform-native.log`、`core-09-platform-minecraft.log`、`core-09-platform-status.json`：用户报告完整下行异常时的快照。
 - `runtime/experiments/core-09-final-native.log`、`core-09-final-minecraft.log`：仅退出 MC 后、本轮重启前的日志。
 - `runtime/experiments/core-10-startup-native.log`、`core-10-startup-minecraft.log`、`core-10-startup-status.json`：候选修复重启后的连接快照。
+- `runtime/experiments/core-10-platform-native.log`、`core-10-platform-minecraft.log`、`core-10-platform-status.json`：第十轮用户反馈仍悬空、坠落和抖动时的快照。
+- `runtime/experiments/platform-local-player-bytecode.txt`、`platform-minecraft-tick-bytecode.txt`、`platform-game-mode-tick-bytecode.txt`、`platform-connection-tick-bytecode.txt`：本地实际 MC 1.21.1 时序检查。
+- `runtime/experiments/fabric-platform-collision-diagnostics-build.log`：第十一轮纯诊断制品构建。
 - `runtime/er-bridge.log`、`bridge-base/elden-ring/mc-bridge/run/logs/latest.log`：本轮运行日志，人工反馈时另存快照。
 
 日志、视频、JAR、游戏文件与存档不提交；仅 Markdown 与必要代码提交到 `dev/lb-poc`，不推送 upstream、不自动合并 main。
