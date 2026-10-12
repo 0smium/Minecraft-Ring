@@ -104,11 +104,19 @@ git switch -c dev/lb-poc origin/docs/lb-plans-20261011
 
 ### 5.1 三个公共适配点
 
-**视觉筛选。** LB 的 ESP、Tracers、Nametags 共用 `shouldBeShown` / TargetConfigurable；当前 ErEntity 不是它接受的具体生物类型。集中适配视觉入口，让有效代理按敌人/NPC等所需分类参与显示；默认展示敌人，并保留存活/移除检查。不要仅为显示把所有代理伪装成僵尸，也不要顺带修改自动攻击策略。
+**目标筛选。** LB 的 ESP、Tracers、Nametags 共用 `shouldBeShown` / TargetConfigurable；原始 ErEntity 不是它接受的具体生物类型。2026-10-12 用户明确新增 KillAura 适配，采用战斗与视觉共同的 `isInteresting` 入口，只接入有效且存活的敌人代理，保留 Hostile/Invisible 设置及外层标签/好友规则。NPC、已死和尚未同步完整数据的代理不进入；不伪装成僵尸，也不改 LB 的选敌、旋转或攻击算法。
 
 **显示数据。** Bridge 已有 ErEntity 的宿主 `hp()/maxHp()` 字段；LB 默认读取 MC health。名称和距离可先测，HP/TargetHUD 通过显示适配读取宿主数据。初测 Box 使用静态颜色，避免未经适配的健康颜色误导。TargetHUD 的目标选取需要另验，不强制启用 KillAura 才能展示。
 
 **绘制与合成。** MC 世界层会按 ER 深度被遮挡，HUD 层直接叠加。世界空间 ESP 即使在 MC 内关闭深度测试，也不保证最终穿过 ER 墙面；分别记录“正常可见”“遮挡时可见”的效果。ErEntity 正常不绘制怪物网格，所以 Glow/Outline/Chams 不作为本轮必达项。
+
+### 5.3 用户新增：KillAura 与敌人 ESP 局部适配
+
+本项优先于尚未完成的 Fly/Velocity，沿用固定 Build #3530，只处理敌人识别、实际 AABB、宿主 HP 标签与普通受击回归。完整实现与实测状态记录在[2026-10-12 目标/战斗适配](experiments/20261012-lb-target-combat-adaptation.md)。
+
+先用 ESP Box（静态颜色）和 Nametags 在开阔近距离看同一普通怪；确认位置和 HP 后才开 KillAura。Range=3.0、Hostile=true、保留默认武器冷却，关闭 Criticals（Ignore）与额外自动格挡/走位，暂停 Speed/Scaffold。目标 HP 确实下降、死亡后代理消失才是命中证据；NPC 不应被选中。框可见但攻击失败时分清 LB 直射线、服务端交互距离、MC 冷却和 ER 无敌，不一律扩大碰撞箱或放开穿墙。
+
+普通受击与 Poison 分开核对。新原生入口只有签名匹配且实际捕获攻击时才转伤害；其他未知 HP 差分仍记观测。一次人工反馈后先读日志和记录，不回到平台反复试改，也不顺势开展全部状态翻译。
 
 ### 5.2 GUI 与录屏验收
 

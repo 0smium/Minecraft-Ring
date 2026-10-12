@@ -53,7 +53,7 @@
 | `docs/development.md`、`docs/installation.md` | 保留上游技术与安装说明 | 已有，继续引用 |
 | `bridge-base/elden-ring/er-bridge/` | Windows 原生桥接与 ER 后端 | 已有 |
 | `bridge-base/elden-ring/mc-bridge/` | Fabric 桥接、世界、代理和同步 | 已有 |
-| `integrations/liquidbounce/` | 独立兼容组件候选位置 | 需要时建立 |
+| `mc-bridge/src/client/java/dev/ermc/bridge/client/integrations/liquidbounce/` | 固定 LB 的可选目标、Box 与标签适配 | 2026-10-12 建立；无 LB 时跳过 |
 | `integrations/bridge-tools/` | 保底模块候选位置 | 走保底时建立 |
 | `profiles/` | Core/LB/保底预设及依赖清单 | 实验验证后建立 |
 | `docs/experiments/` | 每次实验的精简记录 | 实际执行时建立 |
@@ -147,7 +147,8 @@ flowchart TB
 | SafeWalk、Scaffold、InventoryMove | MC 方块/移动/界面能力 | 碰撞边界、采样和控制切换，后置 |
 | Glow、Outline、Chams | 对模型轮廓/材质的效果 | ER 模型不在 MC 中，另行研究 |
 | Trajectories、ItemChams | MC 投射物/手持物品展示 | 不默认覆盖 ER 原生武器和投射物 |
-| KillAura、原生连招/翻滚自动化 | 新的目标或动作控制范围 | 不进入本轮 |
+| KillAura | 对法环敌人代理发出标准 MC 攻击，经已有桥接扣真实 ER HP | 2026-10-12 用户新增本轮范围：目标筛选与现有攻击链；不另写 LB 自动攻击器 |
+| 原生连招/翻滚自动化 | 控制 ER 动作与输入 | 不进入本轮 |
 | Blink、Backtrack、Disabler、Timer、服务器专用模式 | 网络或时间语义相关能力 | 本轮关闭 |
 | XRay、矿物类功能 | MC 方块语义 | 不作为法环资源识别目标 |
 
@@ -155,6 +156,7 @@ flowchart TB
 
 - LB Fly Vanilla 不设置原版飞行标志，并默认带周期性下移行为；实验中关闭 `BypassVanillaCheck`。FlyCreative 会修改客户端能力，但不能据此认定集成服务器玩家已同步；关闭模块还会直接清掉 `allowFlying/flying`。[S10][S11]
 - LB 的视觉筛选不接受任意 LivingEntity；Bridge 的 ErEntity 需要显式接入。ESP、Tracers、Nametags 共用筛选，可以集中适配。[S21]
+- 固定版的战斗与视觉入口均经过 `TargetConfigurable.isInteresting`。本次只把连接有效、宿主 ID 非零、HP/maxHP 已知且存活的敌人代理接入 Hostile 类别；NPC 不进入。KillAura 的目标距离和射线继续使用代理 AABB，攻击仍经过服务端 `Player.attack → ErEntity.hurt → EntityBridge → ER`；不会按挥手或队列发送就判定命中成功。具体配置、制品和实测状态见[本次记录](experiments/20261012-lb-target-combat-adaptation.md)。
 - ErEntity 已有自定义 `hp()/maxHp()` 同步字段，LB 默认 MC health 读取不会自动使用它们。优先在显示适配层读取宿主 HP，维持现有战斗语义。[S22]
 - ErEntity 正常不绘制怪物网格；真实模型由 ER 绘制。Box/线条与模型 Glow/Chams 是不同工作量。[S23]
 - 现有世界层会受到 ER 深度遮挡，HUD 层直接叠加。LB 的世界空间 ESP 不自动拥有跨宿主穿墙能力。[S17][S24]

@@ -20,15 +20,16 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Host game -> Minecraft damage. While the Tarnished stands in for the Minecraft player, the
- * DLL reports the hits it takes (HP lost, and the nearest hostile character as the likely
- * attacker). Actual host effects are translated separately by HostEffectsBridge.
+ * DLL reports confirmed incoming hits and their actual host HP loss. A nearby hostile may
+ * supply an approximate direction when the attacker hint is unavailable. Actual host effects
+ * are translated separately by HostEffectsBridge.
  * <ul>
  *   <li>Each hit is a Minecraft attack by that enemy's proxy (the live enemy proxy nearest the
  *   reported attacker, never an NPC's): a shield raised towards it blocks it, armor reduces
  *   it, it knocks back, and tamed wolves go for the attacker. Its size is a base by attacker
  *   size plus the share of the Tarnished's max HP lost, so it doesn't depend on the host game's
  *   HP scale.</li>
- *   <li>HP loss without an attacker is observation data, not an identified effect or an
+ *   <li>HP loss outside the confirmed hit path is observation data, not an identified effect or an
  *   additional Minecraft damage event.</li>
  * </ul>
  * Creative mode is invulnerable as usual.
@@ -42,6 +43,8 @@ public final class CombatBridge {
 	public static final ResourceKey<DamageType> MONSTER = key("monster");
 	/** Attack by an enemy without a proxy nearby ("slain by a monster"). */
 	public static final ResourceKey<DamageType> MONSTER_HIT = key("monster_hit");
+	/** Confirmed physical hit with no trustworthy direction; preserve armor without random knockback. */
+	public static final ResourceKey<DamageType> MONSTER_UNDIRECTED = key("monster_undirected");
 	private static final float[] EV = new float[9];
 	private static final GameState TRACE_STATE = new GameState();
 	/** Minecraft damage per host-game hit, before Minecraft armor: a base by attacker size plus a share of the hit. */
@@ -86,11 +89,13 @@ public final class CombatBridge {
 			lastHits = hits;
 			lastTotal = total;
 			CoordMap.Mapping map = CoordMap.get();
-			Vec3 from = map != null ? map.toMc(EV[3], EV[4], EV[5]) : null;
+			int reportedKind = (int) EV[7];
+			boolean hasDirection = reportedKind == Protocol.ENT_SMALL_MONSTER || reportedKind == Protocol.ENT_LARGE_MONSTER;
+			Vec3 from = map != null && hasDirection ? map.toMc(EV[3], EV[4], EV[5]) : null;
 			ErEntity attacker = from != null ? EntityBridge.nearestEnemy(from, BLAME_RADIUS) : null;
 			// The host game's damage after the Tarnished's armor says little in Minecraft terms, so
 			// scale: small enemies hit like a zombie, bosses much harder.
-			int kind = attacker != null ? attacker.kind() : (int) EV[7];
+			int kind = attacker != null ? attacker.kind() : reportedKind;
 			float share = maxHp > 0 ? hostDamage / maxHp : 0.0F;
 			float amount = Math.min(20.0F, (kind == Protocol.ENT_SMALL_MONSTER ? SMALL_BASE : LARGE_BASE) + share * PROPORTIONAL);
 			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -101,7 +106,7 @@ public final class CombatBridge {
 		float loss = Math.max(0.0F, unattributedTotal - lastUnattributedTotal);
 		lastUnattributedTotal = unattributedTotal;
 		if (loss > 0) {
-			LOG.info("[host-effects] observed {} ER HP loss without an attacker; not applied as Minecraft damage", loss);
+			LOG.info("[host-effects] observed {} ER HP loss outside confirmed incoming hits; not applied as Minecraft damage", loss);
 		}
 	}
 
@@ -113,7 +118,7 @@ public final class CombatBridge {
 		} else if (from != null) {
 			source = new DamageSource(type(level, MONSTER_HIT), from);
 		} else {
-			source = new DamageSource(type(level, MONSTER_HIT));
+			source = new DamageSource(type(level, MONSTER_UNDIRECTED));
 		}
 		// Blocking needs to know where the blow came from: the attacker's position.
 		float beforeHealth = player.getHealth(), beforeAbsorption = player.getAbsorptionAmount();

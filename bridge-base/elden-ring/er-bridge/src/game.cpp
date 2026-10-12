@@ -2,8 +2,10 @@
 // Addresses and layouts were found by reverse engineering this build and verified live; each is
 // checked against its byte signature at startup.
 //
-// No inline hooks: per-frame code runs as tasks registered with the game's own task system
-// (CSTaskImp::RegisterTask), so Arxan's code restoration can't undo anything. The task
+// Per-frame code runs as tasks registered with the game's own task system
+// (CSTaskImp::RegisterTask), so Arxan's code restoration can't undo those tasks. Incoming
+// hit observation additionally uses one version-checked function hook (see incoming_hits.h).
+// Its coverage must be verified live; native code restoration may remove that hook. The task
 // objects and their tiny forwarding stubs live in one RWX page that survives core hot
 // reloads (its address is kept in the shared-memory header); the core only swaps the
 // function pointers the stubs jump to.
@@ -24,6 +26,7 @@
 #include "world_environment.h"
 #include "support_surface.h"
 #include "host_effects.h"
+#include "incoming_hits.h"
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
@@ -648,6 +651,7 @@ static bool g_havePut = false;
 static int g_clampFrames = 0;        // consecutive ticks the game knocked HP down to 1 (see stand_in)
 
 static void release_player(uint8_t* ins, uint8_t* data, uint8_t* phys) {
+    incoming_hits::set_target(nullptr, nullptr, 0);
     g_putHavokValid = false;
     if (ins && mem_readable(ins + kChrDebugFlags, 4)) {
         *(uint32_t*)(ins + kChrDebugFlags) &= ~(1u << 5);          // NoMove off
@@ -1073,47 +1077,44 @@ static void stand_in(const Player& p, const ErmcControl* c, bool active) {
     // plane under the map): report nothing more, update_life lets it die after 3 ticks.
     bool clamped = hp == 1 && g_lastHp > 1;
     g_clampFrames = clamped ? g_clampFrames + 1 : 0;
-    if (g_lastHp > 0 && hp < g_lastHp && g_clampFrames <= 1) {
-        float dmg = (float)(g_lastHp - hp);
-        // Use the existing attacker marker before choosing a damage channel. An absent
-        // attacker does not become a monster attack merely because an enemy is nearby.
-        uint64_t by = *(uint64_t*)(p.ins + 0x180);
-        *(uint64_t*)(p.ins + 0x180) = ~0ull;
-        bool hasAttacker = (uint32_t)by != 0xFFFFFFFFu;
+    const incoming_hits::Batch hits = incoming_hits::take(p.data, p.ins, shm_header()->hostLife);
+    const float observed = g_lastHp > 0 && hp < g_lastHp && g_clampFrames <= 1 ? (float)(g_lastHp - hp) : 0.0f;
+    const float confirmed = (float)hits.actualLoss;
+    const float residual = fmaxf(0.0f, observed - confirmed);
+    if (hits.count || residual > 0) {
         ErmcHunterEvents* ev = shm_hunter();
         ev->seq = ev->seq + 1;
         __asm__ __volatile__("" ::: "memory");
-        const char* source = "no recorded attacker";
-        if (!hasAttacker) {
-            // This is unattributed HP loss, not proof of a specific poison effect.
-            // Minecraft already has a separate damage channel without attack knockback.
-            ev->totalStatusDamage = ev->totalStatusDamage + dmg;
-        } else {
-            ev->hitCount = ev->hitCount + 1;
-            ev->totalDamage = ev->totalDamage + dmg;
-            ev->lastDamage = dmg;
+        // Source attribution never decides whether an attack occurred. Periodic poison
+        // remains in the observed residual and is translated separately from actual effects.
+        ev->totalStatusDamage = ev->totalStatusDamage + residual;
+        const char* source = "no confirmed attack";
+        if (hits.count) {
+            ev->hitCount = ev->hitCount + hits.count;
+            ev->totalDamage = ev->totalDamage + confirmed;
+            ev->lastDamage = confirmed;
             float apos[3];
             uint32_t akind = 0;
-            if (published_attacker(by, apos, &akind)) {
+            if ((uint32_t)hits.sourceHint != 0xFFFFFFFFu && published_attacker(hits.sourceHint, apos, &akind)) {
                 memcpy(ev->lastHitFrom, apos, 12);
                 ev->lastHitKind = akind;
-                source = "recorded attacker";
+                source = "last-hit source hint (not per-hit attribution)";
             } else if (g_nearestHostile.valid) {
                 memcpy(ev->lastHitFrom, g_nearestHostile.pos, 12);
                 ev->lastHitKind = g_nearestHostile.kind;
-                source = "recorded attacker, nearest position fallback";
+                source = "approximate nearest-hostile direction fallback after confirmed attack";
             } else {
-                memcpy(ev->lastHitFrom, c->hunterPos, 12);
-                ev->lastHitKind = ERMC_ENT_LARGE_MONSTER;
-                source = "recorded attacker, position unavailable";
+                memset(ev->lastHitFrom, 0, sizeof(ev->lastHitFrom));
+                ev->lastHitKind = 0;
+                source = "confirmed attack, direction unavailable (kind 0)";
             }
             ev->lastHitFrame = shm_state()->frame;
         }
         ev->hunterMaxHp = (float)mx;
         __asm__ __volatile__("" ::: "memory");
         ev->seq = ev->seq + 1;
-        log("stand-in: the player took %.0f %s damage -> Minecraft; by 0x%llX; %s",
-            dmg, hasAttacker ? "attack" : "status/unattributed", (unsigned long long)by, source);
+        log("stand-in: observed %.0f HP loss; confirmed %u incoming hit(s) %.0f actual HP; unattributed residual %.0f; hint 0x%llX; %s",
+            observed, hits.count, confirmed, residual, (unsigned long long)hits.sourceHint, source);
     }
     if (mx > 0) *(int*)(p.data + kDataHp) = mx;  // never faint while standing in
     g_lastHp = mx;
@@ -2362,10 +2363,13 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
     memset(&c, 0, sizeof(c));
     bool ctrl = control_active(&c);
     bool alive = havePlayer && g_life == LIFE_ALIVE;
+    bool standing = alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER);
     service_environment(alive, g_frame.zone);
     update_support(c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER), havePlayer ? p.ins : nullptr);
     update_platform_cells(c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER), g_frame.zone, havePlayer ? p.ins : nullptr);
     if (havePlayer) stand_in(p, &c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER));
+    incoming_hits::set_target(standing && g_standing ? p.data : nullptr, standing && g_standing ? p.ins : nullptr,
+                              standing && g_standing ? shm_header()->hostLife : 0);
     update_passages(havePlayer && alive && g_standing, havePlayer ? p.ins : nullptr);
     if (alive) {
         service_rays(p.ins);
@@ -2473,6 +2477,7 @@ bool game_init() {
         }
     }
     if (!g_ok) return false;
+    incoming_hits::init(g_base);
     const bool hostEffectsOk = g_hostEffects.init(g_base);
     log("game: read-only host effects %s", hostEffectsOk ? "enabled" : "disabled (signature mismatch)");
     g_fallTraceOk = bytes_match(g_base + 0x44E6B3, "80 7B 1C 00 C6 43 1E 00 74 23 F3 41 0F 10 46 08 F3 0F 58 43 18") &&
@@ -2514,6 +2519,7 @@ bool game_init() {
 }
 
 void game_detach() {
+    incoming_hits::detach();
     if (g_page) {
         g_page->target[0] = nullptr;
         g_page->target[1] = nullptr;

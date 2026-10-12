@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
+    "erbridge:monster_undirected",
     "erbridge:status",
     "erbridge:host_death"
   ]
