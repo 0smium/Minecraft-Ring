@@ -4,6 +4,8 @@
 代码评估基线：`dev/lb-poc` / `3e66a0b2780b72b60eeb0197bbc01c28db47be0b`  
 配套：[本次 review](reviews/20261012-gameplay-readiness.md) · [review 工作约定](reviews/README.md)
 
+补充研究：[固定地图、独立 MC/地下资源与版本选择](reviews/20261012-map-worldgen-version.md)。该文增加地图工作候选和迁移判断，不修改本轮 LB 实验计划，也不将研究方案视为已实现。
+
 ## 1. 与原计划的关系
 
 本文件增加玩法方向和后续工作线，不修改 [LB 开发方案](lb-development-plan.md)、[LB 实验计划](lb-experiment-plan.md)，也不把尚未通过的实验改写成通过。本轮仍推进真实 LiquidBounce 接入、GUI/视觉与 Fly/Velocity，以及影响这些实验的 Core 修复。运行事实以 [2026-10-12 检查点](experiments/20261012-checkpoint.md)及逐轮记录为准。
