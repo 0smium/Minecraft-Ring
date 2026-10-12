@@ -23,11 +23,16 @@ import java.util.*;
 public class OverlayLoadingTest {
     static boolean transparentWindow=true,active,hostMode,busy,focusPending,hostPreparationPending=true;
     static long window=7,lastInWorldMs,lastSpinNs,lastWantMs;
+    static long focusReadySinceMs,nextFocusAttemptMs;
+    static final long FOCUS_TIMEOUT_MS=2000,FOCUS_RETRY_MS=100;
     static float spinDegPerSec;
     static int lastSwitchReq=Integer.MIN_VALUE,savedX,savedY,savedW,savedH,appliedX=Integer.MIN_VALUE,appliedY,appliedW,appliedH;
     static final GameState STATE=new GameState();
     static final List<String> events=new ArrayList<>();
-    static class Logger {void info(String message,Object... args) {}}
+    static final List<String> focusOutcomes=new ArrayList<>();
+    static class Logger {void info(String message,Object... args) {
+        if(message.startsWith("Minecraft input focus "))focusOutcomes.add(String.valueOf(args[0]));
+    }}
     static final Logger LOG=new Logger();
     static boolean windowedModeRequired() {return true;}
     static void setShadow(boolean value) {}
@@ -61,7 +66,10 @@ public class OverlayLoadingTest {
         int mcSwitchRequests() {return switches;}
         boolean snapshot(GameState state) {return true;}
         int hostProcessId() {return 8;}
-        void requestHostFocus() {events.add("host-focus");}
+        void requestHostFocus() {
+            events.add("host-focus");WindowsOverlay.foreground=WindowsOverlay.Foreground.GAME;
+            Minecraft.current.windowActive=false;
+        }
     }
     static class FramePassthrough {
         static boolean compositing,enabled=true;
@@ -76,15 +84,22 @@ public class OverlayLoadingTest {
     static class PauseScreen {}
     static class ReceivingLevelScreen {}
     static class Minecraft {
+        static Minecraft current;
         Player player;
         Level level;
+        boolean windowActive;
         Object screen,overlay;
         final Options options=new Options();
-        final Mouse mouseHandler=new Mouse();
+        final Mouse mouseHandler=new Mouse(this);
+        Minecraft() {current=this;}
         Window getWindow() {return new Window();}
         Object getOverlay() {return overlay;}
-        void setScreen(Object screen) {this.screen=screen;}
-        void pauseGame(boolean value) {screen=new PauseScreen();}
+        boolean isWindowActive() {return windowActive;}
+        void setScreen(Object screen) {
+            this.screen=screen;
+            if(screen==null)mouseHandler.grabMouse();else mouseHandler.releaseMouse();
+        }
+        void pauseGame(boolean value) {setScreen(new PauseScreen());}
         static class Player {
             float yaw,yRotO;
             float getYRot() {return yaw;}
@@ -95,7 +110,19 @@ public class OverlayLoadingTest {
         static class Window {boolean isFullscreen() {return false;}void toggleFullScreen() {}}
         static class Options {Setting fullscreen() {return new Setting();}}
         static class Setting {void set(boolean value) {}}
-        static class Mouse {void releaseMouse() {}}
+        static class Mouse {
+            final Minecraft mc;
+            boolean grabbed;
+            int grabs;
+            Mouse(Minecraft mc) {this.mc=mc;}
+            boolean isMouseGrabbed() {return grabbed;}
+            void releaseMouse() {grabbed=false;}
+            void grabMouse() {
+                grabs++;
+                if(!mc.isWindowActive())return;
+                grabbed=true;events.add("grab-mouse");
+            }
+        }
     }
     static class GLFW {
         static final int GLFW_ICONIFIED=1,GLFW_TRUE=1,GLFW_FALSE=0,GLFW_DECORATED=2,GLFW_FLOATING=3;
@@ -114,22 +141,34 @@ public class OverlayLoadingTest {
         static void glfwSetWindowPos(long window,int x,int y) {}
     }
     static class WindowsOverlay {
+        enum Foreground {MINECRAFT,GAME,UNKNOWN,OTHER}
+        static Foreground foreground=Foreground.GAME;
+        static boolean focusSucceeds=true,activateImmediately=true;
         static int prepares,shows;
         static boolean hostFound=true,lastActive,lastHidden;
+        static Foreground foreground(long window,int pid) {return foreground;}
         static boolean hostAvailable(int pid) {return hostFound;}
         static boolean prepareHostForOverlay(int pid) {prepares++;return hostFound;}
         static boolean showAboveHost(long window,int pid) {
             shows++;events.add("overlay-focus");
-            GLFW.glfwRestoreWindow(window);GLFW.glfwShowWindow(window);GLFW.glfwFocusWindow(window);return true;
+            GLFW.glfwRestoreWindow(window);GLFW.glfwShowWindow(window);GLFW.glfwFocusWindow(window);
+            if(focusSucceeds) {
+                foreground=Foreground.MINECRAFT;
+                if(activateImmediately)Minecraft.current.windowActive=true;
+            }
+            return foreground==Foreground.MINECRAFT;
         }
         static void updateCursor(Minecraft mc) {}
         static void update(long window,boolean active,boolean hidden,int pid) {
             lastActive=active;lastHidden=active&&hidden;events.add("windows-update");
+            if(active)GLFW.visible=true; // The owned window is shown without activation.
         }
     }
     static void check(boolean value,String message) {if(!value)throw new AssertionError(message);}
 '''
 for signature in ['public static void onFrame(Minecraft mc)',
+                  'private static void updateWindowsFocus(Minecraft mc, boolean worldReady, int hostProcessId, long now)',
+                  'private static void finishWindowsFocus(String outcome)',
                   'private static boolean readyToFocus(Minecraft mc, boolean hostBusyNow)',
                   'private static void setActive(Minecraft mc, boolean on)',
                   'private static void follow(int x, int y, int w, int h)',
@@ -174,6 +213,58 @@ java += r'''
         ErLink.alive=false;WindowsOverlay.hostFound=false;lastWantMs-=10000;onFrame(mc);
         check(!active && !WindowsOverlay.lastActive,"Restore normal Minecraft when the host actually exits");
         System.out.println("PASS: save loading, long host stalls, compositing readiness, Alt+Tab, F8 and host exit");
+
+        // Exercise the real focus helper with deterministic time and delayed Win32/GLFW state.
+        ErLink.alive=true;WindowsOverlay.hostFound=true;active=true;hostMode=false;
+        TerrainManager.settled=true;FramePassthrough.compositing=true;
+        mc.mouseHandler.releaseMouse();mc.windowActive=false;mc.setScreen(null);
+        check(!mc.mouseHandler.isMouseGrabbed(),"MC rejects the early setScreen(null) grab before window activation");
+        focusPending=true;focusReadySinceMs=nextFocusAttemptMs=0;focusOutcomes.clear();
+        WindowsOverlay.foreground=WindowsOverlay.Foreground.GAME;
+        WindowsOverlay.focusSucceeds=false;
+        int focuses=GLFW.focuses;
+        updateWindowsFocus(mc,false,8,1000);
+        check(focusPending && focusReadySinceMs==0 && GLFW.focuses==focuses,"No focus timer or activation before readiness");
+        updateWindowsFocus(mc,true,8,5000);
+        check(focusPending && focusReadySinceMs==5000 && !mc.mouseHandler.isMouseGrabbed(),"A denied focus remains pending");
+        updateWindowsFocus(mc,true,8,5050);
+        check(GLFW.focuses==focuses+1,"Retry is throttled instead of focusing every frame");
+        WindowsOverlay.focusSucceeds=true;WindowsOverlay.activateImmediately=false;
+        updateWindowsFocus(mc,true,8,5100);
+        check(focusPending && WindowsOverlay.foreground==WindowsOverlay.Foreground.MINECRAFT && !mc.isWindowActive(),
+            "Win32 foreground alone is insufficient until MC processes activation");
+        mc.windowActive=true;updateWindowsFocus(mc,true,8,5150);
+        check(!focusPending && mc.mouseHandler.isMouseGrabbed() && focusOutcomes.equals(List.of("restored")),
+            "Delayed focus regrabs the gameplay mouse and reports success once");
+        for(int i=0;i<10;i++)onFrame(mc);
+        check(GLFW.focuses==focuses+2 && focusOutcomes.size()==1,"Successful handoff stops all focus retries");
+
+        focusPending=true;focusReadySinceMs=nextFocusAttemptMs=0;focusOutcomes.clear();
+        mc.screen=new Object();mc.mouseHandler.releaseMouse();int grabs=mc.mouseHandler.grabs;
+        updateWindowsFocus(mc,true,8,6000);
+        check(!focusPending && !mc.mouseHandler.isMouseGrabbed() && mc.mouseHandler.grabs==grabs,
+            "A focused GUI keeps its cursor and is never forced into mouse capture");
+
+        mc.screen=null;focusPending=true;focusReadySinceMs=nextFocusAttemptMs=0;focusOutcomes.clear();
+        WindowsOverlay.foreground=WindowsOverlay.Foreground.OTHER;focuses=GLFW.focuses;
+        updateWindowsFocus(mc,false,8,7000);
+        for(int i=0;i<10;i++)onFrame(mc);
+        check(!focusPending && GLFW.focuses==focuses && focusOutcomes.size()==1 && focusOutcomes.get(0).startsWith("cancelled"),
+            "Switching to another application cancels even before readiness and does not steal focus");
+
+        focusPending=true;focusReadySinceMs=nextFocusAttemptMs=0;focusOutcomes.clear();mc.windowActive=false;
+        WindowsOverlay.foreground=WindowsOverlay.Foreground.UNKNOWN;WindowsOverlay.focusSucceeds=false;
+        updateWindowsFocus(mc,true,8,10000);
+        check(focusPending && focusOutcomes.isEmpty(),"Null foreground is a switching gap rather than cancellation");
+        WindowsOverlay.foreground=WindowsOverlay.Foreground.GAME;focuses=GLFW.focuses;
+        for(int now=10100;now<12000;now+=100)updateWindowsFocus(mc,true,8,now);
+        check(focusPending && GLFW.focuses==focuses+19,"Focus attempts remain inside the two-second handoff window");
+        updateWindowsFocus(mc,true,8,12000);focuses=GLFW.focuses;
+        for(int i=0;i<10;i++)onFrame(mc);
+        check(!focusPending && !mc.mouseHandler.isMouseGrabbed() && GLFW.focuses==focuses
+            && focusOutcomes.size()==1 && focusOutcomes.get(0).startsWith("timed out"),
+            "Denied focus expires once and never becomes an unbounded activation loop");
+        System.out.println("PASS: delayed focus/regrab, GUI cursor, external-app cancellation, null foreground and bounded timeout");
     }
 }
 '''
@@ -191,8 +282,25 @@ public class WindowInputTest {
     static final float INPUT_OPACITY=1.0F/255.0F;
     static class Logger {void info(String message,Object... args) {}}
     static final Logger LOG=new Logger();
-    static class Pointer {static Object createConstant(long value) {return value;}}
-    static class HWND {HWND(Object value) {}}
+    static class Pointer {
+        final long value;
+        Pointer(long value) {this.value=value;}
+        static Pointer createConstant(long value) {return new Pointer(value);}
+        static long nativeValue(Pointer value) {return value==null?0:value.value;}
+    }
+    static class HWND {
+        final Pointer value;
+        HWND(Pointer value) {this.value=value;}
+        Pointer getPointer() {return value;}
+        public boolean equals(Object other) {return other instanceof HWND h && value.value==h.value.value;}
+        public int hashCode() {return Long.hashCode(value.value);}
+    }
+    static class User32 {
+        static final User32 INSTANCE=new User32();
+        HWND foreground;
+        HWND GetForegroundWindow() {return foreground;}
+    }
+    static int processId(HWND window) {return (int)window.value.value*10;}
     static class GLFWNativeWin32 {static long glfwGetWin32Window(long window) {return window;}}
     static class GLFW {
         static float opacity=1.0F;
@@ -207,6 +315,8 @@ public class WindowInputTest {
     static void check(boolean value,String message) {if(!value)throw new AssertionError(message);}
 '''
 window_java += method('public static void update(long window, boolean active, boolean hiddenContent, int hostProcessId)', windows)
+window_java += method('public enum Foreground', windows)
+window_java += method('public static Foreground foreground(long window, int hostProcessId)', windows)
 window_java += r'''
     public static void main(String[] args) {
         update(7,true,true,8);
@@ -223,6 +333,16 @@ window_java += r'''
         Overlay.busy=false;update(7,true,false,8);
         check(GLFW.opacity==1.0F && perPixel && !inputPassThrough,"Keep per-pixel fallback input enabled");
         System.out.println("PASS: host-menu click-through, gameplay input, opacity cache and normal-window restoration");
+        check(foreground(7,80)==Foreground.UNKNOWN,"A null Win32 foreground is unknown");
+        User32.INSTANCE.foreground=new HWND(Pointer.createConstant(0));
+        check(foreground(7,80)==Foreground.UNKNOWN,"A zero HWND is unknown");
+        User32.INSTANCE.foreground=new HWND(Pointer.createConstant(7));
+        check(foreground(7,80)==Foreground.MINECRAFT,"Only the actual MC input HWND confirms focus");
+        User32.INSTANCE.foreground=new HWND(Pointer.createConstant(8));
+        check(foreground(7,80)==Foreground.GAME,"ER foreground permits the explicit handoff attempt");
+        User32.INSTANCE.foreground=new HWND(Pointer.createConstant(9));
+        check(foreground(7,80)==Foreground.OTHER,"Another application must cancel the pending handoff");
+        System.out.println("PASS: actual Windows foreground classification for null, MC, ER and other apps");
     }
 }
 '''

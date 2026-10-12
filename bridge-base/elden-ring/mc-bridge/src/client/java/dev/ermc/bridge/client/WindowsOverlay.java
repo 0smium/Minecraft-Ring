@@ -55,6 +55,26 @@ public final class WindowsOverlay {
 		return inputOnly;
 	}
 
+	public enum Foreground {
+		MINECRAFT, GAME, UNKNOWN, OTHER
+	}
+
+	/** Observe focus without changing it; a null foreground is a normal switching gap. */
+	public static Foreground foreground(long window, int hostProcessId) {
+		User32 user = User32.INSTANCE;
+		HWND foreground = user.GetForegroundWindow();
+		if (foreground == null || Pointer.nativeValue(foreground.getPointer()) == 0L) {
+			return Foreground.UNKNOWN;
+		}
+		HWND minecraft = new HWND(Pointer.createConstant(GLFWNativeWin32.glfwGetWin32Window(window)));
+		if (minecraft.equals(foreground)) {
+			return Foreground.MINECRAFT;
+		}
+		int pid = processId(foreground);
+		return pid != 0 && (pid == hostProcessId || pid == processId(minecraft))
+				? Foreground.GAME : Foreground.OTHER;
+	}
+
 	/** Window existence is independent of frame heartbeats during loading or Alt+Tab. */
 	public static boolean hostAvailable(int hostProcessId) {
 		return findHost(hostProcessId) != null;
@@ -89,7 +109,7 @@ public final class WindowsOverlay {
 		taskbarFullscreen = false;
 		updateTaskbar(window, true);
 		GLFW.glfwFocusWindow(window);
-		return true;
+		return foreground(window, hostProcessId) == Foreground.MINECRAFT;
 	}
 
 	/** Use the Windows cursor theme, independently of the nearly transparent input framebuffer. */

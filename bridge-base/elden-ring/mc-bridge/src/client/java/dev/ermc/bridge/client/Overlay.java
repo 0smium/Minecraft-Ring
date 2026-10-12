@@ -46,6 +46,8 @@ public final class Overlay {
 	private static long lastWantMs;
 	private static boolean hostPreparationPending = true;
 	private static boolean focusPending;
+	private static long focusReadySinceMs, nextFocusAttemptMs;
+	private static final long FOCUS_TIMEOUT_MS = 2000, FOCUS_RETRY_MS = 100;
 	private static final GameState STATE = new GameState();
 
 	public static boolean active() {
@@ -90,6 +92,8 @@ public final class Overlay {
 			return;
 		}
 		hostMode = true;
+		focusPending = false;
+		focusReadySinceMs = nextFocusAttemptMs = 0L;
 		CameraSync.suspend();
 		if (mc.level != null && mc.screen == null) {
 			mc.pauseGame(false);
@@ -109,11 +113,16 @@ public final class Overlay {
 		}
 		hostMode = false;
 		hostPreparationPending = true;
-		if (GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_ICONIFIED) == GLFW.GLFW_TRUE) {
-			GLFW.glfwRestoreWindow(window);
+		if (Platform.get() == Platform.WINDOWS) {
+			focusPending = true;
+			focusReadySinceMs = nextFocusAttemptMs = 0L;
+		} else {
+			if (GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_ICONIFIED) == GLFW.GLFW_TRUE) {
+				GLFW.glfwRestoreWindow(window);
+			}
+			GLFW.glfwShowWindow(window);
+			GLFW.glfwFocusWindow(window);
 		}
-		GLFW.glfwShowWindow(window);
-		GLFW.glfwFocusWindow(window);
 		if (mc.screen instanceof PauseScreen) {
 			mc.setScreen(null);
 		}
@@ -230,16 +239,59 @@ public final class Overlay {
 			WindowsOverlay.update(window, active && !hostMode, busy || FramePassthrough.activeInHost(),
 					link.hostProcessId());
 		}
-		if (active && focusPending && haveClientWorld && readyToFocus(mc, hostBusyNow) && !busy) {
+		if (active && focusPending && Platform.get() == Platform.WINDOWS) {
+			updateWindowsFocus(mc, haveClientWorld && readyToFocus(mc, hostBusyNow) && !busy,
+					link.hostProcessId(), now);
+		} else if (active && focusPending && haveClientWorld && readyToFocus(mc, hostBusyNow) && !busy) {
 			// Show and focus only after ownership, geometry and opacity have been applied.
-			if (Platform.get() == Platform.WINDOWS) {
-				focusPending = !WindowsOverlay.showAboveHost(window, link.hostProcessId());
-			} else {
-				GLFW.glfwShowWindow(window);
-				GLFW.glfwFocusWindow(window);
-				focusPending = false;
+			GLFW.glfwShowWindow(window);
+			GLFW.glfwFocusWindow(window);
+			focusPending = false;
+		}
+	}
+
+	private static void updateWindowsFocus(Minecraft mc, boolean worldReady, int hostProcessId, long now) {
+		WindowsOverlay.Foreground foreground = WindowsOverlay.foreground(window, hostProcessId);
+		if (foreground == WindowsOverlay.Foreground.OTHER) {
+			finishWindowsFocus("cancelled: another application has focus");
+			return;
+		}
+		if (focusReadySinceMs != 0L && now - focusReadySinceMs >= FOCUS_TIMEOUT_MS) {
+			finishWindowsFocus("timed out: Minecraft did not regain input focus");
+			return;
+		}
+		if (!worldReady) {
+			return;
+		}
+		if (focusReadySinceMs == 0L) {
+			focusReadySinceMs = now;
+		}
+		if ((foreground != WindowsOverlay.Foreground.MINECRAFT || !mc.isWindowActive())
+				&& now >= nextFocusAttemptMs) {
+			nextFocusAttemptMs = now + FOCUS_RETRY_MS;
+			WindowsOverlay.showAboveHost(window, hostProcessId);
+			foreground = WindowsOverlay.foreground(window, hostProcessId);
+			if (foreground == WindowsOverlay.Foreground.OTHER) {
+				finishWindowsFocus("cancelled: another application has focus");
+				return;
 			}
 		}
+		if (foreground == WindowsOverlay.Foreground.MINECRAFT && mc.isWindowActive()) {
+			// setScreen(null) may have tried too early, while the fullscreen host still had focus.
+			// Menus keep their cursor; only ready gameplay needs the mouse captured again.
+			if (mc.screen == null && !mc.mouseHandler.isMouseGrabbed()) {
+				mc.mouseHandler.grabMouse();
+			}
+			if (mc.screen != null || mc.mouseHandler.isMouseGrabbed()) {
+				finishWindowsFocus("restored");
+			}
+		}
+	}
+
+	private static void finishWindowsFocus(String outcome) {
+		focusPending = false;
+		focusReadySinceMs = nextFocusAttemptMs = 0L;
+		LOG.info("Minecraft input focus {}", outcome);
 	}
 
 	private static boolean readyToFocus(Minecraft mc, boolean hostBusyNow) {
@@ -253,6 +305,7 @@ public final class Overlay {
 	private static void setActive(Minecraft mc, boolean on) {
 		active = on;
 		focusPending = on;
+		focusReadySinceMs = nextFocusAttemptMs = 0L;
 		LOG.info("Overlay mode {}", on ? "ON" : "OFF");
 		if (on) {
 			TerrainManager.requestRecall();
