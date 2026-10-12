@@ -1,6 +1,6 @@
 # 2026-10-12：Core 基线复验与升降平台定位
 
-状态：Core-only 首次接管静止 60 秒未死亡（用户），落地修复本项复验通过。第九、十、十一轮平台站立下行仍失败。第十一轮用户仍观察到悬空或坠落，尽管本趟采样没有复现上一轮纠正失联链，不能算通过。站立跟随暂时停止反复试改，补其余基线。关卡 0 仍未通过。此前两轮退出恢复与创造悬停 120 秒通过；平台飞行、三次相同攻击与末影珍珠基线尚无通过结果。此前结果见 [关卡 0 记录](20261011-core-gate0.md)，提前进行的 LB 界面预检及录屏见 [LB UI 记录](20261011-lb-ui-preflight.md)。
+状态：Core-only 首次接管静止 60 秒未死亡（用户），落地修复本项复验通过。第九、十、十一轮平台站立下行仍失败。第十一轮用户仍观察到悬空或坠落，尽管本趟采样没有复现上一轮纠正失联链，不能算通过。站立跟随暂时停止反复试改，补其余基线。关卡 0 仍未通过。此前两轮退出恢复与创造悬停 120 秒通过；本轮飞行悬停不被平台带走通过（用户）；三次相同攻击与末影珍珠基线未执行。此前结果见 [关卡 0 记录](20261011-core-gate0.md)，提前进行的 LB 界面预检及录屏见 [LB UI 记录](20261011-lb-ui-preflight.md)。
 
 ## 实际版本与配置
 
@@ -65,7 +65,13 @@ Fabric `build` 退出 0（26 秒）；现有 moving-platform 和 stable-terrain 
 - 单独缺少 server new collision rejected 不能排除其他纠正分支、外部 teleport、采样窗口外或诊断异常；本次客户端位置包计数也为零，仍不能证明最终合成画面的连续跟随正确。
 - 本轮不再据旧形状覆盖假设写修复。最终画面的 camera / 平台时序差可作为待查线索，需要同帧数据支持，不据现有物理 tick 日志认定根因。站立跟随停止重复人工试改，转补平台飞行脱离、受击与珍珠基线；关卡 0 保持未通过。
 
-已请求独立飞行脱离：创造起飞至运动平台上方约 2–3 格，松键悬停 10 秒，观察平台是否自行离开，再落到固定安全地面。此项人工结果待反馈，不能由先前空旷处 120 秒悬停代替。
+只读源码检查发现待查不对称：`game.cpp` 的 stand_in 在有效支撑、grounded、同 epoch 时，将 hunter Y 加上当前 travel−pose ack；apply_camera 对 camPos/camTarget 只做坐标映射，没有相同补偿。CameraSync 与 FramePassthrough 为已完成像素发布对应相机/脚位/ack，可能带来时刻差。方向与下行时视点偏高相符，但没有同帧 applied camera Y / 当前 floor Y / 补偿量 / pose 年龄，不能定因。直接补 native 相机也可能使已捕获的 MC 像素和 ER 投影错位，暂不改动。
+
+### 第十一轮：飞行脱离通过（用户）
+
+在同一 Core 运行、同一安塞尔河入口井，请求创造起飞至运动平台上方约 2–3 格，松键悬停 10 秒，观察平台是否自行离开，再落到固定安全地面。用户按该步骤反馈“悬停稳定，平台自行离开”，独立飞行脱离通过，不代替站立跟随。
+
+保存 `core-11-flight-native.log` / `core-11-flight-minecraft.log` / `core-11-flight-status.json`。00:53:28 server tick 7452 明确 `reset flight / epoch 2471898 -> 0 / carry=0`，随后没有继续绑定该平台；这支持服务端有效 flying 分支生效，不能据该单条日志独立证明全程 10 秒或事后已落地。视觉稳定和平台离开结论来自用户观察。诊断代码与配置同本轮启动，未再构建或重启。
 
 ## 本轮人工复验
 
@@ -89,6 +95,7 @@ Fabric `build` 退出 0（26 秒）；现有 moving-platform 和 stable-terrain 
 - `runtime/experiments/core-launch-11-platform-collision-diagnostics.log`：通过 Core `start.bat` 重启定位版。
 - `runtime/experiments/core-11-startup-native.log`、`core-11-startup-minecraft.log`、`core-11-startup-status.json`：新客户端接管及诊断执行证据。
 - `runtime/experiments/core-11-platform-native.log`、`core-11-platform-minecraft.log`、`core-11-platform-status.json`：第十一轮完整下行失败快照。
+- `runtime/experiments/core-11-flight-native.log`、`core-11-flight-minecraft.log`、`core-11-flight-status.json`：第十一轮独立飞行脱离的现场留档。
 - `runtime/er-bridge.log`、`bridge-base/elden-ring/mc-bridge/run/logs/latest.log`：本轮运行日志，人工反馈时另存快照。
 
 日志、视频、JAR、游戏文件与存档不提交；仅 Markdown 与必要代码提交到 `dev/lb-poc`，不推送 upstream、不自动合并 main。
