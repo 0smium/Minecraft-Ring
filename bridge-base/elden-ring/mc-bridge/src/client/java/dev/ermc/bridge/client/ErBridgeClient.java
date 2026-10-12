@@ -49,6 +49,7 @@ public class ErBridgeClient implements ClientModInitializer {
 
 		ClientTickEvents.START_CLIENT_TICK.register(MovingPlatformClient::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(MovingPlatformClient::afterTick);
+		ClientTickEvents.END_CLIENT_TICK.register(CombatBaselineTrace::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			while (cameraModeKey.consumeClick()) {
 				CameraSync.toggleMode();

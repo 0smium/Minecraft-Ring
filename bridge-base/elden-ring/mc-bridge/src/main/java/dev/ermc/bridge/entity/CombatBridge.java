@@ -3,6 +3,7 @@ package dev.ermc.bridge.entity;
 import dev.ermc.bridge.CoordMap;
 import dev.ermc.bridge.TerrainManager;
 import dev.ermc.bridge.link.ErLink;
+import dev.ermc.bridge.link.GameState;
 import dev.ermc.bridge.link.Protocol;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
@@ -45,6 +46,7 @@ public final class CombatBridge {
 	public static final ResourceKey<DamageType> STATUS = key("status");
 
 	private static final float[] EV = new float[9];
+	private static final GameState TRACE_STATE = new GameState();
 	/** Minecraft damage per host-game hit, before Minecraft armor: a base by attacker size plus a share of the hit. */
 	private static final float SMALL_BASE = 3.0F;
 	private static final float LARGE_BASE = 6.0F;
@@ -129,6 +131,8 @@ public final class CombatBridge {
 			source = new DamageSource(type(level, MONSTER_HIT));
 		}
 		// Blocking needs to know where the blow came from: the attacker's position.
+		float beforeHealth = player.getHealth(), beforeAbsorption = player.getAbsorptionAmount();
+		Vec3 beforePosition = player.position(), beforeVelocity = player.getDeltaMovement();
 		boolean blocked = player.isDamageSourceBlocked(source);
 		boolean hurt = player.hurt(source, amount);
 		// Minecraft already knocks back by 0.4 away from the attacker; big host-game blows push
@@ -145,5 +149,24 @@ public final class CombatBridge {
 		LOG.info("Elden Ring hit {} for {} HP ({}% of max) -> {} Minecraft damage from {}{}", player.getName().getString(), hostDamage,
 			Math.round(share * 100.0F), amount, attacker != null ? attacker.getName().getString() : "?",
 			blocked ? " (blocked by shield)" : hurt ? "" : " (ignored: creative/invulnerable)");
+		LOG.info("[combat-baseline] server hurt tick {} hostHitCount {}: actualHP {} -> {} loss {}; absorption {} -> {}; hurt {} blocked {}; pos {} -> {} velocity {} -> {}; {}",
+			player.tickCount, lastHits, beforeHealth, player.getHealth(), beforeHealth - player.getHealth(),
+			beforeAbsorption, player.getAbsorptionAmount(), hurt, blocked, beforePosition, player.position(),
+			beforeVelocity, player.getDeltaMovement(), publishedHostPosition());
+	}
+
+	/** Client observation requests enqueue this read on the integrated server thread. */
+	public static void tracePositionWindow(MinecraftServer server, java.util.UUID playerId, int receiptTick, int offset) {
+		ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+		if (player == null || !TerrainManager.isBridgeWorld()) return;
+		LOG.info("[combat-baseline] server window receiptTick {} offset {} actualTick {}: actualHP {} absorption {} dimension {} pos {} velocity {}; {}",
+			receiptTick, offset, player.tickCount, player.getHealth(), player.getAbsorptionAmount(),
+			player.level().dimension().location(), player.position(), player.getDeltaMovement(), publishedHostPosition());
+	}
+
+	private static String publishedHostPosition() {
+		if (!ErLink.get().snapshot(TRACE_STATE) || !TRACE_STATE.has(Protocol.STATE_PLAYER_VALID)) return "ER published position unavailable";
+		return "ER published frame " + TRACE_STATE.frame + " stage " + TRACE_STATE.stageId + " localXYZ "
+			+ new Vec3(TRACE_STATE.playerPos[0], TRACE_STATE.playerPos[1], TRACE_STATE.playerPos[2]);
 	}
 }
