@@ -15,7 +15,7 @@
 ## 待执行操作
 
 1. 风车村固定同一只小怪、同一个平A动作。MC 生存模式，卸下护甲和盾；法环装备不变。装备尚待用户确认。
-2. 查询并记录 `naturalRegeneration` 原值，受击观察期间设为 false，完成后恢复原值。当前未更改。
+2. `naturalRegeneration` 原值为 true（01:12:28 查询日志），01:12:32 已设为 false；实验完成后恢复 true，目前尚未恢复。
 3. 每次恢复满血及原站位，等待至少 5 秒使无敌结束；只吃同一招一次，命中后约 1 秒不走跳，以观察击退。多次命中或不同动作不计为可比较样本。
 4. 记录三次服务器实际 HP 前后值/损失、客户端及服务器位置窗口、ER 已发布位置和用户击退观察。数值待实测，不用转发伤害值填表。
 5. 三次完成后，在安全固定地面投掷末影珍珠命中 ER 地形，记录碰撞、落点、传送和伤害，暂未执行。
@@ -29,6 +29,8 @@
 ## 第十二轮启动证据
 
 01:10:03 Fabric 列表 56 个模组，含 erbridge / API / Loader，没有 LiquidBounce、MCEF 或 FLK。01:10:25 自动打开 ER Bridge，01:10:29 Steve 加入，01:10:35–36 恢复合成和输入窗口。启动快照为 `live=true / player_valid=true / camera_override=true / compositing=true`；尚无本轮三次受击结果。
+
+准备期间，回血命令实际输入的效果名为 `minecraft`；01:12:43 报找不到 `minecraft:minecraft`。本地 MC 1.21.1 的 EffectCommands 和 MobEffects 字节码确认 give 参数及 instant_health 注册，完整命令有效；改给用户可省略命名空间的 `/effect give @s instant_health 1 10`。01:13:26 出现一次 creative/invulnerable 受击，实际 HP 20→20，hurt=false，不计入生存三次样本。准备阶段日志保存为 `runtime/experiments/core-12-preparation-minecraft.log`。
 
 - 上一轮最终留档：`runtime/experiments/core-11-final-native.log`、`core-11-final-minecraft.log`。
 - 本轮启动：`runtime/experiments/core-launch-12-combat-baseline.log`。
