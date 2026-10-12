@@ -1,6 +1,6 @@
 # 2026-10-12：Core 基线复验与升降平台定位
 
-状态：Core-only 首次接管静止 60 秒未死亡（用户），落地修复本项复验通过。第九、十轮平台下行仍失败。第十轮用户认为静止时稍好，但跟随不足，仍有悬空、坠落及抖动，不能算通过。关卡 0 仍未通过。此前两轮退出恢复与创造悬停 120 秒通过；平台飞行、三次相同攻击与末影珍珠基线仍未执行。此前结果见 [关卡 0 记录](20261011-core-gate0.md)，提前进行的 LB 界面预检及录屏见 [LB UI 记录](20261011-lb-ui-preflight.md)。
+状态：Core-only 首次接管静止 60 秒未死亡（用户），落地修复本项复验通过。第九、十、十一轮平台站立下行仍失败。第十一轮用户仍观察到悬空或坠落，尽管本趟采样没有复现上一轮纠正失联链，不能算通过。站立跟随暂时停止反复试改，补其余基线。关卡 0 仍未通过。此前两轮退出恢复与创造悬停 120 秒通过；平台飞行、三次相同攻击与末影珍珠基线尚无通过结果。此前结果见 [关卡 0 记录](20261011-core-gate0.md)，提前进行的 LB 界面预检及录屏见 [LB UI 记录](20261011-lb-ui-preflight.md)。
 
 ## 实际版本与配置
 
@@ -50,13 +50,22 @@ Fabric `build` 退出 0（26 秒）；现有 moving-platform 和 stable-terrain 
 
 下一轮只加诊断：记录携带后、vanilla move 前后实际脚位和碰撞面，以及服务端新碰撞拒绝时 old/current/lastGood/request 与实际 collider。没有新增运动修复，不称作“已修好”；只请求一次完整下行。若仍不足以定位，先停止平台反复试改，补受击及珍珠基线，平台保持失败，不越过关卡 0 冒称通过。
 
-### 第十一轮诊断制品，现场未执行
+### 第十一轮纯诊断：启动与现场失败
 
 诊断代码提交 `802bda1beeac113bf9b3ae4f09c0519a982e0496`。客户端增加携带后的实际 xyz / shapeTop 及 LocalPlayer.move 前后采样；服务端只在原版新碰撞判据返回 true 时记录 epoch、old/current/lastGood/request、packetGround 与首个拒绝形状。至多报告两个确实与目标 AABB 相交的 box，至多读取六个附近 block；只有完整碰撞形状几何一致才归属到 block/state/cell，否则记 unknown/entity。诊断异常只记 failed 和异常类型，不改原版返回值。
 
 `build` 退出 0（18 秒），日志 `runtime/experiments/fabric-platform-collision-diagnostics-build.log`；JAR SHA-256 `29F1C9FC044648A85AAB9788821EB3EAFB6B752F82027A18052380D9A23B93EE`，制品检查包含新诊断 class 与注册配置。`git diff --check` 通过。此处仅确认编译/打包；Mixin 的现场执行、具体拒绝分支及平台行为尚未验证。没有变更 native DLL、死亡逻辑、支撑阈值、平台运动、渲染 ack 或安装配置。
 
-当前 ER PID `22560` / MC PID `25244` 仍为第十轮运行。计划让用户只退出 MC、保持法环运行，再以 Core `start.bat` 重启，单次下行采样；未操作前不能声称第十一轮已加载。
+用户回复“MC 已退出”，启动前确认 PID `25244` 不存在，ER PID `22560` 保持运行。保存 `core-10-final-native.log` / `core-10-final-minecraft.log` 后执行 Core `start.bat`，启动 HEAD `7ac049a`（诊断代码为上述 `802bda1`）。新 MC PID `30680`：00:46:59 Fabric 列表 56 个模组，没有 LB / MCEF / FLK；00:47:12 自动打开 bridge world，00:47:16 Steve 加入。新 client carried 与 physics BEFORE/AFTER 日志实际出现，服务器登录及平台运行未见阻塞 Mixin 错误；不能因此声称尚未触发的新碰撞拒绝回调已经执行。快照 `core_status=1 / live=true / player_valid=true / camera_override=true / compositing=true`，stage `1006632960`。安装配置和 JAR 哈希与上文一致，未重启法环或更新 DLL。
+
+用户先回复“测完了”，补充本趟仍有悬空或坠落；不要求重做。保存 `core-11-platform-native.log` / `core-11-platform-minecraft.log` / `core-11-platform-status.json`，平台站立仍记失败。日志包含约 00:47:42–00:48:08 上行，以及 00:48:12–00:48:39 从 `58.6875` 下行至 `-64.375`，同一 epoch `2471892` 连续。
+
+- 本轮共有 227 组客户端 carry / physics 前后采样，其中下行 112 组；采样步长约每 5 tick，并非逐 tick 全面取证。采样的携带后脚高与 targetTop、physics 前后及 END 一致，没有第十轮那次 `0.1875` 额外抬高。下行采样 ground 均 true，x/z 固定为 `32799.12151636137 / -118.56767958167286`。
+- 本轮快照中 position packet reset、server new collision rejected、collision trace failed 均为 0；本次接管后的 native 区间没有 lost support 行。只能说没有记录到上一轮那条纠正失联链，不能反过来否定用户看到的悬空/坠落或宣称平台通过。
+- 单独缺少 server new collision rejected 不能排除其他纠正分支、外部 teleport、采样窗口外或诊断异常；本次客户端位置包计数也为零，仍不能证明最终合成画面的连续跟随正确。
+- 本轮不再据旧形状覆盖假设写修复。最终画面的 camera / 平台时序差可作为待查线索，需要同帧数据支持，不据现有物理 tick 日志认定根因。站立跟随停止重复人工试改，转补平台飞行脱离、受击与珍珠基线；关卡 0 保持未通过。
+
+已请求独立飞行脱离：创造起飞至运动平台上方约 2–3 格，松键悬停 10 秒，观察平台是否自行离开，再落到固定安全地面。此项人工结果待反馈，不能由先前空旷处 120 秒悬停代替。
 
 ## 本轮人工复验
 
@@ -76,6 +85,10 @@ Fabric `build` 退出 0（26 秒）；现有 moving-platform 和 stable-terrain 
 - `runtime/experiments/core-10-platform-native.log`、`core-10-platform-minecraft.log`、`core-10-platform-status.json`：第十轮用户反馈仍悬空、坠落和抖动时的快照。
 - `runtime/experiments/platform-local-player-bytecode.txt`、`platform-minecraft-tick-bytecode.txt`、`platform-game-mode-tick-bytecode.txt`、`platform-connection-tick-bytecode.txt`：本地实际 MC 1.21.1 时序检查。
 - `runtime/experiments/fabric-platform-collision-diagnostics-build.log`：第十一轮纯诊断制品构建。
+- `runtime/experiments/core-10-final-native.log`、`core-10-final-minecraft.log`：用户只退出第十轮 MC 后的留档。
+- `runtime/experiments/core-launch-11-platform-collision-diagnostics.log`：通过 Core `start.bat` 重启定位版。
+- `runtime/experiments/core-11-startup-native.log`、`core-11-startup-minecraft.log`、`core-11-startup-status.json`：新客户端接管及诊断执行证据。
+- `runtime/experiments/core-11-platform-native.log`、`core-11-platform-minecraft.log`、`core-11-platform-status.json`：第十一轮完整下行失败快照。
 - `runtime/er-bridge.log`、`bridge-base/elden-ring/mc-bridge/run/logs/latest.log`：本轮运行日志，人工反馈时另存快照。
 
 日志、视频、JAR、游戏文件与存档不提交；仅 Markdown 与必要代码提交到 `dev/lb-poc`，不推送 upstream、不自动合并 main。
