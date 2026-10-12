@@ -1,6 +1,6 @@
 # 2026-10-12：Core 三次受击与末影珍珠基线
 
-状态：部分已观察，三次可比较受击样本未完成。第十三轮自定义 status 去击退方案仍把中毒扣到死亡，语义验证失败。用户要求集中翻译真实 ER 状态，已改为读取活动 Poison、由 MC 原版效果结算；新候选已构建，尚未部署或人工验证。末影珍珠待测。站立升降平台仍失败，关卡 0 未通过，见 [Core 续测](20261012-core-recheck.md)。
+状态：部分已观察，三次可比较受击样本未完成。第十三轮自定义 status 去击退方案仍把中毒扣到死亡，语义验证失败。第十四轮真实 Poison 扣至 1 HP，用户确认有图标、无横推/弹起、重测未死，基本语义取得支持；普通攻击漏转已记为分类回归，见[恢复记录](20261012-lb-core-resume.md)。naturalRegeneration 已恢复原值 true。末影珍珠待测。站立升降平台仍失败，关卡 0 未通过，见 [Core 续测](20261012-core-recheck.md)。
 
 ## 实际制品与观察方式
 
@@ -15,7 +15,7 @@
 ## 待执行操作
 
 1. 风车村固定同一只小怪、同一个平A动作。MC 生存模式，卸下护甲和盾；法环装备不变。装备尚待用户确认。
-2. `naturalRegeneration` 原值为 true（01:12:28 查询日志），01:12:32 已设为 false；实验完成后恢复 true，目前尚未恢复。
+2. `naturalRegeneration` 原值为 true（01:12:28 查询日志），01:12:32 暂设为 false；第十四轮收尾已于 07:52:11 恢复 true，用户及日志确认。
 3. 每次恢复满血及原站位，等待至少 5 秒使无敌结束；只吃同一招一次，命中后约 1 秒不走跳，以观察击退。多次命中或不同动作不计为可比较样本。
 4. 记录三次服务器实际 HP 前后值/损失、客户端及服务器位置窗口、ER 已发布位置和用户击退观察。数值待实测，不用转发伤害值填表。
 5. 三次完成后，在安全固定地面投掷末影珍珠命中 ER 地形，记录碰撞、落点、传送和伤害，暂未执行。
@@ -87,7 +87,7 @@ Native 构建退出 0，日志 `runtime/experiments/native-status-classification
 
 证据：`runtime/experiments/core-13-poison-native.log`、`core-13-poison-minecraft.log`、`core-13-poison-status.json`。本轮用户扩展了工作范围：先实现真实状态的集中映射，以 Poison 为第一条规则；不是原计划的普通三次受击通过记录。
 
-## 集中映射候选：已构建，部署与人工结果待验证
+## 集中映射候选：初次构建与后续部署
 
 实现提交 `580d70a0ec14899febbe28c219f64d42d30c36dc`，分支 `dev/lb-poc`，仍用配置 A / Core-only。架构和具体规则见 [host-state-mapping.md](../host-state-mapping.md)。
 
@@ -102,8 +102,8 @@ Native 构建退出 0，日志 `runtime/experiments/native-status-classification
 | Fabric 构建 | 退出 0，`BUILD SUCCESSFUL in 19s`；JAR SHA-256 `28E459A52258C315D5B536016D1A80CC281B0B77E10D718609C3ADB8029CF6F2` | `runtime/experiments/fabric-host-effects-build.log` |
 | 实际 Java 协议读取探针 | 8/8，通过，退出 0；有效 Poison、有效无毒、flags=0 未知及 magic/version/odd seq/非法 Poison ID/seq=0 五种拒绝；拒绝不覆盖上次输出 | `runtime/experiments/host-effects-wire-probe.log` |
 | diff / 分层审查 | 通过；探针使用自建映射文件，未接触实际游戏共享内存 | 代码与本记录 |
-| 新 DLL 实际加载 / 原版效果人工验证 | 未执行；当前游戏仍运行第十三轮旧制品 | 待部署后取得 |
+| 新 DLL 实际加载 / 原版效果人工验证 | 第十四轮已加载核对，真实 4004→Poison I、低 HP 未毒死及图标/无横推已取得支持；其余条件不整体验收 | [第十四轮记录](20261012-lb-core-resume.md) |
 
 保留限制：未知环境伤害本轮暂不翻译；攻击与中毒同一原生采样的 HP 差额仍可能混合；两个原生状态块不是统一原子快照，极窄异步换角色边界可能保留一帧旧效果，生命期/控制/时效检查随后撤销。同等级较短 MC 外部 Poison 合并无法完整追溯所有权，Core 对照不混入其他毒来源。F8 回到 ER 控制后仍遵守 ER 的中毒与死亡规则；MC 原版 Poison 不致死的判据限定在 MC 接管时。
 
-下一次恢复实测时，在 MC 和 ER 完整退出后仅更新 Core DLL，不重跑安装器，核对真实加载 SHA。按用户后续要求通过 `start.bat -LiquidBounce` 共载固定 LB，便于顺手验证功能；Poison/普通攻击对照期间关闭影响移动、伤害或效果的行为模块，界面/HUD 可保留，并记录实际模块与参数。先在无敌人干扰的固定地面验证活动 Poison 图标、至少 30 秒扣血至低 HP 而不自行死亡、无横推/弹起及状态解除，再在无毒条件下继续普通攻击三次对照。当前测试仍暂停，原版效果尚未在游戏中观察，不能写为通过。属性差异集中记入 [局部清单](../host-state-mapping.md#局部差异清单先记后修)，后续逐项修复。naturalRegeneration 尚待实验结束恢复 true。
+上述恢复安排已在第十四轮执行：核对新 DLL 后通过 `start.bat -LiquidBounce` 共载固定 LB，Poison 基本语义已观察、Breadcrumbs 已录屏，普通攻击与飞行权限缺口另记待修；实际模块探索与严格对照的区别见 [本轮记录](20261012-lb-core-resume.md)。属性差异集中记入 [局部清单](../host-state-mapping.md#局部差异清单先记后修)，后续逐项修复。naturalRegeneration 已恢复原值 true。
