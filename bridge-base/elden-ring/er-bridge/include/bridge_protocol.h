@@ -217,7 +217,7 @@ typedef struct ErmcHunterEvents {
     float hunterMaxHp;            /* 0x1C */
     uint64_t lastHitFrame;        /* 0x20 */
     uint32_t lastHitKind;         /* 0x28 ERMC_ENT_* of the monster closest to the hunter at the last hit */
-    float totalStatusDamage;      /* 0x2C ER HP lost to status damage (poison, fire...: < 1 HP per frame), summed */
+    float totalStatusDamage;      /* 0x2C ER HP lost without a recorded attacker, summed; no attack knockback */
 } ErmcHunterEvents;               /* 0x30 */
 
 /* Debug/RE command mailbox. The client fills cmd/argLen/args, then increments reqSeq.

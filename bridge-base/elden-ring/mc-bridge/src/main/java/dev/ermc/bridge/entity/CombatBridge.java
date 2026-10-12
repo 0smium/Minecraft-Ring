@@ -112,7 +112,13 @@ public final class CombatBridge {
 			float amount = maxHp > 0 ? pendingStatus / maxHp * PROPORTIONAL : 0.0F;
 			if (amount >= 0.05F) {
 				for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-					player.hurt(new DamageSource(type(level, STATUS)), amount);
+					float beforeHealth = player.getHealth(), beforeAbsorption = player.getAbsorptionAmount();
+					Vec3 beforePosition = player.position(), beforeVelocity = player.getDeltaMovement();
+					boolean hurt = player.hurt(new DamageSource(type(level, STATUS)), amount);
+					LOG.info("[combat-baseline] server status tick {}: actualHP {} -> {} loss {}; absorption {} -> {}; hurt {}; pos {} -> {} velocity {} -> {}; {}",
+						player.tickCount, beforeHealth, player.getHealth(), beforeHealth - player.getHealth(),
+						beforeAbsorption, player.getAbsorptionAmount(), hurt, beforePosition, player.position(),
+						beforeVelocity, player.getDeltaMovement(), publishedHostPosition());
 				}
 				LOG.info("Elden Ring status damage {} HP -> {} Minecraft damage", pendingStatus, amount);
 			}

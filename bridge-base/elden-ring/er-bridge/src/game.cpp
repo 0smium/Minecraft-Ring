@@ -1034,6 +1034,8 @@ static void stand_in(const Player& p, const ErmcControl* c, bool active) {
     if (!g_standing) {
         g_standing = true;
         g_lastHp = -1;
+        // The new HP baseline excludes damage from before takeover; discard its attacker too.
+        *(uint64_t*)(p.ins + 0x180) = ~0ull;
         g_clampFrames = 0;
         log("stand-in: the player now follows Steve");
     }
@@ -1071,34 +1073,45 @@ static void stand_in(const Player& p, const ErmcControl* c, bool active) {
     g_clampFrames = clamped ? g_clampFrames + 1 : 0;
     if (g_lastHp > 0 && hp < g_lastHp && g_clampFrames <= 1) {
         float dmg = (float)(g_lastHp - hp);
+        // Use the existing attacker marker before choosing a damage channel. An absent
+        // attacker does not become a monster attack merely because an enemy is nearby.
+        uint64_t by = *(uint64_t*)(p.ins + 0x180);
+        *(uint64_t*)(p.ins + 0x180) = ~0ull;
+        bool hasAttacker = (uint32_t)by != 0xFFFFFFFFu;
         ErmcHunterEvents* ev = shm_hunter();
         ev->seq = ev->seq + 1;
         __asm__ __volatile__("" ::: "memory");
-        ev->hitCount = ev->hitCount + 1;
-        ev->totalDamage = ev->totalDamage + dmg;
-        ev->lastDamage = dmg;
-        // Blame the attacker the game recorded on the Tarnished (last_hit_by, reset after each
-        // hit so falls and poison aren't blamed on it), else the nearest hostile character. Its
-        // position gives Minecraft the knockback direction and the "slain by" name.
-        uint64_t by = *(uint64_t*)(p.ins + 0x180);
-        *(uint64_t*)(p.ins + 0x180) = ~0ull;
-        float apos[3];
-        uint32_t akind = 0;
-        if ((uint32_t)by != 0xFFFFFFFFu && published_attacker(by, apos, &akind)) {
-            memcpy(ev->lastHitFrom, apos, 12);
-            ev->lastHitKind = akind;
-        } else if (g_nearestHostile.valid) {
-            memcpy(ev->lastHitFrom, g_nearestHostile.pos, 12);
-            ev->lastHitKind = g_nearestHostile.kind;
+        const char* source = "no recorded attacker";
+        if (!hasAttacker) {
+            // This is unattributed HP loss, not proof of a specific poison effect.
+            // Minecraft already has a separate damage channel without attack knockback.
+            ev->totalStatusDamage = ev->totalStatusDamage + dmg;
         } else {
-            memcpy(ev->lastHitFrom, c->hunterPos, 12);
-            ev->lastHitKind = ERMC_ENT_LARGE_MONSTER;
+            ev->hitCount = ev->hitCount + 1;
+            ev->totalDamage = ev->totalDamage + dmg;
+            ev->lastDamage = dmg;
+            float apos[3];
+            uint32_t akind = 0;
+            if (published_attacker(by, apos, &akind)) {
+                memcpy(ev->lastHitFrom, apos, 12);
+                ev->lastHitKind = akind;
+                source = "recorded attacker";
+            } else if (g_nearestHostile.valid) {
+                memcpy(ev->lastHitFrom, g_nearestHostile.pos, 12);
+                ev->lastHitKind = g_nearestHostile.kind;
+                source = "recorded attacker, nearest position fallback";
+            } else {
+                memcpy(ev->lastHitFrom, c->hunterPos, 12);
+                ev->lastHitKind = ERMC_ENT_LARGE_MONSTER;
+                source = "recorded attacker, position unavailable";
+            }
+            ev->lastHitFrame = shm_state()->frame;
         }
         ev->hunterMaxHp = (float)mx;
-        ev->lastHitFrame = shm_state()->frame;
         __asm__ __volatile__("" ::: "memory");
         ev->seq = ev->seq + 1;
-        log("stand-in: the player took %.0f damage -> Minecraft", dmg);
+        log("stand-in: the player took %.0f %s damage -> Minecraft; by 0x%llX; %s",
+            dmg, hasAttacker ? "attack" : "status/unattributed", (unsigned long long)by, source);
     }
     if (mx > 0) *(int*)(p.data + kDataHp) = mx;  // never faint while standing in
     g_lastHp = mx;
