@@ -118,6 +118,7 @@ public final class TerrainManager {
 	private static boolean preferTravel = true;
 	private static long coarseBatches, lastBatchMs, maxBatchMs;
 	private static final java.util.Map<java.util.UUID, MovingPlatformMotion> PLATFORM_MOTION = new java.util.HashMap<>();
+	private static final GameState PACKET_SUPPORT = new GameState();
 	private static final List<ServerPlayer> PLATFORM_TRACE_PLAYERS = new ArrayList<>();
 	private static long platformTraceUntil;
 	private static final LongOpenHashSet MOVING_COLUMNS = new LongOpenHashSet();
@@ -446,15 +447,44 @@ public final class TerrainManager {
 			for (int x = Mth.floor(player.getX() - .3); x <= Mth.floor(player.getX() + .3); x++)
 				for (int z = Mth.floor(player.getZ() - .3); z <= Mth.floor(player.getZ() + .3); z++)
 					MOVING_COLUMNS.add(ChunkPos.asLong(x, z));
-			if (step.dy() != 0 || step.landed()) {
-				// The client predicts the same absolute support height. Its movement
-				// packet may already have arrived: never add the travel a second time.
-				player.setPos(player.getX(), MovingPlatformMotion.collisionHeight(step.floor()), player.getZ());
-				player.setOnGround(true);
-				player.fallDistance = 0;
-			}
+			// The local client carries the player and sends normal movement packets.
+			// Moving the server player here would bypass the listener's lastGoodY,
+			// so its next packet could apply that platform displacement twice.
 		}
 		for (long key : previous) if (!MOVING_COLUMNS.contains(key)) invalidate(key);
+	}
+
+	/** Refresh a verified lift before vanilla validates the client's movement against its floor. */
+	public static void beforePlayerMove(ServerPlayer player) {
+		if (!bridgeWorld || player.serverLevel().dimension() != net.minecraft.world.level.Level.OVERWORLD
+			|| player.getAbilities().flying || player.isSpectator() || player.isPassenger() || !recallSettled(400)) return;
+		var map = CoordMap.get();
+		var motion = PLATFORM_MOTION.get(player.getUUID());
+		var link = ErLink.get();
+		if (map == null || map.provisional() || motion == null || motion.epoch() == 0
+			|| !link.poll() || !link.snapshot(PACKET_SUPPORT) || map.zone() != PACKET_SUPPORT.stageId
+			|| !PACKET_SUPPORT.has(Protocol.STATE_PLAYER_VALID) || !PACKET_SUPPORT.has(Protocol.STATE_CAM_OVERRIDDEN)
+			|| !PACKET_SUPPORT.has(Protocol.STATE_SUPPORT_VALID)
+			|| PACKET_SUPPORT.has(Protocol.STATE_HOST_BUSY | Protocol.STATE_PLAYER_DEAD)
+			|| motion.epoch() != PACKET_SUPPORT.supportEpoch) return;
+		var support = map.toMc(PACKET_SUPPORT.supportPos[0], PACKET_SUPPORT.supportPos[1], PACKET_SUPPORT.supportPos[2]);
+		double previousFloor = motion.floor(), travel = PACKET_SUPPORT.supportTravelY / map.unitsPerMeter();
+		long now = System.currentTimeMillis();
+		if (!Double.isFinite(support.y) || !Double.isFinite(travel)
+			|| Math.abs(player.getX() - support.x) >= .75 || Math.abs(player.getZ() - support.z) >= .75
+			|| !(motion.moving(now) || Math.abs(travel - motion.travel()) > .002)
+			|| Math.abs(travel - motion.travel()) > 6.05 || Math.abs(support.y - previousFloor) > 6.05
+			|| player.getY() > Math.max(previousFloor, support.y) + 4
+			|| player.getY() < Math.min(previousFloor, support.y) - .5) return;
+		boolean trace = player.tickCount % 5 == 0 && Math.abs(support.y - previousFloor) > .002;
+		double beforeTop = trace ? platformTraceShapeTop(player.serverLevel(), player) : Double.NaN;
+		// This runs on the server thread immediately before ServerPlayer.move.
+		// Do not consume travel or move the player: vanilla retains all validation,
+		// wall collision, teleport handling, jumping and fall damage semantics.
+		MovingPlatformTerrain.move(player.serverLevel(), player.position(), previousFloor, support.y);
+		if (trace) LOG.info("[platform-trace] server packet collision refresh tick {}: y {} epoch {} floor {} -> {} shapeTop {} -> {} travel {} -> {}",
+			player.tickCount, player.getY(), motion.epoch(), previousFloor, support.y, beforeTop,
+			platformTraceShapeTop(player.serverLevel(), player), motion.travel(), travel);
 	}
 
 	public static boolean movingColumn(int x, int z) { return MOVING_COLUMNS.contains(ChunkPos.asLong(x, z)); }

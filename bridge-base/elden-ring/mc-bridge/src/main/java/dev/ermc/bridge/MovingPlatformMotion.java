@@ -15,6 +15,7 @@ public final class MovingPlatformMotion {
 	public String resetReason() { return resetReason; }
 	public int epoch() { return contact ? epoch : 0; }
 	public double travel() { return contact ? travel : 0; }
+	public double floor() { return floor; }
 	public boolean moving(long now) { return contact && movedAt != 0 && now - movedAt < 750; }
 	public static double collisionHeight(double floor) { return Math.ceil(floor * 16 - 1e-4) / 16; }
 
