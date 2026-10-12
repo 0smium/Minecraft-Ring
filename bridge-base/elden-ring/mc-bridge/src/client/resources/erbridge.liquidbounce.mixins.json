@@ -6,7 +6,8 @@
 	"client": [
 		"TargetConfigurableMixin",
 		"EspBoxMixin",
-		"NametagHealthMixin"
+		"NametagHealthMixin",
+		"MinimapScanMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
