@@ -49,6 +49,7 @@
 | S06 | 第十四轮日影城怪物造成的 118/278 等 HP 下降来源标记为空，被分流到未知通道而未转为 MC 普通伤害；生存模式仍复现 | 真实普通攻击应保留一次伤害和正常击退；缺少来源不能直接当作没有攻击，也不能把所有未知损失猜成攻击 | 已局部修复并基础实测：真实 incoming hit 捕获、MC actualHP下降和击退均确认，见[目标/战斗适配](experiments/20261012-lb-target-combat-adaptation.md)；三次标准基线与 Velocity 尚未通过 |
 | S07 | 用户报告穿模摔死，日志有 MC `fall` 死亡并同步 ER；与 Poison 致死分开 | 固定路线碰撞应连续有效；需要实际位置、运动和模块配置定位穿模原因 | 已观察症状，根因待定位；不以全局关闭死亡或 NoFall 体验替代碰撞修复 |
 | S08 | FlyCreative 在 survival 的 native 控制已 Flying，但服务端 mayfly/flying=0；下降出现 MC fall 死亡，NoFall SpoofGround 未避免 | 飞行声明、服务端有效权限和 native 行为一致；开启/关闭/模式变化恢复正确，摔伤按真实有效状态结算 | 已实测权限失配，A 优先局部适配；见[本轮飞行记录](experiments/20261012-lb-core-resume.md)，不整体判定移动模块失效 |
+| S09 | 第17b轮Scaffold出现一次 `Direction must not be zero`，栈经过Face.getEdges、nearestPoint与找放置目标；不把它解释为所有Scaffold功能失败 | 收集产生零长度边的实际方块/碰撞面及配置，再决定局部几何过滤或桥接形状修复 | 已记录，未修复；09:58:27日志见[全屏轮记录](experiments/20261012-fullscreen-depth.md)，不扩张本次渲染/性能任务 |
 
 新增一项只需记录：ER 的可确认来源、当前现象、期望 MC 行为、开始/结束条件、复现配置与证据、状态及负责工作线。尚未观察的属性不标成缺陷，身份或玩法规则未定的项先留待确认。
 

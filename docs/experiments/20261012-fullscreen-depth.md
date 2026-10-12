@@ -34,6 +34,8 @@
 
 用户对“墙是否遮挡木板、Box/标签是否显示、切一次全屏后再看”回复“可以 显示”，本轮两项基本观察记录为通过，同时反馈“切换还是比较麻烦，还得切出来再点一下”。不据此宣布全屏焦点问题已解决。日志截至10:04:51已出现15次tracker reset，累计新登记108资源；10:02:58仍重新启用2560×1440的遮挡，GPU idle timeout0次。该证据跨过旧的累计32限制，但不替代更长时间稳定性测试；摘要 `runtime/experiments/render-17-verified-findings.json`。
 
+随后第18轮仅MC侧完善实际foreground判定与就绪后mouse regrab；用户确认全屏仍要回桌面点击，判据未通过，详见[后续记录](20261012-minimap-focus-performance.md)。遮挡修复与全屏焦点限制分别记录，不把后者误算作已修好。
+
 17b有一次Scaffold `Direction must not be zero`（09:58:27），记录为局部碰撞面/选放置目标兼容差异，未扩展本次修复。没有再次出现Minimap类加载异常，也不声称所有LB模块无异常。
 
 证据路径：`runtime/er-bridge.log`、`mc-bridge/run/logs/latest.log`、`runtime/experiments/render-16-depth-exhaustion-findings.json`、`render-16-current-native.log`、`render-16-control-readonly.json`、`render-16-{modules,ESP,Nametags,Tracers}-readonly.json`、`render-16-ESP-restored.json`、`render-16-visual-modules-restored.json`及`fullscreen-17-minecraft-findings.json`。只读稳定快照确认NO_DEPTH_TEST=false、DEBUG_DEPTH=false、debugFlags=0；不是用户主动关遮挡。日志、API配置快照和构建制品不提交Git。
