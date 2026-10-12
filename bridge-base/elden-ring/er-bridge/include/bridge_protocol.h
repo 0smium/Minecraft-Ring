@@ -19,6 +19,7 @@
 // Keep both files in sync.
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
 
 #define ERMC_MAGIC 0x434D484Du  /* bytes "MHMC" (kept identical to the MHW bridge) */
 #define ERMC_VERSION 1u
@@ -29,6 +30,7 @@
 #define ERMC_OFF_CONTROL  0x000800u  /* ErmcControl,   written by Minecraft    */
 #define ERMC_OFF_HUNTER   0x000A00u  /* ErmcHunterEvents, written by ER              */
 #define ERMC_OFF_ENVIRONMENT 0x000B00u /* Optional world controls, written by Minecraft */
+#define ERMC_OFF_HOST_EFFECTS 0x000C00u /* Optional actual host effects, written by ER */
 #define ERMC_OFF_CMD      0x001000u  /* ErmcCmdBlock,  debug/RE command mailbox */
 #define ERMC_OFF_CMD_RESP 0x002000u  /* command response payload                */
 #define ERMC_CMD_RESP_MAX (0x100000u - ERMC_OFF_CMD_RESP)
@@ -92,6 +94,22 @@ typedef struct ErmcEnvironment {
     uint32_t weatherRevision;
     uint32_t weather;            /* 0 clear, 1 rain, 2 thunder */
 } ErmcEnvironment;
+
+/* Optional extension: independent version/capability marker; no change to GameState ABI. */
+#define ERMC_HOST_EFFECTS_MAGIC 0x58464548u /* bytes "HEFX" */
+#define ERMC_HOST_EFFECTS_VERSION 1u
+#define ERMC_HOST_EFFECTS_VALID 1u /* complete, readable actual-effect snapshot */
+#define ERMC_HOST_EFFECTS_MC_CONTROL 2u /* host player actually standing in for MC */
+#define ERMC_HOST_EFFECTS_POISON 4u /* actual SpEffect stateInfo=2 present */
+typedef struct ErmcHostEffects {
+    volatile uint32_t seq;        /* 0x00 seqlock */
+    uint32_t magic;               /* 0x04 */
+    uint32_t version;             /* 0x08 independent extension version */
+    uint32_t flags;               /* 0x0C ERMC_HOST_EFFECTS_* */
+    uint64_t sampleFrame;         /* 0x10 same tick's published GameState.frame */
+    uint32_t hostLife;            /* 0x18 same tick's hostLife counter */
+    int32_t poisonEffectId;       /* 0x1C representative actual ID; -1 without Poison */
+} ErmcHostEffects;                /* 0x20 */
 
 typedef struct ErmcHeader {
     uint32_t magic;               /* 0x00 */
@@ -419,6 +437,12 @@ static_assert(sizeof(ErmcHeader) == 0xC0, "header size");
 static_assert(sizeof(ErmcGameState) == 0x114, "state size");
 static_assert(sizeof(ErmcControl) == 0x64, "control size");
 static_assert(sizeof(ErmcHunterEvents) == 0x30, "hunter events size");
+static_assert(sizeof(ErmcHostEffects) == 0x20, "host effects size");
+static_assert(offsetof(ErmcHostEffects, sampleFrame) == 0x10 &&
+              offsetof(ErmcHostEffects, hostLife) == 0x18 &&
+              offsetof(ErmcHostEffects, poisonEffectId) == 0x1C, "host effects offsets");
+static_assert(ERMC_OFF_ENVIRONMENT + sizeof(ErmcEnvironment) <= ERMC_OFF_HOST_EFFECTS, "environment fits");
+static_assert(ERMC_OFF_HOST_EFFECTS + sizeof(ErmcHostEffects) <= ERMC_OFF_CMD, "host effects fit");
 static_assert(sizeof(ErmcCmdBlock) == 0x1000, "cmd size");
 static_assert(sizeof(ErmcRayHeader) == 0x20, "ray header size");
 static_assert(sizeof(ErmcRay) == 24 && sizeof(ErmcRayHit) == 32, "ray sizes");

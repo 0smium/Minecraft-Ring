@@ -21,15 +21,15 @@ import org.slf4j.LoggerFactory;
 /**
  * Host game -> Minecraft damage. While the Tarnished stands in for the Minecraft player, the
  * DLL reports the hits it takes (HP lost, and the nearest hostile character as the likely
- * attacker) and the HP it loses to status effects.
+ * attacker). Actual host effects are translated separately by HostEffectsBridge.
  * <ul>
  *   <li>Each hit is a Minecraft attack by that enemy's proxy (the live enemy proxy nearest the
  *   reported attacker, never an NPC's): a shield raised towards it blocks it, armor reduces
  *   it, it knocks back, and tamed wolves go for the attacker. Its size is a base by attacker
  *   size plus the share of the Tarnished's max HP lost, so it doesn't depend on the host game's
  *   HP scale.</li>
- *   <li>Status damage drains health once a second, proportional to the share of HP lost;
- *   shields and armor don't help (damage type {@code erbridge:status}).</li>
+ *   <li>HP loss without an attacker is observation data, not an identified effect or an
+ *   additional Minecraft damage event.</li>
  * </ul>
  * Creative mode is invulnerable as usual.
  */
@@ -42,9 +42,6 @@ public final class CombatBridge {
 	public static final ResourceKey<DamageType> MONSTER = key("monster");
 	/** Attack by an enemy without a proxy nearby ("slain by a monster"). */
 	public static final ResourceKey<DamageType> MONSTER_HIT = key("monster_hit");
-	/** Poison, fire and other status damage: bypasses shields and armor, no knockback. */
-	public static final ResourceKey<DamageType> STATUS = key("status");
-
 	private static final float[] EV = new float[9];
 	private static final GameState TRACE_STATE = new GameState();
 	/** Minecraft damage per host-game hit, before Minecraft armor: a base by attacker size plus a share of the hit. */
@@ -55,9 +52,7 @@ public final class CombatBridge {
 	private static final double BLAME_RADIUS = 32.0;
 	private static int lastHits = -1;
 	private static float lastTotal;
-	private static float lastStatus;
-	private static float pendingStatus;
-	private static int statusTicks;
+	private static float lastUnattributedTotal;
 
 	private static ResourceKey<DamageType> key(String name) {
 		return ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath("erbridge", name));
@@ -69,8 +64,6 @@ public final class CombatBridge {
 
 	public static void reset() {
 		lastHits = -1;
-		pendingStatus = 0.0F;
-		statusTicks = 0;
 	}
 
 	public static void onServerTick(MinecraftServer server) {
@@ -79,11 +72,11 @@ public final class CombatBridge {
 		}
 		int hits = (int) EV[0];
 		float total = EV[1];
-		float status = EV[8];
+		float unattributedTotal = EV[8];
 		if (lastHits < 0) {  // first read: only count damage from now on
 			lastHits = hits;
 			lastTotal = total;
-			lastStatus = status;
+			lastUnattributedTotal = unattributedTotal;
 			return;
 		}
 		float maxHp = EV[6];  // the Tarnished's max HP; 0 until the DLL reported a hit
@@ -105,24 +98,10 @@ public final class CombatBridge {
 			}
 		}
 
-		pendingStatus += Math.max(0.0F, status - lastStatus);
-		lastStatus = status;
-		if (++statusTicks >= 20) {
-			statusTicks = 0;
-			float amount = maxHp > 0 ? pendingStatus / maxHp * PROPORTIONAL : 0.0F;
-			if (amount >= 0.05F) {
-				for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-					float beforeHealth = player.getHealth(), beforeAbsorption = player.getAbsorptionAmount();
-					Vec3 beforePosition = player.position(), beforeVelocity = player.getDeltaMovement();
-					boolean hurt = player.hurt(new DamageSource(type(level, STATUS)), amount);
-					LOG.info("[combat-baseline] server status tick {}: actualHP {} -> {} loss {}; absorption {} -> {}; hurt {}; pos {} -> {} velocity {} -> {}; {}",
-						player.tickCount, beforeHealth, player.getHealth(), beforeHealth - player.getHealth(),
-						beforeAbsorption, player.getAbsorptionAmount(), hurt, beforePosition, player.position(),
-						beforeVelocity, player.getDeltaMovement(), publishedHostPosition());
-				}
-				LOG.info("Elden Ring status damage {} HP -> {} Minecraft damage", pendingStatus, amount);
-			}
-			pendingStatus = 0.0F;
+		float loss = Math.max(0.0F, unattributedTotal - lastUnattributedTotal);
+		lastUnattributedTotal = unattributedTotal;
+		if (loss > 0) {
+			LOG.info("[host-effects] observed {} ER HP loss without an attacker; not applied as Minecraft damage", loss);
 		}
 	}
 

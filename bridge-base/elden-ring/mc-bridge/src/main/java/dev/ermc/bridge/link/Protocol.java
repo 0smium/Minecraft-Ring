@@ -121,6 +121,22 @@ public final class Protocol {
 	public static final int HE_LAST_KIND = 0x28;
 	public static final int HE_TOTAL_STATUS_DAMAGE = 0x2C;
 
+	// Optional ErmcHostEffects block: independent of GameState and the main protocol version.
+	public static final int OFF_HOST_EFFECTS = 0x0C00;
+	public static final int HOST_EFFECTS_MAGIC = 0x58464548; // HEFX
+	public static final int HOST_EFFECTS_VERSION = 1;
+	public static final int HOST_EFFECTS_SIZE = 0x20;
+	public static final int HOST_EFFECT_VALID = 1;
+	public static final int HOST_EFFECT_MC_CONTROL = 1 << 1;
+	public static final int HOST_EFFECT_POISON = 1 << 2;
+	public static final int HFX_SEQ = 0x00;
+	public static final int HFX_MAGIC = 0x04;
+	public static final int HFX_VERSION = 0x08;
+	public static final int HFX_FLAGS = 0x0C;
+	public static final int HFX_FRAME = 0x10;
+	public static final int HFX_HOST_LIFE = 0x18;
+	public static final int HFX_POISON_ID = 0x1C;
+
 	// Ray queries (ErmcRayHeader), relative to OFF_RAYS
 	public static final int OFF_RAYS = 0x100000;
 	public static final int MAX_RAYS = 8192;

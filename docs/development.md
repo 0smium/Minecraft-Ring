@@ -26,6 +26,13 @@ layout. Keep them synchronized. The bridge uses file-backed mappings under
 `ERMC_DIR`; the Windows launcher sets it to the project's `runtime/` directory.
 Java can also override the directory with `-Derbridge.dir=<path>`.
 
+Actual host effects use an optional, separately versioned `HEFX` block at
+`0xC00`. The native `HostEffectsReader` reads identified ER state;
+`HostEffectsBridge` applies vanilla Minecraft effects on the server thread.
+Unattributed HP loss is observation data rather than an effect identity or a
+second damage event. The initial Poison mapping and extension rules are in
+[host-state mapping](host-state-mapping.md).
+
 State and control slots use sequence counters so readers can reject an update
 in progress. Terrain queries, moving-platform cells, enemy state and combat
 events have their own regions. Legacy `hunter` names refer to the Tarnished.

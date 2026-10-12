@@ -37,6 +37,7 @@ ErmcPlatformTable* shm_platforms();
 ErmcTerrainContacts* shm_contacts();
 ErmcCollisionControl* shm_collision_control();
 ErmcHunterEvents* shm_hunter();
+ErmcHostEffects* shm_host_effects();
 ErmcDamageQueue* shm_damage();
 
 // Seqlock writer for the state block (ER is the only writer).

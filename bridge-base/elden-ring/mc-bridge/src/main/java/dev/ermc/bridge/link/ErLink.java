@@ -124,6 +124,10 @@ public final class ErLink {
 		return shm != null && shm.readHunterEvents(out);
 	}
 
+	public synchronized boolean readHostEffects(HostEffectState out) {
+		return shm != null && alive() && shm.readHostEffects(out);
+	}
+
 	public synchronized boolean readEntities(java.util.List<EntityInfo> out) {
 		return shm != null && alive() && shm.readEntities(out);
 	}

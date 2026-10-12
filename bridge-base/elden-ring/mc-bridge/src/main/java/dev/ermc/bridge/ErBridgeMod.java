@@ -59,6 +59,7 @@ public class ErBridgeMod implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STARTED.register(TerrainManager::onServerStarted);
 		ServerLifecycleEvents.SERVER_STARTED.register(LifeBridge::onServerStarted);  // after TerrainManager: needs isBridgeWorld()
 		ServerLifecycleEvents.SERVER_STARTED.register(WorldEnvironmentBridge::onServerStarted);
+		ServerLifecycleEvents.SERVER_STOPPING.register(HostEffectsBridge::onServerStopping);
 		ServerLifecycleEvents.SERVER_STOPPED.register(WorldEnvironmentBridge::reset);
 		ServerChunkEvents.CHUNK_LOAD.register(BridgeBiomes::onChunkLoad);
 		ServerChunkEvents.CHUNK_LOAD.register(TerrainRegeneration::onChunkLoad);
@@ -68,10 +69,12 @@ public class ErBridgeMod implements ModInitializer {
 			TerrainRegeneration.reset();
 			EntityBridge.reset();
 			CombatBridge.reset();
+			HostEffectsBridge.reset();
 		});
 		ServerTickEvents.END_SERVER_TICK.register(TerrainManager::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(EntityBridge::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(CombatBridge::onServerTick);
+		ServerTickEvents.END_SERVER_TICK.register(HostEffectsBridge::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(LifeBridge::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(WorldEnvironmentBridge::onServerTick);
 		ServerLivingEntityEvents.AFTER_DEATH.register(LifeBridge::onDeath);

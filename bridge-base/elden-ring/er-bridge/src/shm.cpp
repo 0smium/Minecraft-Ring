@@ -60,6 +60,7 @@ ErmcCmdBlock* shm_cmd() { return (ErmcCmdBlock*)(g_base + ERMC_OFF_CMD); }
 uint8_t* shm_cmd_resp() { return g_base + ERMC_OFF_CMD_RESP; }
 ErmcRayHeader* shm_rays() { return (ErmcRayHeader*)(g_base + ERMC_OFF_RAYS); }
 ErmcHunterEvents* shm_hunter() { return (ErmcHunterEvents*)(g_base + ERMC_OFF_HUNTER); }
+ErmcHostEffects* shm_host_effects() { return (ErmcHostEffects*)(g_base + ERMC_OFF_HOST_EFFECTS); }
 ErmcEntityTable* shm_entities() { return (ErmcEntityTable*)(g_base + ERMC_OFF_ENTITIES); }
 ErmcPassageTable* shm_passages() { return (ErmcPassageTable*)(g_base + ERMC_OFF_PASSAGES); }
 ErmcPlatformTable* shm_platforms() { return (ErmcPlatformTable*)(g_base + ERMC_OFF_PLATFORMS); }

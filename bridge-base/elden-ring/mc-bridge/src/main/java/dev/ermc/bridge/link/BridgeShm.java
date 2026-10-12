@@ -275,6 +275,35 @@ public final class BridgeShm {
 		return false;
 	}
 
+	/** Reads the optional host-effect block without treating missing or inconsistent data as clean. */
+	public boolean readHostEffects(HostEffectState out) {
+		int base = Protocol.OFF_HOST_EFFECTS;
+		for (int tries = 0; tries < 2000; tries++) {
+			int seq = (int) INT.getAcquire(buf, base + Protocol.HFX_SEQ);
+			if (seq == 0) return false;
+			if ((seq & 1) != 0) {
+				Thread.onSpinWait();
+				continue;
+			}
+			int magic = buf.getInt(base + Protocol.HFX_MAGIC);
+			int version = buf.getInt(base + Protocol.HFX_VERSION);
+			int flags = buf.getInt(base + Protocol.HFX_FLAGS);
+			long frame = buf.getLong(base + Protocol.HFX_FRAME);
+			int hostLife = buf.getInt(base + Protocol.HFX_HOST_LIFE);
+			int poisonId = buf.getInt(base + Protocol.HFX_POISON_ID);
+			VarHandle.acquireFence();
+			if ((int) INT.getAcquire(buf, base + Protocol.HFX_SEQ) != seq) continue;
+			if (magic != Protocol.HOST_EFFECTS_MAGIC || version != Protocol.HOST_EFFECTS_VERSION
+				|| ((flags & Protocol.HOST_EFFECT_POISON) != 0 && poisonId < 0)) return false;
+			out.flags = flags;
+			out.frame = frame;
+			out.hostLife = hostLife;
+			out.poisonEffectId = poisonId;
+			return true;
+		}
+		return false;
+	}
+
 	// -- entities & damage ----------------------------------------------------------------------
 
 	/** Seqlock read of the host game's hittable-entity table into {@code out} (resized as needed). */

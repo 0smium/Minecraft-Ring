@@ -23,6 +23,7 @@
 #include "player_facing.h"
 #include "world_environment.h"
 #include "support_surface.h"
+#include "host_effects.h"
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
@@ -119,6 +120,7 @@ constexpr uint32_t kTerrainRayFilter = 0x5D;
 static uintptr_t g_base = 0;
 static bool g_ok = false;
 static bool g_fallTraceOk = false;
+static HostEffectsReader g_hostEffects;
 
 struct CodeSig {
     uintptr_t rva;
@@ -2377,8 +2379,11 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
     }
     publish_prompt(alive && g_standing);
 
+    const HostEffectsSnapshot effects = g_hostEffects.read(alive ? p.ins : nullptr);
     frame_claim_source();
     on_frame();
+    publish_host_effects(effects, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER) && g_standing,
+                         shm_state()->frame, shm_header()->hostLife);
     QueryPerformanceCounter(&t1);
     QueryPerformanceFrequency(&fq);
     perf_add_tick((double)(t1.QuadPart - t0.QuadPart) * 1000.0 / fq.QuadPart);
@@ -2458,6 +2463,7 @@ static void unlock_fps() {
 }
 bool game_init() {
     g_base = main_module_base();
+    publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
     log("game: eldenring.exe base %p size 0x%zx", (void*)g_base, main_module_size());
     g_ok = true;
     for (const CodeSig& s : kSigs) {
@@ -2467,6 +2473,8 @@ bool game_init() {
         }
     }
     if (!g_ok) return false;
+    const bool hostEffectsOk = g_hostEffects.init(g_base);
+    log("game: read-only host effects %s", hostEffectsOk ? "enabled" : "disabled (signature mismatch)");
     g_fallTraceOk = bytes_match(g_base + 0x44E6B3, "80 7B 1C 00 C6 43 1E 00 74 23 F3 41 0F 10 46 08 F3 0F 58 43 18") &&
         bytes_match(g_base + 0x460A19, "88 81 D0 01 00 00");
     log("game: read-only fall diagnostics %s", g_fallTraceOk ? "enabled" : "disabled (signature mismatch)");
@@ -2513,6 +2521,7 @@ void game_detach() {
 }
 
 void game_shutdown() {
+    publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
     if (g_environmentOk) release_environment();
     if (g_fpsPatched) {
         float interval = 1.0f / 60.0f;
