@@ -1,6 +1,6 @@
 # 2026-10-12：Core 三次受击与末影珍珠基线
 
-状态：部分已观察，三次可比较受击样本未完成。用户选定风车村小怪平A，随后报告前段是 ER 中毒、后段才是普通受击；日志确认状态伤害被按普通攻击处理并产生击退，先修复此阻塞。候选已构建，未部署、未实测通过。末影珍珠待测。站立升降平台仍失败，关卡 0 未通过，见 [Core 续测](20261012-core-recheck.md)。
+状态：部分已观察，三次可比较受击样本未完成。用户选定风车村小怪平A，随后报告前段是 ER 中毒、后段才是普通受击；日志确认状态伤害被按普通攻击处理并产生击退，先修复此阻塞。候选已构建并部署，第十三轮 Core 已启动，人工复验待反馈。末影珍珠待测。站立升降平台仍失败，关卡 0 未通过，见 [Core 续测](20261012-core-recheck.md)。
 
 ## 实际制品与观察方式
 
@@ -49,7 +49,7 @@
 
 01:18:34–37 又出现多次 110 HP 攻击直至死亡，不符合每轮单次命中。当前三次表保持未完成；既有实际数据有效留档，但不宣称关卡通过。证据：`runtime/experiments/core-12-combat-first-native.log`、`core-12-combat-first-minecraft.log`、`core-12-combat-first-status.json`。
 
-## 分类候选：已构建，待部署与人工复验
+## 分类候选：已构建并部署，待人工复验
 
 代码提交 `27cbc68779ddd77fe03016eb22eaca5a7ba29de2`，只修既有伤害事件分流并加实际状态扣血日志：
 
@@ -58,9 +58,21 @@
 - 两个通道及 MaxHP 同处既有 seqlock 写入边界；状态累计不混入下次普通攻击的 totalDamage 差分。MC 状态通道原每 20 tick 结算、按 ER HP/maxHP 比例换算，金额和频率未改；新增日志直接读实际 HP/速度前后值。
 - 当前只是“无攻击者记录的伤害”，尚未读取 ER 的具体 Poison 状态/持续时间，不能宣称完成 MC Poison 图标或效果映射。直接同时添加原版 Poison 会额外扣血且套入不同结算。攻击与中毒落在同一原生采样时仍无法拆开；缺少攻击者记录的真实攻击是否存在，需要普通攻击对照验证。
 
-Native 构建退出 0，日志 `runtime/experiments/native-status-classification-build.log`；Core DLL SHA-256 `C4480614AB586F65A944AD5C94687918C99A6A3C06BF470B87FB4D7C3B76459C`。Fabric `build` 退出 0（6 秒），日志 `runtime/experiments/fabric-status-classification-build.log`；JAR SHA-256 `9250C9F4B053150DB8261D910CF49DE8EEE87FB89F1E449F5F123EBB3F89EBF7`。diff 检查及只读审查通过，人工结果待测，当前运行仍为旧 native。
+Native 构建退出 0，日志 `runtime/experiments/native-status-classification-build.log`；Core DLL SHA-256 `C4480614AB586F65A944AD5C94687918C99A6A3C06BF470B87FB4D7C3B76459C`。Fabric `build` 退出 0（6 秒），日志 `runtime/experiments/fabric-status-classification-build.log`；JAR SHA-256 `9250C9F4B053150DB8261D910CF49DE8EEE87FB89F1E449F5F123EBB3F89EBF7`。diff 检查及只读审查通过，人工结果待测。
 
-下一步：关闭 MC 和 ER，更新实际 `Game/erbridge/erbridge_core.dll` 后按 Core `start.bat` 重启；先单独观察中毒是否继续掉血但不被推走，再确认真实普通攻击仍有正常扣血和击退。未通过对照前不计三次基线。
+### 第十三轮：实际部署与启动
+
+用户反馈已退出。MC 已关闭，ER 正在结束退出，随后再次确认 ER 进程消失才复制 DLL；未终止游戏进程。旧 Core 另保存在 `runtime/experiments/core-before-status-classification.dll`，不改原始安装备份。仅更新实际 `D:\Steam\steamapps\common\ELDEN RING\Game\erbridge\erbridge_core.dll`，源 DLL 与新运行加载副本 `Game/erbridge/loaded/core_15368_1.dll` 的 SHA-256 均与上述候选一致。
+
+第十三轮启动 HEAD `480aa0c055d765d10804f4967a856987dc90d0c2`，工作树干净，按无 LB 的 `start.bat` 启动；ER PID `15368`、MC PID `3724`。Steam PID `34636` 在运行。实际 exe 再读仍为 `2.7.1.0`，沿用用户此前标题 App `1.17.1` 的确认，本轮未另取得 App 确认。MC 01:29:06 列表 56 mods，无 LB/MCEF/FLK；01:29:17 加入 ER Bridge。随后快照 `live=true / player_valid=true / camera_override=true / compositing=true`，已经接管合成。
+
+`installation.json` 仍在主仓库根目录，SHA-256 `8551CE1521C33E08CBFE909CAA5BC7A92AF9369E1FAD591AA1789071CFFDF3C2`；原备份 `backups/20261011-095120` 保留，未重跑安装器。已安装 loader 未替换，SHA-256 仍 `F732F6AFADB5638795882A562CF83CB3E12D95C63432123E3B7881CF057EB96C`。
+
+下一步先在固定地面、远离敌人，生存模式且满血，中毒生效后松键观察 10 秒；反馈是否扣血、是否横推或弹起、是否混入敌人攻击。再确认真实普通攻击仍有正常扣血和击退。未通过对照前不计三次基线。naturalRegeneration 原值 true，实验过程设为 false，尚未恢复。
+
+- 第十二轮最终留档：`runtime/experiments/core-12-final-native.log`、`core-12-final-minecraft.log`。
+- 第十三轮启动：`runtime/experiments/core-launch-13-status-classification.log`。
+- 第十三轮启动快照：`runtime/experiments/core-13-startup-native.log`、`core-13-startup-minecraft.log`、`core-13-startup-status.json`。
 
 - 上一轮最终留档：`runtime/experiments/core-11-final-native.log`、`core-11-final-minecraft.log`。
 - 本轮启动：`runtime/experiments/core-launch-12-combat-baseline.log`。
