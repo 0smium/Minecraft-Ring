@@ -1,6 +1,6 @@
 # 2026-10-12：Core 三次受击与末影珍珠基线
 
-状态：部分已观察，三次可比较受击样本未完成。用户选定风车村小怪平A，随后报告前段是 ER 中毒、后段才是普通受击；日志确认状态伤害被按普通攻击处理并产生击退，先修复此阻塞。候选已构建并部署，第十三轮 Core 已启动，人工复验待反馈。末影珍珠待测。站立升降平台仍失败，关卡 0 未通过，见 [Core 续测](20261012-core-recheck.md)。
+状态：部分已观察，三次可比较受击样本未完成。第十三轮自定义 status 去击退方案仍把中毒扣到死亡，语义验证失败。用户要求集中翻译真实 ER 状态，已改为读取活动 Poison、由 MC 原版效果结算；新候选已构建，尚未部署或人工验证。末影珍珠待测。站立升降平台仍失败，关卡 0 未通过，见 [Core 续测](20261012-core-recheck.md)。
 
 ## 实际制品与观察方式
 
@@ -49,7 +49,7 @@
 
 01:18:34–37 又出现多次 110 HP 攻击直至死亡，不符合每轮单次命中。当前三次表保持未完成；既有实际数据有效留档，但不宣称关卡通过。证据：`runtime/experiments/core-12-combat-first-native.log`、`core-12-combat-first-minecraft.log`、`core-12-combat-first-status.json`。
 
-## 分类候选：已构建并部署，待人工复验
+## 分类候选：第十三轮已部署，后续语义验证失败
 
 代码提交 `27cbc68779ddd77fe03016eb22eaca5a7ba29de2`，只修既有伤害事件分流并加实际状态扣血日志：
 
@@ -58,7 +58,7 @@
 - 两个通道及 MaxHP 同处既有 seqlock 写入边界；状态累计不混入下次普通攻击的 totalDamage 差分。MC 状态通道原每 20 tick 结算、按 ER HP/maxHP 比例换算，金额和频率未改；新增日志直接读实际 HP/速度前后值。
 - 当前只是“无攻击者记录的伤害”，尚未读取 ER 的具体 Poison 状态/持续时间，不能宣称完成 MC Poison 图标或效果映射。直接同时添加原版 Poison 会额外扣血且套入不同结算。攻击与中毒落在同一原生采样时仍无法拆开；缺少攻击者记录的真实攻击是否存在，需要普通攻击对照验证。
 
-Native 构建退出 0，日志 `runtime/experiments/native-status-classification-build.log`；Core DLL SHA-256 `C4480614AB586F65A944AD5C94687918C99A6A3C06BF470B87FB4D7C3B76459C`。Fabric `build` 退出 0（6 秒），日志 `runtime/experiments/fabric-status-classification-build.log`；JAR SHA-256 `9250C9F4B053150DB8261D910CF49DE8EEE87FB89F1E449F5F123EBB3F89EBF7`。diff 检查及只读审查通过，人工结果待测。
+Native 构建退出 0，日志 `runtime/experiments/native-status-classification-build.log`；Core DLL SHA-256 `C4480614AB586F65A944AD5C94687918C99A6A3C06BF470B87FB4D7C3B76459C`。Fabric `build` 退出 0（6 秒），日志 `runtime/experiments/fabric-status-classification-build.log`；JAR SHA-256 `9250C9F4B053150DB8261D910CF49DE8EEE87FB89F1E449F5F123EBB3F89EBF7`。该构建的检查通过；第十三轮后续人工反馈与死亡日志判定语义失败，见下文。
 
 ### 第十三轮：实际部署与启动
 
@@ -68,7 +68,7 @@ Native 构建退出 0，日志 `runtime/experiments/native-status-classification
 
 `installation.json` 仍在主仓库根目录，SHA-256 `8551CE1521C33E08CBFE909CAA5BC7A92AF9369E1FAD591AA1789071CFFDF3C2`；原备份 `backups/20261011-095120` 保留，未重跑安装器。已安装 loader 未替换，SHA-256 仍 `F732F6AFADB5638795882A562CF83CB3E12D95C63432123E3B7881CF057EB96C`。
 
-下一步先在固定地面、远离敌人，生存模式且满血，中毒生效后松键观察 10 秒；反馈是否扣血、是否横推或弹起、是否混入敌人攻击。再确认真实普通攻击仍有正常扣血和击退。未通过对照前不计三次基线。naturalRegeneration 原值 true，实验过程设为 false，尚未恢复。
+当时安排在固定地面、远离敌人，生存模式且满血，中毒生效后松键观察 10 秒。反馈指出中毒仍致死，不能继续把本方案当正确的 Poison 基线。naturalRegeneration 原值 true，实验过程设为 false，尚未恢复。
 
 - 第十二轮最终留档：`runtime/experiments/core-12-final-native.log`、`core-12-final-minecraft.log`。
 - 第十三轮启动：`runtime/experiments/core-launch-13-status-classification.log`。
@@ -80,3 +80,30 @@ Native 构建退出 0，日志 `runtime/experiments/native-status-classification
 - 后续人工操作日志：`runtime/er-bridge.log`、`bridge-base/elden-ring/mc-bridge/run/logs/latest.log`，取得反馈后另存。
 
 日志、JAR、视频、游戏文件和存档均不提交 Git；只提交代码与实验 Markdown，不推送 upstream、不合并 main。
+
+## 第十三轮结果：自定义 status 中毒语义失败
+
+用户明确指出 MC 原版 Poison 不会单独致死，而本轮已被毒死，并要求规范 ER 状态到 MC 的集中翻译。日志确认 01:33:39、01:36:40 都发生 `Steve died (erbridge.status)`；后一条服务器实际 HP `0.060095787→0`，随后经既有 LifeBridge 同步法环死亡。此前状态扣血前后位置与速度相同，支持这次没有状态攻击击退，但“无击退”不等于原版 Poison 行为。该路径不是原版效果，结果记为失败，不再对直接 status 扣血打补丁。
+
+证据：`runtime/experiments/core-13-poison-native.log`、`core-13-poison-minecraft.log`、`core-13-poison-status.json`。本轮用户扩展了工作范围：先实现真实状态的集中映射，以 Poison 为第一条规则；不是原计划的普通三次受击通过记录。
+
+## 集中映射候选：已构建，部署与人工结果待验证
+
+实现提交 `580d70a0ec14899febbe28c219f64d42d30c36dc`，分支 `dev/lb-poc`，仍用配置 A / Core-only。架构和具体规则见 [host-state-mapping.md](../host-state-mapping.md)。
+
+- 原生层只读真实 SpecialEffect 活动链，完整扫描后识别 `stateInfo=2`，发布有效性、MC 控制归属、帧、生命期及原始效果 ID；坏指针、循环、超出 256 项或签名不符发布未知。可选独立 HEFX v1 小块 `0xC00 / 32 B`，不改 GameState 的 `0x114` 布局与总协议版本。
+- 当前 exe `2.7.1.0` 的目标指令、live 字节、vtable/owner 与字段关系交叉核对成功。只读快照实际观察到 ID `4004`、`stateInfo=2`、180 秒效果，剩余约 89.658 秒。身份按真实类型判定，不把 7 HP 下降或无攻击者当成 Poison。证据：`runtime/experiments/poison-research/poison-live-snapshot.json`、`effect-field-code-verification.json` 及对应反汇编文本；下载参考固定提交见架构文档，不提交这些运行文件。
+- MC `HostEffectsBridge` 集中映射为原版 `MobEffects.POISON` I；短租期按 25 tick 相位续期。明确解除、F8 交还控制、读数未知/过期、断连、生命期或玩家对象变化、服务器停止时，仅撤销桥接自有效果。既有 MC Poison 不接管，更强、更长或无限外部续期会放弃所有权，不删除外部效果。
+- `CombatBridge` 不再把无攻击者 HP 差額转为额外 MC 伤害，只记录；普通敌人攻击换算和真实死亡/复活同步继续沿用。原版 Poison 的持续扣血、无击退与不会单独致死由 MC 自己结算，不靠禁用死亡。
+
+| 检查 | 结果 / 实际制品 | 日志 |
+| --- | --- | --- |
+| Native 构建 | 退出 0；Core DLL SHA-256 `3869C54C33F8D2B0F2D98A88D780E5E5B86FE22AD8615599ED1840DC626A92EB` | `runtime/experiments/native-host-effects-build.log` |
+| Fabric 构建 | 退出 0，`BUILD SUCCESSFUL in 19s`；JAR SHA-256 `28E459A52258C315D5B536016D1A80CC281B0B77E10D718609C3ADB8029CF6F2` | `runtime/experiments/fabric-host-effects-build.log` |
+| 实际 Java 协议读取探针 | 8/8，通过，退出 0；有效 Poison、有效无毒、flags=0 未知及 magic/version/odd seq/非法 Poison ID/seq=0 五种拒绝；拒绝不覆盖上次输出 | `runtime/experiments/host-effects-wire-probe.log` |
+| diff / 分层审查 | 通过；探针使用自建映射文件，未接触实际游戏共享内存 | 代码与本记录 |
+| 新 DLL 实际加载 / 原版效果人工验证 | 未执行；当前游戏仍运行第十三轮旧制品 | 待部署后取得 |
+
+保留限制：未知环境伤害本轮暂不翻译；攻击与中毒同一原生采样的 HP 差额仍可能混合；两个原生状态块不是统一原子快照，极窄异步换角色边界可能保留一帧旧效果，生命期/控制/时效检查随后撤销。同等级较短 MC 外部 Poison 合并无法完整追溯所有权，Core 对照不混入其他毒来源。F8 回到 ER 控制后仍遵守 ER 的中毒与死亡规则；MC 原版 Poison 不致死的判据限定在 MC 接管时。
+
+下一步完整退出 MC 和 ER 后仅更新 Core DLL，不重跑安装器，核对真实加载 SHA；再在无敌人干扰的固定地面验证活动 Poison 图标、至少 30 秒扣血至低 HP 而不自行死亡、无横推/弹起及状态解除。原版效果尚未在游戏中观察，不能写为通过。随后在无毒条件下继续普通攻击三次对照。naturalRegeneration 尚待实验结束恢复 true。
