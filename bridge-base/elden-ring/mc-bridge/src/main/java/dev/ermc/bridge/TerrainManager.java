@@ -489,6 +489,19 @@ public final class TerrainManager {
 
 	public static boolean movingColumn(int x, int z) { return MOVING_COLUMNS.contains(ChunkPos.asLong(x, z)); }
 
+	/** Read-only diagnostics, including the short window immediately after lost support. */
+	public static boolean platformTraceActive(ServerPlayer player) {
+		var motion = PLATFORM_MOTION.get(player.getUUID());
+		long now = System.currentTimeMillis();
+		return bridgeWorld && player.serverLevel().dimension() == net.minecraft.world.level.Level.OVERWORLD
+			&& ((motion != null && motion.moving(now)) || now < platformTraceUntil);
+	}
+
+	public static int platformTraceEpoch(ServerPlayer player) {
+		var motion = PLATFORM_MOTION.get(player.getUUID());
+		return motion == null ? 0 : motion.epoch();
+	}
+
 	/** Read only: highest real collision surface overlapping the feet within the local one-block window. */
 	public static double platformTraceShapeTop(net.minecraft.world.level.Level level, net.minecraft.world.entity.Entity player) {
 		AABB body = player.getBoundingBox();

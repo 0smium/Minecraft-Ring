@@ -91,11 +91,27 @@ public final class MovingPlatformClient {
 				carriedY = mc.player.getY() - beforeY;
 			}
 		}
+		if (traceTick) TRACE.info("[platform-trace] client carried tick {}: xyz {} {} {} targetTop {} shapeTop {} actualCarry {}",
+			traceTickId, mc.player.getX(), mc.player.getY(), mc.player.getZ(), MovingPlatformMotion.collisionHeight(step.floor()),
+			TerrainManager.platformTraceShapeTop(mc.level, mc.player), carriedY);
 		if (step.moving() && System.currentTimeMillis() - loggedAt >= 1000) {
 			loggedAt = System.currentTimeMillis();
 			org.slf4j.LoggerFactory.getLogger("erbridge").info("Moving platform: epoch {} travel {} m, floor {} feet {} grounded {}",
 				MOTION.epoch(), MOTION.travel(), step.floor(), mc.player.getY(), mc.player.onGround());
 		}
+	}
+
+	public static boolean tracingPhysics(net.minecraft.client.player.LocalPlayer player) {
+		return traceTick && player == Minecraft.getInstance().player && MOTION.epoch() != 0
+			&& Overlay.active() && !Overlay.hostMode();
+	}
+
+	/** Observe vanilla movement without changing its vector, position or collision. */
+	public static void tracePhysics(net.minecraft.client.player.LocalPlayer player,
+		net.minecraft.world.entity.MoverType type, net.minecraft.world.phys.Vec3 movement, String phase) {
+		TRACE.info("[platform-trace] client physics {} startTick {} tick {}: type {} request {}; xyz {} {} {} ground {} vy {} shapeTop {} floor {} epoch {}",
+			phase, traceTickId, player.tickCount, type, movement, player.getX(), player.getY(), player.getZ(),
+			player.onGround(), player.getDeltaMovement().y, TerrainManager.platformTraceShapeTop(player.level(), player), MOTION.floor(), MOTION.epoch());
 	}
 
 	/** Keep START's physical carry, but restore its old render endpoint after the vanilla tick. */
