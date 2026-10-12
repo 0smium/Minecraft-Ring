@@ -92,7 +92,8 @@ public final class FramePassthrough {
 			// Two independent render loops drift in phase. A limit barely above host
 			// FPS misses host frames whenever either loop has a small timing spike.
 			// Modest headroom keeps one completed capture ready for each host frame.
-			int target = Math.max(60, Math.min(96, (int)Math.ceil(fps * 1.4) + 6));
+			// Allow the same phase headroom for a 120 FPS host, rather than capping its overlay at 96.
+			int target = Math.max(60, Math.min(180, (int)Math.ceil(fps * 1.4) + 6));
 			frameBudget += Math.max(-3, Math.min(3, target - frameBudget));
 			budgetAt = now; budgetHostFrame = host;
 		}
