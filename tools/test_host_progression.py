@@ -77,7 +77,7 @@ int main(int argc,char** argv){
     seed();memory.erase(DATA+0x9C);assert(!read(reader).valid);
     seed();memory[BASE+0x657220][0]^=1;assert(!reader.init(BASE));assert(!read(reader).valid);
     seed();assert(reader.init(BASE));ready=read(reader);
-    // Publish the real struct, check untouched HEFX v1 and all unknown/loading fields.
+    // Publish the real struct, check untouched HEFX block and all unknown/loading fields.
     memset(mapping+ERMC_OFF_HOST_EFFECTS,0xA5,sizeof(ErmcHostEffects));
     publish_host_progression(ready,false,true,100,7);
     auto* wire=(ErmcHostProgression*)(mapping+ERMC_OFF_HOST_PROGRESSION);
@@ -96,7 +96,7 @@ int main(int argc,char** argv){
     auto unicode=read(reader);assert(unicode.valid);
     publish_host_progression(unicode,false,false,103,8);writeWire(argv[1],".emoji",wire);
     for(size_t i=0;i<sizeof(ErmcHostEffects);i++)assert(mapping[ERMC_OFF_HOST_EFFECTS+i]==0xA5);
-    puts("PASS: real reader signature/vtables/level/name/switch rejection, canonical weak fingerprint, HPRG ABI/loading/unknown and untouched HEFXv1");
+    puts("PASS: real reader signature/vtables/level/name/switch rejection, canonical weak fingerprint, HPRG ABI/loading/unknown and untouched HEFX block");
 }
 '''
 

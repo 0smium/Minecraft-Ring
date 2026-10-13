@@ -15,6 +15,9 @@ if (skillsHash != '276ce0b5f15bcfeafe632c8eabe0d2d3104b9b0362897e66fd049bcd217ba
 	throw new GradleException('Pufferfish Skills JAR differs from verified 0.19.2 for Minecraft 1.21')
 }
 def b01Enabled = providers.gradleProperty('b01').map { it.toBoolean() }.getOrElse(false)
+if (b01Enabled && providers.gradleProperty('meteorProduction').map { it.toBoolean() }.getOrElse(false)) {
+	throw new GradleException('B01 currently authorizes LiquidBounce abilities; use a separate Meteor profile')
+}
 
 loom {
 	splitEnvironmentSourceSets()
@@ -30,6 +33,9 @@ loom {
 		client {
 			programArgs '--username', 'Steve'
 			vmArgs '-Xms512m', '-Xmx3g'
+			if (providers.gradleProperty('experimentalFrostBurst').map { it.toBoolean() }.getOrElse(false)) {
+				vmArgs '-Derbridge.experimentalFrostBurst=true'
+			}
 		}
 	}
 }
@@ -50,6 +56,9 @@ dependencies {
 // Fixed LB uses production intermediary names, including calls from its nested dependencies.
 // Keep the original jars intact and let Fabric Loader discover their nested mods.
 if (providers.gradleProperty('lbProduction').map { it.toBoolean() }.getOrElse(false)) {
+	if (providers.gradleProperty('meteorProduction').map { it.toBoolean() }.getOrElse(false)) {
+		throw new GradleException('Select one optional client profile: LiquidBounce or Meteor')
+	}
 	def lbJar = providers.gradleProperty('lbJar').orNull
 	if (lbJar == null || !file(lbJar).isFile()) {
 		throw new GradleException('productionLbClient requires -PlbJar pointing to the verified LB Build #3530 JAR')
@@ -72,10 +81,54 @@ if (providers.gradleProperty('lbProduction').map { it.toBoolean() }.getOrElse(fa
 		if (b01Enabled) mods.from skillsJar
 		runDir = layout.projectDirectory.dir('run')
 		jvmArgs.addAll('-Xms512m', '-Xmx3g')
+		if (providers.gradleProperty('experimentalFrostBurst').map { it.toBoolean() }.getOrElse(false)) {
+			jvmArgs.add('-Derbridge.experimentalFrostBurst=true')
+		}
 		programArgs.addAll('--username', 'Steve', '--version', project.minecraft_version, '--accessToken', '0')
 		javaLauncher = javaToolchains.launcherFor {
 			languageVersion = JavaLanguageVersion.of(25)
 		}
+		useXVFB = false
+	}
+}
+
+// Optional production-only Meteor profile. Core sources have no Meteor compile dependency.
+if (providers.gradleProperty('meteorProduction').map { it.toBoolean() }.getOrElse(false)) {
+	def meteorJar = providers.gradleProperty('meteorJar').orNull
+	def expectedDigest = providers.gradleProperty('meteorSha256').orNull
+	if (meteorJar == null || !file(meteorJar).isFile() || expectedDigest == null || !(expectedDigest ==~ /(?i)[0-9a-f]{64}/)) {
+		throw new GradleException('Prepare Meteor with tools/prepare_meteor.py; supply -PmeteorJar and -PmeteorSha256')
+	}
+	def digest = java.security.MessageDigest.getInstance('SHA-256')
+	file(meteorJar).withInputStream { input ->
+		byte[] buffer = new byte[65536]
+		int count
+		while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count)
+	}
+	if (!digest.digest().encodeHex().toString().equalsIgnoreCase(expectedDigest)) {
+		throw new GradleException('Meteor artifact differs from its recorded SHA-256 pin')
+	}
+	configurations {
+		meteorProductionMods {
+			canBeConsumed = false
+			canBeResolved = true
+			transitive = false
+		}
+	}
+	dependencies {
+		meteorProductionMods "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	}
+	tasks.register('productionMeteorClient', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
+		group = 'fabric'
+		description = 'Run Core with the locally pinned Meteor 0.5.8 release in an isolated profile'
+		mods.from tasks.named('remapJar'), file(meteorJar), configurations.meteorProductionMods
+		runDir = layout.projectDirectory.dir('run-meteor')
+		jvmArgs.addAll('-Xms512m', '-Xmx3g')
+		if (providers.gradleProperty('experimentalFrostBurst').map { it.toBoolean() }.getOrElse(false)) {
+			jvmArgs.add('-Derbridge.experimentalFrostBurst=true')
+		}
+		programArgs.addAll('--username', 'Steve', '--version', project.minecraft_version, '--accessToken', '0')
+		javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
 		useXVFB = false
 	}
 }

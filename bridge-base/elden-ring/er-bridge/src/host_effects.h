@@ -1,5 +1,6 @@
 #pragma once
 #include "common.h"
+#include "host_effect_state.h"
 #include <string.h>
 
 namespace mb {
@@ -11,11 +12,6 @@ namespace mb {
 // ividyon/EldenRingHKS@8710f97408dd57bf1d6ef919f619cb2937919c39/c9997.hks
 // defines GetSpEffectType=362 and SP_EFFECT_TYPE_POISON=2. The target's same query
 // reads linked entries' param stateInfo, independently of the HP-loss channel.
-struct HostEffectsSnapshot {
-    bool valid = false;
-    int32_t poisonEffectId = -1;
-};
-
 class HostEffectsReader {
     uintptr_t base_ = 0;
     bool enabled_ = false;
@@ -61,7 +57,7 @@ public:
 
         uintptr_t seen[256];
         size_t count = 0;
-        int32_t poisonId = -1;
+        HostEffectsSnapshot observed;
         for (uintptr_t current = list.head; current;) {
             if (count == 256) return result; // Incomplete traversal is unknown, never clean.
             for (size_t i = 0; i < count; i++) if (seen[i] == current) return result;
@@ -81,18 +77,19 @@ public:
             uint16_t stateInfo = 0;
             if (!mem_read((const void*)(entry.param + 0x156), &stateInfo, sizeof(stateInfo)))
                 return result;
-            if (stateInfo == 2 && (poisonId == -1 || entry.id < poisonId)) poisonId = entry.id;
+            observed.observe(stateInfo, entry.id);
             current = entry.next;
         }
-        result.valid = true;
-        result.poisonEffectId = poisonId;
-        return result;
+        observed.valid = true;
+        return observed;
     }
 };
 
 inline void publish_host_effects(const HostEffectsSnapshot& value, bool mcControl,
                                  uint64_t sampleFrame, uint32_t hostLife) {
     ErmcHostEffects* out = shm_host_effects();
+    static HostEffectEpisodes episodes;
+    const uint32_t frostProcs = episodes.observe(value, hostLife);
     const uint32_t writing = out->seq | 1u;
     out->seq = writing;
     __asm__ __volatile__("" ::: "memory");
@@ -100,10 +97,20 @@ inline void publish_host_effects(const HostEffectsSnapshot& value, bool mcContro
     out->version = ERMC_HOST_EFFECTS_VERSION;
     out->flags = (value.valid ? ERMC_HOST_EFFECTS_VALID : 0) |
         (mcControl ? ERMC_HOST_EFFECTS_MC_CONTROL : 0) |
-        (value.valid && value.poisonEffectId >= 0 ? ERMC_HOST_EFFECTS_POISON : 0);
+        (value.valid && value.poisonEffectId >= 0 ? ERMC_HOST_EFFECTS_POISON : 0) |
+        (value.valid && value.rotEffectId >= 0 ? ERMC_HOST_EFFECTS_ROT : 0) |
+        (value.valid && value.frostEffectId >= 0 ? ERMC_HOST_EFFECTS_FROST : 0) |
+        (value.valid && value.sleepEffectId >= 0 ? ERMC_HOST_EFFECTS_SLEEP : 0) |
+        (value.valid && value.madnessEffectId >= 0 ? ERMC_HOST_EFFECTS_MADNESS : 0);
     out->sampleFrame = sampleFrame;
     out->hostLife = hostLife;
     out->poisonEffectId = value.valid ? value.poisonEffectId : -1;
+    out->rotEffectId = value.valid ? value.rotEffectId : -1;
+    out->frostEffectId = value.valid ? value.frostEffectId : -1;
+    out->sleepEffectId = value.valid ? value.sleepEffectId : -1;
+    out->madnessEffectId = value.valid ? value.madnessEffectId : -1;
+    out->frostProcs = frostProcs;
+    out->reserved = 0;
     __asm__ __volatile__("" ::: "memory");
     out->seq = writing + 1u;
 }

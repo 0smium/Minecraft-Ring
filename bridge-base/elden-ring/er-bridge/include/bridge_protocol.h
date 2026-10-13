@@ -98,10 +98,14 @@ typedef struct ErmcEnvironment {
 
 /* Optional extension: independent version/capability marker; no change to GameState ABI. */
 #define ERMC_HOST_EFFECTS_MAGIC 0x58464548u /* bytes "HEFX" */
-#define ERMC_HOST_EFFECTS_VERSION 1u
+#define ERMC_HOST_EFFECTS_VERSION 2u
 #define ERMC_HOST_EFFECTS_VALID 1u /* complete, readable actual-effect snapshot */
 #define ERMC_HOST_EFFECTS_MC_CONTROL 2u /* host player actually standing in for MC */
 #define ERMC_HOST_EFFECTS_POISON 4u /* actual SpEffect stateInfo=2 present */
+#define ERMC_HOST_EFFECTS_ROT 8u /* stateInfo=5 */
+#define ERMC_HOST_EFFECTS_FROST 16u /* stateInfo=260 */
+#define ERMC_HOST_EFFECTS_SLEEP 32u /* stateInfo=436 */
+#define ERMC_HOST_EFFECTS_MADNESS 64u /* stateInfo=437 */
 typedef struct ErmcHostEffects {
     volatile uint32_t seq;        /* 0x00 seqlock */
     uint32_t magic;               /* 0x04 */
@@ -110,7 +114,13 @@ typedef struct ErmcHostEffects {
     uint64_t sampleFrame;         /* 0x10 same tick's published GameState.frame */
     uint32_t hostLife;            /* 0x18 same tick's hostLife counter */
     int32_t poisonEffectId;       /* 0x1C representative actual ID; -1 without Poison */
-} ErmcHostEffects;                /* 0x20 */
+    int32_t rotEffectId;          /* 0x20 */
+    int32_t frostEffectId;        /* 0x24 */
+    int32_t sleepEffectId;        /* 0x28 */
+    int32_t madnessEffectId;      /* 0x2C */
+    uint32_t frostProcs;          /* 0x30 observed continuous clean -> frost transitions */
+    uint32_t reserved;            /* 0x34 */
+} ErmcHostEffects;                /* 0x38; v1 prefix unchanged, publish/read versions explicitly */
 
 /* Observations only: persistent CharacterBinding UUIDs are assigned by the server.
  * A name hash cannot distinguish same-name replacement characters or prove save identity. */
@@ -465,7 +475,9 @@ static_assert(sizeof(ErmcHeader) == 0xC0, "header size");
 static_assert(sizeof(ErmcGameState) == 0x114, "state size");
 static_assert(sizeof(ErmcControl) == 0x64, "control size");
 static_assert(sizeof(ErmcHunterEvents) == 0x30, "hunter events size");
-static_assert(sizeof(ErmcHostEffects) == 0x20, "host effects size");
+static_assert(sizeof(ErmcHostEffects) == 0x38, "host effects size");
+static_assert(offsetof(ErmcHostEffects, rotEffectId) == 0x20 &&
+              offsetof(ErmcHostEffects, frostProcs) == 0x30, "host effects v2 offsets");
 static_assert(sizeof(ErmcHostProgression) == 0x58, "host progression size");
 static_assert(offsetof(ErmcHostProgression, sampleFrame) == 0x10 &&
               offsetof(ErmcHostProgression, fingerprint) == 0x28 &&

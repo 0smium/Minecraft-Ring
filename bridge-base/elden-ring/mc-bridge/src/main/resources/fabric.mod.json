@@ -26,6 +26,10 @@
 		{
 			"config": "erbridge.liquidbounce.mixins.json",
 			"environment": "client"
+		},
+		{
+			"config": "erbridge.meteor.mixins.json",
+			"environment": "client"
 		}
 	],
 	"depends": {

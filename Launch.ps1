@@ -1,10 +1,11 @@
-param([switch]$LiquidBounce, [switch]$B01)
+param([switch]$LiquidBounce, [switch]$B01, [switch]$Meteor, [switch]$ExperimentalFrostBurst, [switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
+if ($Meteor -and ($LiquidBounce -or $B01)) { throw 'Choose -Meteor or the -LiquidBounce/-B01 profile; simultaneous loading is not supported.' }
 $ProjectRoot = $PSScriptRoot
 $Install = Get-Content -LiteralPath "$ProjectRoot\installation.json" -Raw | ConvertFrom-Json
 $GameExe = Join-Path $Install.game_dir 'eldenring.exe'
 if (!(Test-Path -LiteralPath $GameExe)) { throw "Elden Ring was not found: $GameExe" }
-$LbGradleArgs = @()
+$ClientGradleArgs = @()
 $ClientTask = 'runClient'
 if ($B01) {
     $LiquidBounce = $true
@@ -33,10 +34,36 @@ if ($LiquidBounce) {
     if ($LbHash -ne '1824011D91046F8F8B388CFA63782F38CDF754F12CB997317EAB8E69E67EF20D') {
         throw 'LiquidBounce JAR differs from the verified v0.22.0 / Build #3530.'
     }
-    $LbGradleArgs = @("-PlbJar=$LbJar", '-PlbProduction=true')
-    if ($B01) { $LbGradleArgs += '-Pb01=true' }
+    $ClientGradleArgs = @("-PlbJar=$LbJar", '-PlbProduction=true')
+    if ($B01) { $ClientGradleArgs += '-Pb01=true' }
     $ClientTask = 'productionLbClient'
     Write-Output "LiquidBounce v0.22.0 / Build #3530 enabled (SHA-256 $LbHash)."
+}
+if ($Meteor) {
+    $MeteorJar = Join-Path $ProjectRoot 'runtime\downloads\meteor-client-0.5.8.jar'
+    $MeteorLock = Join-Path $ProjectRoot 'runtime\downloads\meteor-client-0.5.8.lock.json'
+    if (!(Test-Path -LiteralPath $MeteorJar) -or !(Test-Path -LiteralPath $MeteorLock)) {
+        throw 'Prepare Meteor first: python tools/prepare_meteor.py (or --jar <official-release.jar>).'
+    }
+    $Pin = Get-Content -LiteralPath $MeteorLock -Raw | ConvertFrom-Json
+    if ($Pin.schema -ne 1 -or $Pin.id -ne 'meteor-client' -or $Pin.version -ne '0.5.8' -or $Pin.minecraft -ne '1.21.1') {
+        throw 'Unsupported Meteor artifact manifest.'
+    }
+    $MeteorDigest = [Security.Cryptography.SHA256]::Create()
+    $MeteorInput = [IO.File]::OpenRead($MeteorJar)
+    try { $MeteorHash = [BitConverter]::ToString($MeteorDigest.ComputeHash($MeteorInput)).Replace('-', '') }
+    finally { $MeteorInput.Dispose(); $MeteorDigest.Dispose() }
+    if ($MeteorHash -ne $Pin.sha256) { throw 'Meteor JAR differs from the locally recorded artifact pin.' }
+    $ClientGradleArgs = @("-PmeteorJar=$MeteorJar", "-PmeteorSha256=$MeteorHash", '-PmeteorProduction=true')
+    $ClientTask = 'productionMeteorClient'
+    Write-Output "Meteor 0.5.8 candidate enabled (SHA-256 $MeteorHash); isolated run-meteor profile."
+}
+if ($ExperimentalFrostBurst) { $ClientGradleArgs += '-PexperimentalFrostBurst=true' }
+$RunDirectory = if ($Meteor) { 'run-meteor' } else { 'run' }
+if ($CheckOnly) {
+    Write-Output "Profile and artifact checks passed: $ClientTask ($RunDirectory). No game was started or configuration changed."
+    Write-Output ("Gradle arguments: " + ($ClientGradleArgs -join ' '))
+    return
 }
 $env:ERMC_DIR = Join-Path $ProjectRoot 'runtime'
 $env:ERBRIDGE = '1'
@@ -91,7 +118,7 @@ if ($State -and $State.MinecraftProcessId -gt 0) {
         }
     }
 }
-$MinecraftRun = Join-Path $ProjectRoot 'bridge-base\elden-ring\mc-bridge\run'
+$MinecraftRun = Join-Path $ProjectRoot ("bridge-base\elden-ring\mc-bridge\" + $RunDirectory)
 function Set-MinecraftSetting([string]$Path, [string]$Name, [string]$Value) {
     $Lines = @()
     if (Test-Path -LiteralPath $Path) {
@@ -105,5 +132,5 @@ Set-MinecraftSetting (Join-Path $MinecraftRun 'options.txt') 'fullscreen' 'false
 Set-MinecraftSetting (Join-Path $MinecraftRun 'config\fullscreenfix.properties') 'startInFullscreen' 'false'
 Write-Output "Starting Minecraft in windowed mode... The $ClientTask task stays active while you play."
 $Gradle = (Get-ChildItem "$ProjectRoot\.tools\gradle" -Directory | Select-Object -First 1).FullName + '\bin\gradle.bat'
-& $Gradle '-p' "$ProjectRoot\bridge-base\elden-ring\mc-bridge" '--no-daemon' '--no-configuration-cache' @LbGradleArgs 'remapJar' $ClientTask
+& $Gradle '-p' "$ProjectRoot\bridge-base\elden-ring\mc-bridge" '--no-daemon' '--no-configuration-cache' @ClientGradleArgs 'remapJar' $ClientTask
 if ($LASTEXITCODE -ne 0) { throw 'Minecraft launch failed; see the console and run/logs/latest.log.' }

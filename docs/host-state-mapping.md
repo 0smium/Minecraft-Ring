@@ -1,39 +1,71 @@
 # 法环状态到 Minecraft 的集中映射
 
-本轮先统一中毒这一条路径。宿主状态是输入，Minecraft 的原版效果是行为实现；宿主掉血差额是观测值，不是效果身份。此前无攻击者掉血被自定义 status 直接扣血，虽然不再击退，却仍能致死，不能叫原版 Poison。
+沿用已有真实中毒读链，本轮将候选映射扩展到猩红腐败、冻伤、睡眠、发狂。宿主活动状态提供身份，Minecraft 原版效果实现行为；宿主 HP 差额不是效果身份。新增状态已通过原生读取 / 跨语言协议 / Java 桩回归，尚未在实际游戏验证。此前中毒的人工记录保留在下方，不据此推定新状态也已实测。
 
-## 职责与数据
+## 职责与协议
 
 | 层 | 职责 | 入口 |
 | --- | --- | --- |
-| ER 后端 | 在已验证的目标版本读取真实活动效果，完整读链失败即未知；不实施 MC 效果规则 | `host_effects.h`，由 `game.cpp` 游戏线程调用 |
-| 协议 | 传递有效性、控制归属、采样帧、生命期及原始效果 ID | 可选 HEFX 小块，offset `0xC00`，version 1，32 字节 |
-| MC 适配 | 核对输入有效、连接与生命期一致，在服务器线程添加或清理自己拥有的原版效果 | `HostEffectsBridge` |
-| MC 原版 | 结算 Poison 的持续扣血、图标、粒子和无攻击击退行为 | `MobEffects.POISON` |
+| ER 后端 | 读取真实活动效果，完整读链失败即未知；发布冻伤连续观察到的触发计数 | `host_effects.h`、`host_effect_state.h`，由 `game.cpp` 游戏线程调用 |
+| 协议 | 有效性、控制归属、采样帧、生命期、各状态代表效果 ID 和冻伤计数 | HEFX，offset `0xC00`，version 2，56 字节；原 32 字节前缀不变 |
+| MC 适配 | 验证连接、数据新鲜度与生命期，为本地宿主对应玩家管理自己安装的效果 | `HostEffectCodec`、`HostEffectCursor`、`HostEffectRules`、`HostEffectsBridge` |
+| MC 原版 | 执行效果持续行为、图标、粒子和伤害 | 原版 `MobEffects`，不重复播放 ER HP 总差额 |
 
-普通攻击继续由 `CombatBridge` 换算、由 MC 伤害机制处理护甲、盾、无敌和击退。真正死亡/复活继续经 `LifeBridge` 同步。本轮不重写上述两条路径。
+新版 Java 兼容 v1（仅 Poison）与 v2；未知版本、标志与 ID 不一致、半写入或短缓冲区均拒绝。旧版 Java 只接受 v1，无法消费新版 native 的 v2，因此部署本轮功能需同时升级 DLL / JAR。小块仍位于命令区域 `0x1000` 之前，无其他区域迁移。
 
-当前 ER 后端只支持本机已核对的 exe `2.7.1.0`。`ChrIns + 0x178` 的 SpecialEffect 活动链、entry 的 param / ID / next 以及 param 的 `stateInfo + 0x156`，已用目标程序的原版效果查询指令和只读运行快照交叉核对；实际观察到 ID `4004`、`stateInfo=2`。启动时再次核对目标指令签名，读取时核对 vtable、owner 及完整链；任何不符发布未知，不猜测新版本布局。布局参考固定于 [fromsoftware-rs 的 SpEffect 定义](https://github.com/vswarte/fromsoftware-rs/blob/59fbd3b3b7daaf14aca47c9f73530493dba6bc79/crates/eldenring/src/cs/sp_effect.rs)，类型参考固定于 [EldenRingHKS](https://github.com/ividyon/EldenRingHKS/blob/8710f97408dd57bf1d6ef919f619cb2937919c39/c9997.hks)。参考资料本身不能替代目标版本验证。
+读取布局仍只支持已核对的 exe `2.7.1.0` / App 1.17.1：`ChrIns + 0x178` 的 SpecialEffect 链及 param 的 `stateInfo + 0x156`。此前只读运行快照实际观察过效果 `4004`、`stateInfo=2`；新增种类的分类有源码依据，但实际触发仍待验证。启动核对目标指令签名，读取核对 vtable、owner 与完整链；任何不符发布未知，不猜新版本偏移，不把部分读取当成完整状态。
 
-## 第一条映射规则
+固定参考：[fromsoftware-rs 布局](https://github.com/vswarte/fromsoftware-rs/blob/59fbd3b3b7daaf14aca47c9f73530493dba6bc79/crates/eldenring/src/cs/sp_effect.rs)、[EldenRingHKS](https://github.com/ividyon/EldenRingHKS/blob/8710f97408dd57bf1d6ef919f619cb2937919c39/c9997.hks)、[Grand Archives STATE_INFO 定义所在目录](https://github.com/The-Grand-Archives/Elden-Ring-CT-TGA/tree/7926205c5a2ed236dd31278c4f5579c964ceec35/CheatTable/CheatEntries)。后者的 `Open - The Grand Archives - Elden Ring/MiscWIP/Dropdowns/STATE_INFO.xml` 将 260 标为 Frostbite。`stateInfo`、效果 ID 和 HKS 的蓄积槽索引是三种不同编号，不能混用。
 
-| 明确的宿主输入 | MC 行为 |
-| --- | --- |
-| 完整读取有效，真实 Poison 活动，处于 MC 接管 | 添加原版 Poison I；不是额外调用 `hurt` |
-| Poison 解除、生命期更换、控制交还或数据失效 | 撤销桥接自己安装的效果 |
-| 未经过确认命中路径、原因未识别的 HP 下降 | 记录原始损失，不猜成 Poison，也不另扣 MC HP |
+## 映射规则
 
-原版 Poison 不会单独致死。当前 MC 1.21.1 在 HP 大于 1 时每次扣 1；原本存在小数 HP 时最终可能低于 1，而不是精确停在 1。Poison I 周期 25 tick。这里采用 MC 的规则，不照搬 ER 每秒掉多少血，因此 ER HP 差额不能再重复结算。
+| 宿主输入 | MC 候选行为 | 语义与当前边界 |
+| --- | --- | --- |
+| Poison，stateInfo 2 | Poison I | 保留现有非致死毒规则；不区分 ER 不同毒强度 |
+| Scarlet Rot，5 | Wither I | 可致死，与 Poison 有明确差别；不复制 ER 持续伤害公式 |
+| Frostbite，260 | Slowness I；可选一次 Instant Damage I | 默认只有持续减速。一次伤害已实现但默认关闭，见下方归因验证 |
+| Sleep，436 | Blindness I + Slowness IV | 表达感知受限和强减速；不模拟真正睡眠、强制停手或动作前后摇 |
+| Madness，437 | Nausea I + Weakness I | 暂作感知 / 攻击能力受损；不映射 FP 损失或发狂爆发伤害 |
+| Hemorrhage，6 | 暂不添加 | 瞬时事件可能被快照漏掉，需要事件源；不按 HP 下降猜成出血 |
+| Death blight / 真正死亡 | 保持现有 LifeBridge 路径 | 不再叠加一次无来源死亡伤害 |
+| 火焰、湿润、增益、装备属性 | 尚未添加 | 需分别确认活动来源、开始 / 结束、一次或持续行为及结算归属 |
 
-桥接采用短租期，不保存永久毒：初始 100 tick，剩余不超过 25 时增加 75 tick；续期保持 25 tick 的相位。有效宿主活动状态维持租期，明确解除会立即清理。不能每 tick 重设固定时长，否则会破坏原版 Poison 的扣血周期。外部 MC 已有 Poison 不接管；原版同类型效果会合并，同等级外部续期不能完全追溯所有权，本轮 Core 对照不混入其他 Poison 来源。
+毒与腐败可同时存在。睡眠和冻伤共用 Slowness 时采用较强的 IV；睡眠结束仍有冻伤则恢复 I，不因为移除睡眠误清除整个减速。以上只是宿主到 MC 的单向翻译，喝牛奶等 MC 清理行为不解除 ER 状态，宿主状态仍有效时会重新施加。
 
-## 扩展约束
+原版 Poison I 周期为 25 tick，不会单独致死；有小数 HP 时不保证精确停在 1。短租期使用初始 100、剩余不超过 25 时增加 75，保留周期相位。Wither I 的 40 tick 周期使用 160 / 40 / +120；不能每 tick 重设固定时长，否则伤害节奏会失真。其他持续效果使用 100 / 25 / +75。
 
-后续属性或效果逐项加入同一适配入口，并先确定真实宿主身份、MC 对应行为、开始/结束条件和数据失效处理。不因图标相似或掉血大小匹配就套用状态；猩红腐败、火焰、出血等目前未实现。
+桥接不接管已有同类型效果；外部更强或更长续期会让桥接放弃所有权。外部较弱、较长的效果可能被原版放到自有实例的 `hiddenEffect` 链中：释放自有顶层时恢复该原始隐藏链，保留其剩余时长、永久效果、层级和显示属性；不会因移除宿主睡眠把后加的药水一起删掉。实际 MC 类与生产 Accessor 注入检查见[隐藏效果回归](experiments/2026-10-13-effect-hidden-chain.md)。
 
-未知环境伤害暂不翻译是本轮明确限制，不宣称已覆盖法环所有伤害。旧攻击路径使用 HP 总差额，会混入同帧毒伤；第十五轮改为从真实命中函数捕获实际扣血、总差额只记录剩余未知损失。混合场景仍待单独验证，普通攻击基线保持无状态干扰。新读取布局必须在实际 exe 验证，并有可选能力检查；失败不使用旧偏移、也不把读取失败写成无毒。
+原版合并后的同等级、较短外部续期无法完全追溯；更强的外部短效果将自有层复制到隐藏链时，现有策略会放弃所有权，不追踪复制来源。这些限制仍存在。状态解除、F8、生命期变化、断连 / 超过 1 秒不更新、换玩家或停止服务器时，只清理仍由桥接拥有的实例。
 
-实现、构建及人工结果见 [受击与状态实验记录](experiments/20261012-core-combat-baseline.md)。
+单一 IPC 宿主只绑定集成服务器的本机玩家，LAN 来宾不再继承宿主的这些状态。无明确本机玩家的 dedicated server 不应用。此修复仅覆盖 `HostEffectsBridge`；现有 `CombatBridge` / `LifeBridge` 的多人广播问题和多宿主会话路由仍待后续实现，不能据此宣称联机已隔离。
+
+## 冻伤一次伤害与生命结算
+
+native 只在同一生命期、连续有效采样观察到“没有冻伤 → 有冻伤”时增加计数。Java 仅在 MC 接管期间、连续较新帧、计数恰好增加一次且仍处于冻伤时执行一次伤害。重复读、首次读到已冻伤、重连、F8 返回、换生命期、未知采样及跳过多次计数均不补发历史伤害；无符号计数回绕按一次增量处理。
+
+一次伤害使用原版 Instant Damage I。当前真实命中函数已捕获实际 HP 损失，但“攻击同帧触发冻伤”是否把爆发也纳入这一捕获范围，尚无实机证据；如果已纳入，再额外施加会重复结算。因此默认关闭爆发，只启用减速，待核对后决定事件分流或默认开启。需要验证时：
+
+```powershell
+.\Launch.ps1 -ExperimentalFrostBurst
+# 可与 -Meteor 或 -LiquidBounce 组合
+```
+
+该开关在客户端启动时读取，不是当前技能策略的热更新项。关闭时仍推进计数基线，不会以后补扣伤害。普通攻击继续经 `CombatBridge`；真正死亡 / 复活经 `LifeBridge`。未知 HP 残差继续只记录，不能转换成任意效果或第二次伤害。
+
+## 验证范围与下一次实机批次
+
+`python tools/test_host_effects.py` 已通过：真实 C++ 读取 / 发布函数搭配内存桩、C++ v2 字节交给 Java 解码、v1 兼容与异常包拒绝、冻伤事件去重、真实 Java 管理器搭配平台桩、两种冻伤开关、800 tick 毒 / 腐败周期、叠加降级、外部效果保留及断连 / 停止清理。2026-10-13 另已通过 Windows native / Fabric 完整构建，以及合入 B01 后 HPRG 与 HEFX 区域互不覆盖、R09 启动失败拒绝测试。平台桩和构建均不能证明实际动画或伤害归因；本轮未部署新版 DLL，见[集成记录](experiments/2026-10-13-effects-meteor-integration.md)。
+
+一次实机验证覆盖以下场景，并记录 ER 活动 ID / MC 图标 / HP / 租期日志：
+
+1. 每种状态各触发与解除一次；毒 + 腐败、冻伤 + 睡眠分别同时存在，再单独解除一种。
+2. 腐败在低 HP 时能致死，毒保持非致死；外部药水先存在或中途增强时，不被桥接误清。
+3. 全程只开减速，记录攻击触发冻伤时 incoming-hit 实际 HP 与未知残差；再开实验爆发进行对照，确认一次触发只结算一次。
+4. 有状态时 F8、断连、死亡 / 复活、重进存档；不重放历史爆发、不遗留永久效果。LAN 来宾不继承本机状态。
+5. Core / 固定 LB / 固定 Meteor 分别对照；Speed 不应无条件抵消睡眠 / 冻伤，但服务端能力预算尚未接入，记录实际组合表现。
+
+此前实现与人工结果见 [受击与状态实验记录](experiments/20261012-core-combat-baseline.md)。
 
 ## 局部差异清单：先记后修
 
