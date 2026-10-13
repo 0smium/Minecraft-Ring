@@ -11,7 +11,6 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -69,6 +68,7 @@ public class ErBridgeMod implements ModInitializer {
 			TerrainRegeneration.reset();
 			EntityBridge.reset();
 			CombatBridge.reset();
+			LifeBridge.reset();
 			HostEffectsBridge.reset();
 		});
 		ServerTickEvents.END_SERVER_TICK.register(TerrainManager::onServerTick);
@@ -79,7 +79,8 @@ public class ErBridgeMod implements ModInitializer {
 		ServerTickEvents.END_SERVER_TICK.register(WorldEnvironmentBridge::onServerTick);
 		ServerLivingEntityEvents.AFTER_DEATH.register(LifeBridge::onDeath);
 		ServerPlayerEvents.AFTER_RESPAWN.register(LifeBridge::onRespawn);
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> TerrainManager.onJoin(server, handler.player));
+		// Networking JOIN runs before PlayerList registers the player; owner identity is ready here.
+		ServerPlayerEvents.JOIN.register(player -> TerrainManager.onJoin(player.getServer(), player));
 		dev.ermc.bridge.gameplay.runtime.B01Runtime.initialize();
 
 		// The host game's ground is not breakable, even in creative mode.

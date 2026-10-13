@@ -290,7 +290,24 @@ enum ErmcCmd {
     ERMC_CMD_MODULES    = 8, /* -> repeated {u64 base, u32 size, u16 nameLen, char name[nameLen]} */
     ERMC_CMD_RAYCAST    = 9, /* {f32 start[3], f32 end[3], u32 flags} -> ErmcRayHit, run on the game thread */
     ERMC_CMD_FIRE_SHELL = 10, /* {u32 slingerShellIndex, f32 origin[3], f32 target[3]} -> u64 shell, game thread */
+    ERMC_CMD_TEST_RUNES = 11, /* ErmcTestRunesRequest -> ErmcTestRunesResult; game thread, explicit test tool only */
 };
+
+/* Optional debug command payloads. No existing shared-memory block moves. Amount zero
+ * queries; positive amounts require an exact fresh owner/session/balance observation. */
+#define ERMC_TEST_RUNES_VERSION 1u
+#define ERMC_TEST_RUNES_MAX 5000000u
+typedef struct ErmcTestRunesRequest {
+    uint32_t version, amount, hostPid, coreGeneration;
+    uint32_t hostLife, level, currentRunes, reserved;
+    uint64_t hostStartMs, fingerprint, deadlineMs, nonce;
+} ErmcTestRunesRequest;
+typedef struct ErmcTestRunesResult {
+    uint32_t version;
+    int32_t status, actualDelta;
+    uint32_t before, after, level, hostLife, hostPid, coreGeneration, reserved;
+    uint64_t hostStartMs, fingerprint, nonce;
+} ErmcTestRunesResult;
 
 /* scan flags: which memory to scan */
 #define ERMC_SCAN_IMAGE   (1u << 0)

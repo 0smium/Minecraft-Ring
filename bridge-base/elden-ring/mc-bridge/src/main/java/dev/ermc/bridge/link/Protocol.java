@@ -16,6 +16,8 @@ public final class Protocol {
 	public static final int OFF_STATE = 0x000100;
 	public static final int OFF_CONTROL = 0x000800;
 	public static final int OFF_CMD = 0x001000;
+	/** Developer mailbox only; no gameplay or client module invokes this command. */
+	public static final int CMD_TEST_RUNES = 11;
 	public static final int OFF_ENVIRONMENT = 0x000B00;
 	public static final int ENV_TIME = 1;
 	public static final int ENV_WEATHER = 2;

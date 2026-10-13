@@ -216,7 +216,7 @@ public final class TerrainManager {
 		}
 	}
 
-	/** Put the Minecraft players next to the Tarnished as soon as Elden Ring reports it usable. */
+	/** Put the local ER owner next to the Tarnished as soon as Elden Ring reports it usable. */
 	public static void requestRecall() {
 		RECALL_GEN.incrementAndGet();
 	}
@@ -305,12 +305,13 @@ public final class TerrainManager {
 
 	/** Minecraft respawned a player (at the world spawn, over the void): keep them standing until the recall moves them. */
 	public static void onRespawn(ServerPlayer player) {
+		if (!LocalHostOwner.isOwner(player)) return;
 		placeFloor(player.serverLevel(), player.position());
 		requestRecall();
 	}
 
 	public static void onJoin(MinecraftServer server, ServerPlayer player) {
-		if (!bridgeWorld) {
+		if (!bridgeWorld || !LocalHostOwner.isOwner(player)) {
 			return;
 		}
 		// Brand-new worlds spawn players in the void; put them next to the hunter instead.
@@ -330,21 +331,13 @@ public final class TerrainManager {
 			int life = link.hostLife();
 			if (life != lastHostLife) {
 				if (lastHostLife != Integer.MIN_VALUE) {
-					LOG.info("Elden Ring placed the Tarnished anew (life {}): players go to it", life);
+					LOG.info("Elden Ring placed the Tarnished anew (life {}): its local owner goes to it", life);
 				}
 				lastHostLife = life;
 				requestRecall();
 			}
 			updateAnchor(server);
-			int gen = RECALL_GEN.get();
-			if (gen != recallDone && STATE.has(Protocol.STATE_PLAYER_VALID) && CoordMap.get() != null
-				&& !server.getPlayerList().getPlayers().isEmpty()) {
-				for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-					teleportToHunter(server.overworld(), p, CoordMap.get());
-				}
-				recallDoneAtMs = System.currentTimeMillis();
-				recallDone = gen;
-			}
+			recallOwner(server);
 		}
 		CoordMap.Mapping map = CoordMap.get();
 		ServerLevel level = server.overworld();
@@ -415,6 +408,17 @@ public final class TerrainManager {
 			LOG.info("[platform-trace] server support AFTER tick {} gameTime {}: y {} yo {} ground {} vy {} shapeTop {}",
 				player.tickCount, level.getGameTime(), player.getY(), player.yo, player.onGround(), player.getDeltaMovement().y,
 				platformTraceShapeTop(level, player));
+		}
+	}
+
+	/** A pending host recall waits for its owner rather than consuming a LAN guest's presence. */
+	private static void recallOwner(MinecraftServer server) {
+		int gen = RECALL_GEN.get();
+		ServerPlayer owner = LocalHostOwner.find(server);
+		if (gen != recallDone && STATE.has(Protocol.STATE_PLAYER_VALID) && CoordMap.get() != null && owner != null) {
+			teleportToHunter(server.overworld(), owner, CoordMap.get());
+			recallDoneAtMs = System.currentTimeMillis();
+			recallDone = gen;
 		}
 	}
 
@@ -919,14 +923,9 @@ public final class TerrainManager {
 				ANCHORS.put(zone, z);
 				CoordMap.set(z);
 				saveAnchors(server);
-				boolean moved = false;
-				for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-					// Only move players who aren't already in this zone's region.
-					if (!z.contains(p.getX())) {
-						teleportToHunter(server.overworld(), p, z);
-						moved = true;
-					}
-				}
+				ServerPlayer owner = LocalHostOwner.find(server);
+				// A local ER zone transition never recalls unrelated LAN players.
+				if (owner != null && !z.contains(owner.getX())) teleportToHunter(server.overworld(), owner, z);
 			}
 		} else if (m == null) {
 			// The host game is running but the hunter isn't known yet: map its origin so rendering
@@ -936,6 +935,7 @@ public final class TerrainManager {
 	}
 
 	private static void teleportToHunter(ServerLevel level, ServerPlayer player, CoordMap.Mapping map) {
+		if (!LocalHostOwner.isOwner(player)) return;
 		boolean known = STATE.has(Protocol.STATE_PLAYER_VALID);
 		Vec3 target = known
 			? map.toMc(STATE.playerPos[0], STATE.playerPos[1], STATE.playerPos[2])

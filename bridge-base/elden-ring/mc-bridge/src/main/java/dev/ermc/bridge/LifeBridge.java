@@ -37,9 +37,19 @@ public final class LifeBridge {
 		ResourceLocation.fromNamespaceAndPath("erbridge", "host_death"));
 
 	private static int lastHostDeaths = Integer.MIN_VALUE;
+	private static MinecraftServer activeServer;
+	private static ServerPlayer activePlayer;
+	private static long activeHostStart;
+
+	public static void reset() {
+		lastHostDeaths = Integer.MIN_VALUE;
+		activeServer = null;
+		activePlayer = null;
+		activeHostStart = 0;
+	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		lastHostDeaths = Integer.MIN_VALUE;
+		reset();
 		if (!TerrainManager.isBridgeWorld()) {
 			return;
 		}
@@ -47,15 +57,22 @@ public final class LifeBridge {
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		if (!TerrainManager.isBridgeWorld()) {
-			return;
-		}
 		ErLink link = ErLink.get();
-		if (!link.alive()) {
+		ServerPlayer player = LocalHostOwner.find(server);
+		long hostStart = link.hostStartMs();
+		if (activeServer != server || activePlayer != player || activeHostStart != hostStart) {
+			reset();
+			activeServer = server;
+			activePlayer = player;
+			activeHostStart = hostStart;
+		}
+		if (!TerrainManager.isBridgeWorld() || player == null || player.serverLevel() != server.overworld()
+			|| !link.alive() || hostStart <= 0) {
+			lastHostDeaths = Integer.MIN_VALUE;
 			return;
 		}
 		int deaths = link.hostDeaths();
-		if (lastHostDeaths == Integer.MIN_VALUE) {
+		if (lastHostDeaths == Integer.MIN_VALUE || deaths < lastHostDeaths) {
 			lastHostDeaths = deaths;  // count from now on
 			return;
 		}
@@ -65,17 +82,17 @@ public final class LifeBridge {
 		lastHostDeaths = deaths;
 		DamageSource source = new DamageSource(server.overworld().registryAccess()
 			.registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(HOST_DEATH));
-		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			if (player.isAlive()) {
-				LOG.info("The Tarnished died in Elden Ring -> {} dies too", player.getName().getString());
-				player.hurt(source, Float.MAX_VALUE);
-			}
+		if (player.isAlive()) {
+			LOG.info("The Tarnished died in Elden Ring -> {} dies too", player.getName().getString());
+			player.hurt(source, Float.MAX_VALUE);
 		}
 	}
 
-	/** Any Minecraft player death except the one we caused above. */
+	/** Only the local ER owner's death can kill its stand-in; LAN guests own no local ER life. */
 	public static void onDeath(LivingEntity entity, DamageSource source) {
-		if (!(entity instanceof ServerPlayer player) || !TerrainManager.isBridgeWorld() || source.is(HOST_DEATH)) {
+		if (!(entity instanceof ServerPlayer player) || !LocalHostOwner.isOwner(player)
+			|| player.serverLevel() != player.getServer().overworld() || !TerrainManager.isBridgeWorld()
+			|| source.is(HOST_DEATH) || !ErLink.get().alive() || ErLink.get().hostStartMs() <= 0) {
 			return;
 		}
 		ErLink.get().bumpMcDeaths();
@@ -84,7 +101,7 @@ public final class LifeBridge {
 	}
 
 	public static void onRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
-		if (!alive && TerrainManager.isBridgeWorld()) {
+		if (!alive && TerrainManager.isBridgeWorld() && LocalHostOwner.isOwner(newPlayer)) {
 			TerrainManager.onRespawn(newPlayer);
 		}
 	}

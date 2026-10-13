@@ -1,6 +1,7 @@
 package dev.ermc.bridge.entity;
 
 import dev.ermc.bridge.CoordMap;
+import dev.ermc.bridge.LocalHostOwner;
 import dev.ermc.bridge.TerrainManager;
 import dev.ermc.bridge.link.ErLink;
 import dev.ermc.bridge.link.GameState;
@@ -56,6 +57,9 @@ public final class CombatBridge {
 	private static int lastHits = -1;
 	private static float lastTotal;
 	private static float lastUnattributedTotal;
+	private static MinecraftServer activeServer;
+	private static ServerPlayer activePlayer;
+	private static long activeHostStart;
 
 	private static ResourceKey<DamageType> key(String name) {
 		return ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath("erbridge", name));
@@ -67,16 +71,38 @@ public final class CombatBridge {
 
 	public static void reset() {
 		lastHits = -1;
+		lastTotal = lastUnattributedTotal = 0;
+		activeServer = null;
+		activePlayer = null;
+		activeHostStart = 0;
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		if (!TerrainManager.isBridgeWorld() || !ErLink.get().readHunterEvents(EV)) {
+		ErLink link = ErLink.get();
+		ServerPlayer player = LocalHostOwner.find(server);
+		long hostStart = link.hostStartMs();
+		if (activeServer != server || activePlayer != player || activeHostStart != hostStart) {
+			reset();
+			activeServer = server;
+			activePlayer = player;
+			activeHostStart = hostStart;
+		}
+		if (!TerrainManager.isBridgeWorld() || player == null || !player.isAlive()
+			|| player.serverLevel() != server.overworld() || !link.alive() || hostStart <= 0
+			|| !link.readHunterEvents(EV)) {
+			lastHits = -1; // Returning owners/hosts start at a fresh baseline; never replay absence.
 			return;
 		}
 		int hits = (int) EV[0];
 		float total = EV[1];
 		float unattributedTotal = EV[8];
-		if (lastHits < 0) {  // first read: only count damage from now on
+		if (hits < 0 || !Float.isFinite(total) || !Float.isFinite(unattributedTotal)
+			|| total < 0 || unattributedTotal < 0) {
+			lastHits = -1;
+			return;
+		}
+		if (lastHits < 0 || hits < lastHits || total < lastTotal || unattributedTotal < lastUnattributedTotal) {
+			// First read or a reset counter: only count damage from now on.
 			lastHits = hits;
 			lastTotal = total;
 			lastUnattributedTotal = unattributedTotal;
@@ -98,9 +124,7 @@ public final class CombatBridge {
 			int kind = attacker != null ? attacker.kind() : reportedKind;
 			float share = maxHp > 0 ? hostDamage / maxHp : 0.0F;
 			float amount = Math.min(20.0F, (kind == Protocol.ENT_SMALL_MONSTER ? SMALL_BASE : LARGE_BASE) + share * PROPORTIONAL);
-			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-				hit(level, player, from, attacker, amount, hostDamage, share);
-			}
+			hit(level, player, from, attacker, amount, hostDamage, share);
 		}
 
 		float loss = Math.max(0.0F, unattributedTotal - lastUnattributedTotal);
