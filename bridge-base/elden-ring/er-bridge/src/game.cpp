@@ -2671,7 +2671,13 @@ bool game_init() {
         }
     }
     if (!g_ok) return false;
-    incoming_hits::init(g_base);
+    if (!incoming_hits::init(g_base)) {
+        // The stand-in restores native HP after forwarding confirmed hits. Without
+        // this observer, taking control would silently discard ordinary damage.
+        g_ok = false;
+        log("game: required incoming-hit observation unavailable; refusing bridge takeover");
+        return false;
+    }
     const bool hostEffectsOk = g_hostEffects.init(g_base);
     log("game: read-only host effects %s", hostEffectsOk ? "enabled" : "disabled (signature mismatch)");
     g_hostProgressionOk = g_hostProgression.init(g_base);

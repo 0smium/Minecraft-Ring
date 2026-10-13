@@ -9,7 +9,16 @@ $ClientTask = 'runClient'
 if ($B01) {
     $LiquidBounce = $true
     $SkillsJar = Join-Path $ProjectRoot 'runtime\downloads\puffish_skills-0.19.2-1.21-fabric.jar'
-    if (!(Test-Path -LiteralPath $SkillsJar) -or (Get-FileHash -LiteralPath $SkillsJar -Algorithm SHA256).Hash -ne '276CE0B5F15BCFEAFE632C8EABE0D2D3104B9B0362897E66FD049BCD217BA915') {
+    if (!(Test-Path -LiteralPath $SkillsJar)) {
+        throw 'Prepare the pinned B01 dependency first: python tools/prepare_b01_skills.py'
+    }
+    # Match the existing LB check: start.bat may use Windows PowerShell without
+    # the Get-FileHash command available in its inherited module search path.
+    $SkillsDigest = [Security.Cryptography.SHA256]::Create()
+    $SkillsInput = [IO.File]::OpenRead($SkillsJar)
+    try { $SkillsHash = [BitConverter]::ToString($SkillsDigest.ComputeHash($SkillsInput)).Replace('-', '') }
+    finally { $SkillsInput.Dispose(); $SkillsDigest.Dispose() }
+    if ($SkillsHash -ne '276CE0B5F15BCFEAFE632C8EABE0D2D3104B9B0362897E66FD049BCD217BA915') {
         throw 'Prepare the pinned B01 dependency first: python tools/prepare_b01_skills.py'
     }
     Write-Output 'B01 profile: fixed LiquidBounce + Pufferfish Skills 0.19.2; use /erbridge progression to bind and choose challenge mode.'
