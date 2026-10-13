@@ -1,4 +1,4 @@
-param([switch]$LiquidBounce, [switch]$B01, [switch]$Meteor, [switch]$ExperimentalFrostBurst)
+param([switch]$LiquidBounce, [switch]$B01, [switch]$Meteor, [switch]$ExperimentalFrostBurst, [switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
 if ($Meteor -and ($LiquidBounce -or $B01)) { throw 'Choose -Meteor or the -LiquidBounce/-B01 profile; simultaneous loading is not supported.' }
 $ProjectRoot = $PSScriptRoot
@@ -59,6 +59,12 @@ if ($Meteor) {
     Write-Output "Meteor 0.5.8 candidate enabled (SHA-256 $MeteorHash); isolated run-meteor profile."
 }
 if ($ExperimentalFrostBurst) { $ClientGradleArgs += '-PexperimentalFrostBurst=true' }
+$RunDirectory = if ($Meteor) { 'run-meteor' } else { 'run' }
+if ($CheckOnly) {
+    Write-Output "Profile and artifact checks passed: $ClientTask ($RunDirectory). No game was started or configuration changed."
+    Write-Output ("Gradle arguments: " + ($ClientGradleArgs -join ' '))
+    return
+}
 $env:ERMC_DIR = Join-Path $ProjectRoot 'runtime'
 $env:ERBRIDGE = '1'
 $env:JAVA_HOME = (Get-ChildItem "$ProjectRoot\.tools\java" -Directory | Select-Object -First 1).FullName
@@ -112,7 +118,6 @@ if ($State -and $State.MinecraftProcessId -gt 0) {
         }
     }
 }
-$RunDirectory = if ($Meteor) { 'run-meteor' } else { 'run' }
 $MinecraftRun = Join-Path $ProjectRoot ("bridge-base\elden-ring\mc-bridge\" + $RunDirectory)
 function Set-MinecraftSetting([string]$Path, [string]$Name, [string]$Value) {
     $Lines = @()

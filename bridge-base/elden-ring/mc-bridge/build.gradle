@@ -15,6 +15,9 @@ if (skillsHash != '276ce0b5f15bcfeafe632c8eabe0d2d3104b9b0362897e66fd049bcd217ba
 	throw new GradleException('Pufferfish Skills JAR differs from verified 0.19.2 for Minecraft 1.21')
 }
 def b01Enabled = providers.gradleProperty('b01').map { it.toBoolean() }.getOrElse(false)
+if (b01Enabled && providers.gradleProperty('meteorProduction').map { it.toBoolean() }.getOrElse(false)) {
+	throw new GradleException('B01 currently authorizes LiquidBounce abilities; use a separate Meteor profile')
+}
 
 loom {
 	splitEnvironmentSourceSets()

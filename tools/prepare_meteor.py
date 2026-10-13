@@ -1,7 +1,7 @@
-"""Prepare the official Meteor 0.5.8 production JAR and record its local SHA-256 pin.
+"""Prepare the official Meteor 0.5.8 production JAR and verify its published SHA-256.
 
 Use --jar for an already downloaded release. No game is started. A first download
-records its digest; it is not a pre-published, independently verified digest.
+uses the digest published alongside this fixed official Maven release.
 """
 import argparse
 import hashlib
@@ -16,6 +16,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 URL = "https://maven.meteordev.org/releases/meteordevelopment/meteor-client/0.5.8/meteor-client-0.5.8.jar"
+OFFICIAL_SHA256 = "090ad8f02273a67eca753ef37ccee2256e4dd3d715501ed75433ec8f57d7c5e9"
 CLASSES = {
     "meteordevelopment/meteorclient/systems/modules/combat/KillAura": {
         "methods": {("entityCheck", "(Lnet/minecraft/class_1297;)Z")},
@@ -140,7 +141,8 @@ def atomic_write(path, data):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--jar", type=Path, help="Existing official release JAR instead of downloading")
-    parser.add_argument("--expected-sha256", help="Previously recorded SHA-256, if available")
+    parser.add_argument("--expected-sha256", default=OFFICIAL_SHA256,
+                        help="Expected SHA-256; defaults to the digest published for the official 0.5.8 release")
     parser.add_argument("--replace", action="store_true", help="Explicitly replace a different local artifact pin")
     args = parser.parse_args()
     target = ROOT / "runtime/downloads/meteor-client-0.5.8.jar"
@@ -149,7 +151,9 @@ def main():
         data = args.jar.read_bytes()
         source = "local release JAR"
     else:
-        with urllib.request.urlopen(URL, timeout=30) as response:
+        # Identify this public-artifact downloader; the default Python UA receives HTTP 403.
+        request = urllib.request.Request(URL, headers={"User-Agent": "Minecraft-Ring/0.3.0"})
+        with urllib.request.urlopen(request, timeout=30) as response:
             data = response.read(128 * 1024 * 1024 + 1)
         if len(data) > 128 * 1024 * 1024:
             raise ValueError("Unexpectedly large Meteor artifact")
@@ -162,6 +166,8 @@ def main():
         if previous["sha256"] != metadata["sha256"]:
             raise ValueError("Existing Meteor pin differs; inspect the new artifact before using --replace")
     metadata["source"] = source
+    metadata["expected_sha256"] = args.expected_sha256.lower()
+    metadata["publisher_digest_url"] = URL + ".sha256" if args.expected_sha256.lower() == OFFICIAL_SHA256 else None
     atomic_write(target, data)
     atomic_write(lock, (json.dumps(metadata, indent=2) + "\n").encode())
     print(f"Prepared Meteor 0.5.8: {target}\nSHA-256: {metadata['sha256']}")

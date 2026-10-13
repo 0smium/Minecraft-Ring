@@ -94,14 +94,18 @@ launch path:
 
 ```powershell
 python tools/prepare_meteor.py
+.\Launch.ps1 -Meteor -CheckOnly
 .\Launch.ps1 -Meteor
 ```
 
 It uses `run-meteor` for its world, logs and client configuration, and cannot
-be combined with `-LiquidBounce`. Preparation checks release metadata and
-adapter method signatures, then records a local SHA-256 pin. This candidate
-has passed offline handler tests; actual release-JAR preflight, full build
-and game/Mixin verification are pending. See [Meteor integration](meteor-integration.md)
+be combined with `-LiquidBounce` or `-B01`. Preparation checks the fixed official
+SHA-256, release metadata and adapter signatures, then records a local pin.
+`-CheckOnly` validates profile/artifacts without starting games or changing
+configuration; it does not verify native deployment. This candidate has passed
+Windows native/Fabric builds, official release-JAR preflight and eight real
+Mixin injection calls in an offline transformer. Game startup, module
+initialization and rendering are pending. See [Meteor integration](meteor-integration.md)
 for the manual-JAR fallback and acceptance steps.
 
 ## Window settings
