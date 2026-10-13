@@ -1,8 +1,7 @@
 package dev.ermc.bridge.client.integrations.liquidbounce;
 
-import dev.ermc.bridge.TerrainManager;
+import dev.ermc.bridge.client.integrations.HostEntityView;
 import dev.ermc.bridge.entity.ErEntity;
-import dev.ermc.bridge.link.ErLink;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -24,10 +23,7 @@ public abstract class TargetConfigurableMixin {
 	@Inject(method = "isInteresting", at = @At("HEAD"), cancellable = true, remap = false)
 	private void erbridge$hostileProxy(Entity suspect, CallbackInfoReturnable<Boolean> cir) {
 		if (!(suspect instanceof ErEntity proxy)) return;
-		boolean liveEnemy = TerrainManager.isBridgeWorld() && ErLink.get().alive()
-			&& proxy.hostId() != 0L && proxy.isTargetableEnemy() && proxy.isAlive()
-			&& Float.isFinite(proxy.hp()) && proxy.hp() > 0.0F
-			&& Float.isFinite(proxy.maxHp()) && proxy.maxHp() > 0.0F;
+		boolean liveEnemy = HostEntityView.targetable(proxy);
 		cir.setReturnValue(liveEnemy && getHostile() && (getInvisible() || !proxy.isInvisible()));
 	}
 }

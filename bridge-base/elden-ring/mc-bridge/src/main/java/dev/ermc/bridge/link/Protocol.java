@@ -124,11 +124,15 @@ public final class Protocol {
 	// Optional ErmcHostEffects block: independent of GameState and the main protocol version.
 	public static final int OFF_HOST_EFFECTS = 0x0C00;
 	public static final int HOST_EFFECTS_MAGIC = 0x58464548; // HEFX
-	public static final int HOST_EFFECTS_VERSION = 1;
-	public static final int HOST_EFFECTS_SIZE = 0x20;
+	public static final int HOST_EFFECTS_VERSION = 2;
+	public static final int HOST_EFFECTS_SIZE = 0x38;
 	public static final int HOST_EFFECT_VALID = 1;
 	public static final int HOST_EFFECT_MC_CONTROL = 1 << 1;
 	public static final int HOST_EFFECT_POISON = 1 << 2;
+	public static final int HOST_EFFECT_ROT = 1 << 3;
+	public static final int HOST_EFFECT_FROST = 1 << 4;
+	public static final int HOST_EFFECT_SLEEP = 1 << 5;
+	public static final int HOST_EFFECT_MADNESS = 1 << 6;
 	public static final int HFX_SEQ = 0x00;
 	public static final int HFX_MAGIC = 0x04;
 	public static final int HFX_VERSION = 0x08;
@@ -136,6 +140,11 @@ public final class Protocol {
 	public static final int HFX_FRAME = 0x10;
 	public static final int HFX_HOST_LIFE = 0x18;
 	public static final int HFX_POISON_ID = 0x1C;
+	public static final int HFX_ROT_ID = 0x20;
+	public static final int HFX_FROST_ID = 0x24;
+	public static final int HFX_SLEEP_ID = 0x28;
+	public static final int HFX_MADNESS_ID = 0x2C;
+	public static final int HFX_FROST_PROCS = 0x30;
 
 	// Ray queries (ErmcRayHeader), relative to OFF_RAYS
 	public static final int OFF_RAYS = 0x100000;

@@ -79,6 +79,23 @@ recognizes an already running bridge client instead of deliberately starting
 another one. The bridge is for offline play and will not activate with Easy
 Anti-Cheat present.
 
+## Optional Meteor candidate
+
+The fixed MC 1.21.1 / Meteor 0.5.8 candidate has a separate preparation and
+launch path:
+
+```powershell
+python tools/prepare_meteor.py
+.\Launch.ps1 -Meteor
+```
+
+It uses `run-meteor` for its world, logs and client configuration, and cannot
+be combined with `-LiquidBounce`. Preparation checks release metadata and
+adapter method signatures, then records a local SHA-256 pin. This candidate
+has passed offline handler tests; actual release-JAR preflight, full build
+and game/Mixin verification are pending. See [Meteor integration](meteor-integration.md)
+for the manual-JAR fallback and acceptance steps.
+
 ## Window settings
 
 Minecraft must stay in windowed mode. The launcher writes `fullscreen:false`,
