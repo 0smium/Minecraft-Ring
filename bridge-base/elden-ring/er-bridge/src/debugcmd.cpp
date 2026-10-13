@@ -10,6 +10,7 @@ namespace mb {
 
 bool game_debug_raycast(const float* start, const float* end, uint32_t flags, const uint32_t* filter, ErmcRayHit* out);
 bool game_debug_fire_shell(uint32_t index, const float* origin, const float* target, uint64_t* result);
+bool game_debug_test_runes(uint32_t seq, const ErmcTestRunesRequest& request, ErmcTestRunesResult& result);
 
 // ---------------------------------------------------------------------------------------
 
@@ -32,6 +33,17 @@ void debugcmd_poll() {
     int status = 0;
 
     switch (c->cmd) {
+        case ERMC_CMD_TEST_RUNES: {
+            if (c->argLen != sizeof(ErmcTestRunesRequest)) { status = -20; break; }
+            ErmcTestRunesRequest request;
+            ErmcTestRunesResult result;
+            memcpy(&request, a, sizeof(request));
+            if (!game_debug_test_runes(req, request, result)) return; // pending game tick; keep worker responsive
+            memcpy(out, &result, sizeof(result));
+            outLen = sizeof(result);
+            status = result.status;
+            break;
+        }
         case ERMC_CMD_PING: {
             outLen = (uint32_t)snprintf((char*)out, 256, "er-bridge pid=%lu base=%p size=0x%zx",
                                         GetCurrentProcessId(), (void*)main_module_base(),

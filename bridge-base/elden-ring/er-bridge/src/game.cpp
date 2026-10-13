@@ -27,6 +27,7 @@
 #include "support_surface.h"
 #include "host_effects.h"
 #include "host_progression.h"
+#include "host_test_runes.h"
 #include "incoming_hits.h"
 #include <string.h>
 #include <stdio.h>
@@ -2424,6 +2425,12 @@ static float g_dbgRayStart[3], g_dbgRayEnd[3];
 static uint32_t g_dbgRayFlags, g_dbgFilter;
 static ErmcRayHit g_dbgRayHit;
 static volatile LONG g_tickAlive = 0;
+static test_runes::Access g_testRunes;
+static test_runes::Queue g_testRunesQueue;
+
+bool game_debug_test_runes(uint32_t seq, const ErmcTestRunesRequest& request, ErmcTestRunesResult& result) {
+    return g_testRunesQueue.poll(seq, request, result, now_ms());
+}
 
 bool game_debug_raycast(const float* start, const float* end, uint32_t flags, const uint32_t* filter, ErmcRayHit* out) {
     if (!g_tickAlive) return false;
@@ -2550,6 +2557,19 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
     memset(&c, 0, sizeof(c));
     bool ctrl = control_active(&c);
     bool alive = havePlayer && g_life == LIFE_ALIVE;
+    const uint32_t runeRequestSeq = shm_cmd()->reqSeq;
+    g_testRunesQueue.service(runeRequestSeq, shm_cmd()->cmd == ERMC_CMD_TEST_RUNES,
+        [&](const ErmcTestRunesRequest& request) {
+            auto result = g_testRunes.execute(request, *shm_header(), alive ? p.ins : nullptr, alive,
+                [](uintptr_t fn, void* data, int32_t amount) {
+                    return ((int32_t(__fastcall*)(void*, int32_t))fn)(data, amount);
+                }, [] { return now_ms(); }, [&] {
+                    return shm_cmd()->reqSeq == runeRequestSeq && shm_cmd()->cmd == ERMC_CMD_TEST_RUNES;
+                });
+            if (request.amount) log("test runes: nonce=%llu status=%d level=%u before=%u after=%u delta=%d",
+                (unsigned long long)request.nonce, result.status, result.level, result.before, result.after, result.actualDelta);
+            return result;
+        });
     bool standing = alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER);
     service_environment(alive, g_frame.zone);
     update_support(c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER), havePlayer ? p.ins : nullptr);
@@ -2681,6 +2701,7 @@ bool game_init() {
     const bool hostEffectsOk = g_hostEffects.init(g_base);
     log("game: read-only host effects %s", hostEffectsOk ? "enabled" : "disabled (signature mismatch)");
     g_hostProgressionOk = g_hostProgression.init(g_base);
+    log("game: explicit test-rune command %s", g_testRunes.init(g_base) ? "available (never automatic)" : "disabled (signature mismatch)");
     log("game: read-only host progression %s (level/name; explicit character binding required)",
         g_hostProgressionOk ? "enabled" : "disabled (signature mismatch)");
     g_entityNamesOk = true;

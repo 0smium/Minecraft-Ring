@@ -72,7 +72,7 @@ struct Boundary {
     bool sharedMemory=true, mainSignature=true;
     MH_STATUS initialize=MH_OK, create=MH_OK, enable=MH_OK;
     unsigned sharedOpen=0, crashInit=0, initializeCalls=0, createCalls=0, enableCalls=0, removeCalls=0;
-    unsigned optionalInit=0, namesClear=0, fpsPatch=0, combatPatch=0, taskPage=0, compositor=0, threads=0;
+    unsigned optionalInit=0, testRunesInit=0, namesClear=0, fpsPatch=0, combatPatch=0, taskPage=0, compositor=0, threads=0;
     unsigned sharedClose=0, crashClose=0, uninitialize=0, disable=0, gameStop=0, compositorStop=0, handlesClosed=0;
     bool hookCreated=false, hookEnabled=false;
 } boundary;
@@ -132,6 +132,8 @@ static uintptr_t g_base=0;
 static bool g_ok=false,g_hostProgressionOk=false,g_entityNamesOk=false,g_fallTraceOk=false,g_environmentOk=false,g_combatOk=false,g_actionOk=false;
 struct OptionalReader {bool init(uintptr_t){++boundary.optionalInit;return true;}};
 static OptionalReader g_hostEffects,g_hostProgression;
+struct TestRuneReader {bool init(uintptr_t){++boundary.testRunesInit;return true;}};
+[[maybe_unused]] static TestRuneReader g_testRunes; // absent in the pre-fix comparison revision
 struct TaskPage {void* target[2]={};};
 static TaskPage page{};static TaskPage* g_page=nullptr;
 static TaskPage* find_or_make_page(){++boundary.taskPage;return &page;}
@@ -160,7 +162,7 @@ static void reset(){
 static void noTakeover(){
     using namespace mb;
     assert(!g_ok && g_page==nullptr && page.target[0]==nullptr && page.target[1]==nullptr);
-    assert(boundary.optionalInit==0 && boundary.namesClear==0 && boundary.fpsPatch==0 && boundary.combatPatch==0 && boundary.taskPage==0);
+    assert(boundary.optionalInit==0 && boundary.testRunesInit==0 && boundary.namesClear==0 && boundary.fpsPatch==0 && boundary.combatPatch==0 && boundary.taskPage==0);
     assert(boundary.compositor==0 && boundary.threads==0 && g_worker==nullptr && g_pacer==nullptr);
     assert(!incoming_hits::installed && !boundary.hookEnabled);
 }
