@@ -5,7 +5,7 @@ After the normal production build has populated the local cache:
 Optional: --bridge-jar PATH, --java-home PATH, --classpath-file PATH.
 The default discovers existing production/intermediary dependencies and extracts
 LB's bundled JARs only into ignored runtime/experiments. No Gradle or downloads.
-This checks 14 real Mixin injections, normal helper class loading, real Value
+This checks Kotlin's public float-range factory/access handles, 14 real Mixin injections, normal helper class loading, real Value
 set/get/inner/restore/Gson import, locking, downgrade and free-mode preservation.
 It does NOT initialize actual LB module singletons or execute lifecycle cleanup,
 GUI, networking, movement/attacks or game startup. Those still need human testing.
@@ -100,8 +100,8 @@ def main():
     classpath = os.pathsep.join(str(path) for path in [OUTPUT, args.bridge_jar.resolve(), LB, *extra])
     suffix = ".exe" if os.name == "nt" else ""
     invoke(args.java_home / f"bin/javac{suffix}", ["-encoding", "UTF-8", "-classpath", classpath, "-d", OUTPUT,
-           FIXTURES / "OfflineMixinProbe.java", FIXTURES / "RuntimeValueProbe.java"], OUTPUT / "compile.log")
-    for probe in ("OfflineMixinProbe", "RuntimeValueProbe"):
+           FIXTURES / "OfflineMixinProbe.java", FIXTURES / "RuntimeValueProbe.java", FIXTURES / "KotlinRangeProbe.java"], OUTPUT / "compile.log")
+    for probe in ("KotlinRangeProbe", "OfflineMixinProbe", "RuntimeValueProbe"):
         log = OUTPUT / (probe + ".log")
         invoke(args.java_home / f"bin/java{suffix}", ["-classpath", classpath, probe], log)
         print(f"PASS {probe}: {log}")

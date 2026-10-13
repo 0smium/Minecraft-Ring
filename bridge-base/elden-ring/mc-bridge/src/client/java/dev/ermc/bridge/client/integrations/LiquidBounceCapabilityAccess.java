@@ -75,9 +75,7 @@ public final class LiquidBounceCapabilityAccess {
                 for (String path : List.of("Rotations/ThroughWalls", "AutoBlocking/Enabled", "FailSwing/Enabled",
                         "FightBot/Enabled", "SimulateInventoryClosing")) binding.add(next, path, fixed(Ability.AURA, false));
                 binding.add(next, "ClickScheduler/Cooldown/Enabled", fixed(Ability.AURA, true));
-                Object minimum = binding.required("ClickScheduler/Cooldown/Minimum");
-                Object raw = access.raw.invoke(minimum);
-                Object fullCooldown = raw.getClass().getConstructor(float.class, float.class).newInstance(1F, 1F);
+                Object fullCooldown = (Object) access.floatRange.invokeExact(1F, 1F);
                 binding.add(next, "ClickScheduler/Cooldown/Minimum", fixed(Ability.AURA, fullCooldown));
                 binding.add(next, "ClickScheduler/ConsiderMissCooldown", fixed(Ability.AURA, true));
                 binding.add(next, "Criticals", fixed(Ability.AURA, enumConstant(binding.required("Criticals"), "IGNORE")));
@@ -288,7 +286,7 @@ public final class LiquidBounceCapabilityAccess {
 
     private static final class Access {
         final Class<?> valueType, choiceType;
-        final MethodHandle raw, name, valueSet, choiceList, choiceSet, moduleEnabled;
+        final MethodHandle raw, name, valueSet, choiceList, choiceSet, moduleEnabled, floatRange;
         Access() throws ReflectiveOperationException {
             ClassLoader loader = LiquidBounceCapabilityAccess.class.getClassLoader();
             Class<?> value = Class.forName(TYPES + "Value", false, loader);
@@ -302,6 +300,11 @@ public final class LiquidBounceCapabilityAccess {
             choiceList = lookup.unreflect(choiceType.getMethod("getChoices")).asType(OBJECT_GET);
             choiceSet = lookup.unreflect(choiceType.getMethod("setByString", String.class)).asType(MethodType.methodType(void.class, Object.class, String.class));
             moduleEnabled = lookup.unreflect(module.getMethod("setEnabled$liquidbounce", boolean.class)).asType(MethodType.methodType(void.class, Object.class, boolean.class));
+            // ClosedFloatRange is package-private. Resolve Kotlin's public facade factory instead.
+            Class<?> ranges = Class.forName("kotlin.ranges.RangesKt", false, loader);
+            Class<?> range = Class.forName("kotlin.ranges.ClosedFloatingPointRange", false, loader);
+            floatRange = lookup.findStatic(ranges, "rangeTo", MethodType.methodType(range, float.class, float.class))
+                    .asType(MethodType.methodType(Object.class, float.class, float.class));
             unit = Class.forName("kotlin.Unit", true, loader).getField("INSTANCE").get(null);
         }
     }
