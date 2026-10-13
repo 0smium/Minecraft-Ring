@@ -16,6 +16,11 @@ The Gradle wrapper is build infrastructure distributed under the
 Minecraft, Fabric Loader, Fabric API and other downloaded dependencies retain
 their respective licenses.
 
+[Pufferfish's Skills](https://modrinth.com/mod/skills) 0.19.2 is an optional local
+B01 dependency. Its artifact declares All Rights Reserved; the JAR is downloaded
+from the official release and is not embedded in the bridge or committed here.
+The Bridge skill-tree definitions and adapter are maintained in this repository.
+
 The Windows overlay is managed by the bridge itself. Borderless Fullscreen and
 b100lib, used in an earlier local setup, are no longer required or bundled.
 Downloaded LLVM-MinGW, JDK and Gradle toolchains are excluded from this repository

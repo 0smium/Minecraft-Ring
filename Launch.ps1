@@ -1,4 +1,4 @@
-param([switch]$LiquidBounce)
+param([switch]$LiquidBounce, [switch]$B01)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = $PSScriptRoot
 $Install = Get-Content -LiteralPath "$ProjectRoot\installation.json" -Raw | ConvertFrom-Json
@@ -6,6 +6,14 @@ $GameExe = Join-Path $Install.game_dir 'eldenring.exe'
 if (!(Test-Path -LiteralPath $GameExe)) { throw "Elden Ring was not found: $GameExe" }
 $LbGradleArgs = @()
 $ClientTask = 'runClient'
+if ($B01) {
+    $LiquidBounce = $true
+    $SkillsJar = Join-Path $ProjectRoot 'runtime\downloads\puffish_skills-0.19.2-1.21-fabric.jar'
+    if (!(Test-Path -LiteralPath $SkillsJar) -or (Get-FileHash -LiteralPath $SkillsJar -Algorithm SHA256).Hash -ne '276CE0B5F15BCFEAFE632C8EABE0D2D3104B9B0362897E66FD049BCD217BA915') {
+        throw 'Prepare the pinned B01 dependency first: python tools/prepare_b01_skills.py'
+    }
+    Write-Output 'B01 profile: fixed LiquidBounce + Pufferfish Skills 0.19.2; use /erbridge progression to bind and choose challenge mode.'
+}
 if ($LiquidBounce) {
     $LbJar = Join-Path $ProjectRoot 'runtime\downloads\liquidbounce.jar'
     if (!(Test-Path -LiteralPath $LbJar)) { throw 'LB Build #3530 has not been prepared; see docs/experiments.' }
@@ -17,6 +25,7 @@ if ($LiquidBounce) {
         throw 'LiquidBounce JAR differs from the verified v0.22.0 / Build #3530.'
     }
     $LbGradleArgs = @("-PlbJar=$LbJar", '-PlbProduction=true')
+    if ($B01) { $LbGradleArgs += '-Pb01=true' }
     $ClientTask = 'productionLbClient'
     Write-Output "LiquidBounce v0.22.0 / Build #3530 enabled (SHA-256 $LbHash)."
 }

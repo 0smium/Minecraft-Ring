@@ -7,7 +7,14 @@
 		"TargetConfigurableMixin",
 		"EspBoxMixin",
 		"NametagHealthMixin",
-		"MinimapScanMixin"
+		"MinimapScanMixin",
+		"CapabilityValueMixin",
+		"CapabilityChoiceMixin",
+		"CapabilityModuleMixin",
+		"CapabilitySpeedMixin",
+		"CapabilityAuraMixin",
+		"CapabilityToggleableMixin",
+		"CapabilityBHopMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

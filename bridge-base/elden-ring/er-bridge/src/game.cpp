@@ -26,6 +26,7 @@
 #include "world_environment.h"
 #include "support_surface.h"
 #include "host_effects.h"
+#include "host_progression.h"
 #include "incoming_hits.h"
 #include <string.h>
 #include <stdio.h>
@@ -124,6 +125,8 @@ static uintptr_t g_base = 0;
 static bool g_ok = false;
 static bool g_fallTraceOk = false;
 static HostEffectsReader g_hostEffects;
+static HostProgressionReader g_hostProgression;
+static bool g_hostProgressionOk = false;
 
 struct CodeSig {
     uintptr_t rva;
@@ -2568,10 +2571,16 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
     publish_prompt(alive && g_standing);
 
     const HostEffectsSnapshot effects = g_hostEffects.read(alive ? p.ins : nullptr);
+    const HostProgressionSnapshot progression = g_hostProgression.read(alive ? p.ins : nullptr);
     frame_claim_source();
     on_frame();
     publish_host_effects(effects, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER) && g_standing,
                          shm_state()->frame, shm_header()->hostLife);
+    const bool progressionLoading = g_hostProgressionOk && !alive &&
+        (g_life == LIFE_SETTLING || g_life == LIFE_DEAD || (shm_state()->flags & ERMC_STATE_HOST_BUSY));
+    publish_host_progression(progression, progressionLoading,
+                             alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER) && g_standing,
+                             shm_state()->frame, shm_header()->hostLife);
     QueryPerformanceCounter(&t1);
     QueryPerformanceFrequency(&fq);
     perf_add_tick((double)(t1.QuadPart - t0.QuadPart) * 1000.0 / fq.QuadPart);
@@ -2652,6 +2661,7 @@ static void unlock_fps() {
 bool game_init() {
     g_base = main_module_base();
     publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
+    publish_host_progression({}, false, false, shm_state()->frame, shm_header()->hostLife);
     log("game: eldenring.exe base %p size 0x%zx", (void*)g_base, main_module_size());
     g_ok = true;
     for (const CodeSig& s : kSigs) {
@@ -2664,6 +2674,9 @@ bool game_init() {
     incoming_hits::init(g_base);
     const bool hostEffectsOk = g_hostEffects.init(g_base);
     log("game: read-only host effects %s", hostEffectsOk ? "enabled" : "disabled (signature mismatch)");
+    g_hostProgressionOk = g_hostProgression.init(g_base);
+    log("game: read-only host progression %s (level/name; explicit character binding required)",
+        g_hostProgressionOk ? "enabled" : "disabled (signature mismatch)");
     g_entityNamesOk = true;
     for (const CodeSig& s : kEntityNameSigs) {
         if (!bytes_match(g_base + s.rva, s.sig)) {
@@ -2722,6 +2735,7 @@ void game_detach() {
 
 void game_shutdown() {
     publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
+    publish_host_progression({}, false, false, shm_state()->frame, shm_header()->hostLife);
     if (g_environmentOk) release_environment();
     if (g_fpsPatched) {
         float interval = 1.0f / 60.0f;
