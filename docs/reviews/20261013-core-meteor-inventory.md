@@ -6,7 +6,7 @@
 
 关联：[前一轮玩法准备度](20261012-gameplay-readiness.md)、[地图与版本](20261012-map-worldgen-version.md)、[工作线规划](../gameplay-roadmap.md)。旧 review 保留原基线，本篇补充最新结论。
 
-同日后续需求见[完整角色操作、成长、世界与 Debug](20261013-actions-growth-world-debug.md)：Bridge 不止背包，还包括施法/战技/弹反、原生骑乘、制作与属性叠加；本篇的背包顺序仅指第一条切片。用户已提出技能解锁升级，后篇区分“不必先 fork 的原型”与“长期产品可用薄 fork 提供稳定能力入口”，不将暂不 fork 视为永久约束。
+同日后续需求见[完整角色操作、成长、世界与 Debug](20261013-actions-growth-world-debug.md)：Bridge 不止背包，还包括施法/战技/弹反、MC 坐骑、制作与属性叠加；本篇的背包顺序仅指第一条切片。用户已提出技能解锁升级，后篇区分“不必先 fork 的原型”与“长期产品可用薄 fork 提供稳定能力入口”，不将暂不 fork 视为永久约束。骑马实际由 MC 实现，隐藏原生角色代放技能，详见[最新澄清与联机研究](20261013-mc-abilities-multiplayer.md)。
 
 ## 结论
 

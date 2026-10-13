@@ -20,5 +20,6 @@
 | 2026-10-12 | 固定地图、独立 MC、地下资源、边界与 MC/LB 版本选择 | `3e66a0b` | [地图与版本 review](20261012-map-worldgen-version.md) |
 | 2026-10-13 | 新增代码的定制边界、Meteor 源码/适配、背包模块与拆仓时点 | `e218839` | [Core、Meteor 与背包 review](20261013-core-meteor-inventory.md) |
 | 2026-10-13 | 完整角色操作、Speed/Aura 成长、贴怪穿模、资源/双向碰撞与指定怪物 Debug | `e218839` | [操作、成长、世界与 Debug review](20261013-actions-growth-world-debug.md) |
+| 2026-10-13 | MC 马与隐藏角色施法的需求纠正、26.3 迁移、小游戏/反作弊与双游戏联机 | `e218839` | [MC 能力与联机 review](20261013-mc-abilities-multiplayer.md) |
 
 后续同类记录使用 `YYYYMMDD-topic.md`；新的 review 加入索引。此约定不授权自动修改代码、部署游戏或合并 PR，执行范围仍以用户当前任务为准。
