@@ -34,6 +34,14 @@ caches and local settings are excluded from Git.
 
 ## Build
 
+Prepare the pinned optional skill-framework compile dependency first (no game launch):
+
+```powershell
+python tools/prepare_b01_skills.py
+```
+
+It is only loaded at runtime with the explicit B01 profile; see [B01 integration](b01-integration.md).
+
 From the repository root:
 
 ```powershell
