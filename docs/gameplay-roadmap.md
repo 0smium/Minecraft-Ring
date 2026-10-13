@@ -1,10 +1,12 @@
 # Minecraft-Ring 玩法路线与 session 分工 v0.1
 
-2026-10-12 · 新增方向规划  
-代码评估基线：`dev/lb-poc` / `3e66a0b2780b72b60eeb0197bbc01c28db47be0b`  
+2026-10-12 · 新增方向规划\
+代码评估基线：`dev/lb-poc` / `3e66a0b2780b72b60eeb0197bbc01c28db47be0b`\
 配套：[本次 review](reviews/20261012-gameplay-readiness.md) · [review 工作约定](reviews/README.md)
 
 补充研究：[固定地图、独立 MC/地下资源与版本选择](reviews/20261012-map-worldgen-version.md)。该文增加地图工作候选和迁移判断，不修改本轮 LB 实验计划，也不将研究方案视为已实现。
+
+2026-10-13 增量评审：[Core 定制边界、Meteor 与背包桥接](reviews/20261013-core-meteor-inventory.md)，基线 `e218839`。建议保留 LB 路线，将 Meteor 0.5.8 作为独立兼容试验；内容线下一项优先背包只读页面，再做一种装备操作。先同仓拆组件，待 API、配套版本与实际操作闭环稳定后再评估独立仓库。
 
 ## 1. 与原计划的关系
 

@@ -339,6 +339,27 @@ struct RingSlot {
     uint8_t* uploadPtr;
     uint64_t uploadSize;
     uint64_t fence;
+    ID3D12Resource* depthSource; // Owned until the copy recorded in this slot finishes on the GPU.
+};
+
+struct DepthSourcePin {
+    ID3D12Resource* resource;
+    ~DepthSourcePin() { safe_release(resource); }
+    ID3D12Resource* detach() { auto* result = resource; resource = nullptr; return result; }
+};
+
+// Serialize our resource use with ResizeBuffers. ResizeBuffers1 may call ResizeBuffers
+// on the same thread; recursive entries share this transaction instead of relocking.
+static SRWLOCK g_graphicsLock = SRWLOCK_INIT;
+static thread_local unsigned g_graphicsLockDepth = 0, g_resizeDepth = 0;
+struct GraphicsLock {
+    GraphicsLock() { if (g_graphicsLockDepth++ == 0) AcquireSRWLockExclusive(&g_graphicsLock); }
+    ~GraphicsLock() { if (--g_graphicsLockDepth == 0) ReleaseSRWLockExclusive(&g_graphicsLock); }
+};
+struct ResizeScope {
+    bool outer;
+    ResizeScope() : outer(g_resizeDepth++ == 0) {}
+    ~ResizeScope() { --g_resizeDepth; }
 };
 
 static IDXGISwapChain3* g_sc = nullptr;  // the game's swapchain (not AddRef'd: it outlives us)
@@ -461,10 +482,16 @@ static bool wait_fence(uint64_t value, DWORD ms) {
     return g_fence->GetCompletedValue() >= value;
 }
 
-static void wait_idle() {
-    if (!g_fence || !g_queue) return;
+static bool wait_idle() {
+    if (!g_fence || !g_queue) return true;
     uint64_t v = ++g_fenceNext;
-    if (SUCCEEDED(g_queue->Signal(g_fence, v))) wait_fence(v, 2000);
+    return SUCCEEDED(g_queue->Signal(g_fence, v)) && wait_fence(v, 2000);
+}
+
+static bool retire_depth_source(RingSlot& slot) {
+    if (!wait_fence(slot.fence, 50)) return false;
+    safe_release(slot.depthSource);
+    return true;
 }
 
 static bool init_pipeline() {
@@ -676,6 +703,8 @@ static void release_frame_resources() {
     g_lastUploaded = 0;
     for (auto& t : g_tex) safe_release(t);
     for (auto& r : g_ring) {
+        // Depth pins belong to submitted commands, not to MC's transfer dimensions.
+        // Only fence completion / a successful queue-idle wait releases them.
         if (r.upload) r.upload->Unmap(0, nullptr);
         safe_release(r.upload);
         r.uploadPtr = nullptr;
@@ -689,7 +718,7 @@ static void release_frame_resources() {
 // Textures and upload buffers for w x h Minecraft frames.
 static bool ensure_frame_resources(UINT w, UINT h) {
     if (w == g_texW && h == g_texH && g_tex[0]) return true;
-    wait_idle();
+    if (!wait_idle()) { log("compositor: GPU idle timeout; frame resources kept"); return false; }
     release_frame_resources();
     const DXGI_FORMAT fmt[kLayers] = {DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R32_FLOAT, DXGI_FORMAT_B8G8R8A8_UNORM,
                                       DXGI_FORMAT_B8G8R8A8_UNORM};
@@ -954,6 +983,8 @@ static bool composite_control_active(ErmcControl* out) {
 }
 
 static void composite(IDXGISwapChain* sc, UINT flags) {
+    GraphicsLock resources;
+    if (g_resizeDepth) return; // A recursive Present during DXGI resize cannot reacquire old buffers.
     if (flags & DXGI_PRESENT_TEST) return;
     if (!g_presentThread) {
         g_presentThread = GetCurrentThreadId();
@@ -1047,7 +1078,7 @@ static void composite(IDXGISwapChain* sc, UINT flags) {
 
     RingSlot& r = g_ring[g_ringPos % kRing];
     double waitStart = perf_ms();
-    if (!wait_fence(r.fence, 50)) return;  // GPU far behind: skip rather than overwrite in-use memory
+    if (!retire_depth_source(r)) return; // GPU far behind: keep its depth pin and skip this slot.
     g_perfWait += perf_ms() - waitStart;
     bool hand = false;
     double copyStart = perf_ms();
@@ -1098,8 +1129,14 @@ static void composite(IDXGISwapChain* sc, UINT flags) {
     // The tracker follows executed command lists and every depth/stencil plane.
     TrackedDepth hostDepth{};
     bool haveDepth = mc && depth_snapshot(g_bbW, g_bbH, &hostDepth);
+    DepthSourcePin depthPin{haveDepth ? hostDepth.resource : nullptr};
     if (haveDepth && g_nativeDepthSource != hostDepth.resource) {
-        wait_idle();
+        if (!wait_idle()) {
+            log("depth: GPU idle timeout; bound depth copy kept");
+            g_list->Close();
+            g_failed = true;
+            return;
+        }
         safe_release(g_nativeDepthCopy);
         g_nativeDepthSource = nullptr;
         D3D12_RESOURCE_DESC desc = hostDepth.desc;
@@ -1203,6 +1240,9 @@ static void composite(IDXGISwapChain* sc, UINT flags) {
     transition(g_bb[bi], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     if (FAILED(g_list->Close())) return;
     ID3D12CommandList* lists[] = {g_list};
+    // Keep the source even if Signal fails after Execute: reuse/resize can release
+    // it only once a later fence proves that this queue has finished the command.
+    if (haveDepth) r.depthSource = depthPin.detach();
     g_queue->ExecuteCommandLists(1, lists);
     r.fence = ++g_fenceNext;
     g_queue->Signal(g_fence, r.fence);
@@ -1261,23 +1301,30 @@ static HRESULT STDMETHODCALLTYPE hkPresent1(IDXGISwapChain1* sc, UINT sync, UINT
 }
 
 // The swapchain can only resize once nobody holds its buffers.
-static void before_resize(void* sc) {
-    if ((IDXGISwapChain3*)sc != g_sc || !g_bbCount) return;
-    wait_idle();
+static bool before_resize(void* sc) {
+    if ((IDXGISwapChain3*)sc != g_sc) return true;
+    if (!wait_idle()) { log("compositor: GPU idle timeout; resize resources kept"); return false; }
     release_backbuffers();
-    log("compositor: swapchain resizing; back buffers released");
+    for (auto& r : g_ring) safe_release(r.depthSource);
+    depth_tracking_reset(); // Also reset when repeated resize happens with no acquired back buffers.
+    log("compositor: swapchain resizing; back buffers/depth tracker released");
+    return true;
 }
 
 static HRESULT STDMETHODCALLTYPE hkResizeBuffers(IDXGISwapChain* sc, UINT n, UINT w, UINT h, DXGI_FORMAT f, UINT fl) {
     InflightGuard guard;
-    before_resize(sc);
+    GraphicsLock resources;
+    ResizeScope resizing;
+    if (resizing.outer && !before_resize(sc)) return DXGI_ERROR_WAS_STILL_DRAWING;
     return ((Resize_t)g_pp->orig[kSlotResize])(sc, n, w, h, f, fl);
 }
 
 static HRESULT STDMETHODCALLTYPE hkResizeBuffers1(IDXGISwapChain3* sc, UINT n, UINT w, UINT h, DXGI_FORMAT f, UINT fl,
                                                   const UINT* mask, IUnknown* const* queues) {
     InflightGuard guard;
-    before_resize(sc);
+    GraphicsLock resources;
+    ResizeScope resizing;
+    if (resizing.outer && !before_resize(sc)) return DXGI_ERROR_WAS_STILL_DRAWING;
     return ((Resize1_t)g_pp->orig[kSlotResize1])(sc, n, w, h, f, fl, mask, queues);
 }
 
@@ -1340,7 +1387,11 @@ void compositor_detach() {
 
 // After every hook has returned: release everything (the GPU must be done with it).
 void compositor_shutdown() {
-    wait_idle();
+    if (!wait_idle()) {
+        log("compositor: GPU idle timeout on shutdown; resources retained for in-flight GPU work");
+        return;
+    }
+    for (auto& r : g_ring) safe_release(r.depthSource);
     release_frame_resources();
     release_backbuffers();
     release_depth();

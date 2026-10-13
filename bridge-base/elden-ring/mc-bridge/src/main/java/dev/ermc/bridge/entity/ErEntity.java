@@ -52,6 +52,7 @@ public class ErEntity extends LivingEntity {
 	private static final EntityDataAccessor<Float> DATA_HZ = SynchedEntityData.defineId(ErEntity.class, EntityDataSerializers.FLOAT);
 	private static final EntityDataAccessor<Float> DATA_HP = SynchedEntityData.defineId(ErEntity.class, EntityDataSerializers.FLOAT);
 	private static final EntityDataAccessor<Float> DATA_MAX_HP = SynchedEntityData.defineId(ErEntity.class, EntityDataSerializers.FLOAT);
+	private static final List<ItemStack> NO_HANDS = List.of(ItemStack.EMPTY, ItemStack.EMPTY);
 	private static final List<ItemStack> NO_ARMOR = List.of(ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY);
 	/**
 	 * Terrain blocks this close to the body (blocks) don't hide or shield it from Minecraft mobs
@@ -378,6 +379,12 @@ public class ErEntity extends LivingEntity {
 	@Override
 	public boolean shouldBeSaved() {
 		return false;
+	}
+
+	@Override
+	public Iterable<ItemStack> getHandSlots() {
+		// Vanilla consumers expect main-hand and off-hand slots; ER equipment is not mirrored here.
+		return NO_HANDS;
 	}
 
 	@Override

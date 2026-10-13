@@ -1,9 +1,9 @@
 # 2026-10-12：玩法准备度 review
 
-评审提交：[`3e66a0b2780b72b60eeb0197bbc01c28db47be0b`](https://github.com/0smium/Minecraft-Ring/commit/3e66a0b2780b72b60eeb0197bbc01c28db47be0b)  
-分支：`dev/lb-poc`  
-范围：新增实验记录、LB 启动接法、资源/交互、敌人生命周期、伤害/死亡、建筑碰撞与未来玩法接口。不是对本分支所有改动的完整正确性审计。  
-验证方式：读取固定提交源码和已提交实验记录；本次未启动游戏、未执行构建或实机测试。  
+评审提交：[`3e66a0b2780b72b60eeb0197bbc01c28db47be0b`](https://github.com/0smium/Minecraft-Ring/commit/3e66a0b2780b72b60eeb0197bbc01c28db47be0b)\
+分支：`dev/lb-poc`\
+范围：新增实验记录、LB 启动接法、资源/交互、敌人生命周期、伤害/死亡、建筑碰撞与未来玩法接口。不是对本分支所有改动的完整正确性审计。\
+验证方式：读取固定提交源码和已提交实验记录；本次未启动游戏、未执行构建或实机测试。\
 关联：[玩法路线与 session 分工](../gameplay-roadmap.md)
 
 ## 结论

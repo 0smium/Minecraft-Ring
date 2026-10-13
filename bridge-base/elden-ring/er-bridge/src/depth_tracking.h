@@ -97,11 +97,25 @@ static bool depth_snapshot(UINT width, UINT height, TrackedDepth* out) {
         if (valid && (!best || d.desc.Width * d.desc.Height > best->desc.Width * best->desc.Height ||
             (d.desc.Width * d.desc.Height == best->desc.Width * best->desc.Height && d.writes > best->writes))) best = &d;
     }
-    if (best) *out = *best;
+    // Transfer one owned reference to the caller while reset is still excluded.
+    // A snapshot may outlive the tracker and must stay alive through its GPU fence.
+    if (best) { *out = *best; out->resource->AddRef(); }
     ReleaseSRWLockShared(&g_depthTrackLock);
     return best != nullptr;
 }
-static void depth_tracking_shutdown() {
-    for (auto& d : g_trackedDepth) d.resource->Release();
-    g_trackedDepth.clear(); g_depthChanges.clear();
+static uint64_t g_depthResetCount = 0;
+static void depth_tracking_reset() {
+    std::vector<TrackedDepth> retired;
+    AcquireSRWLockExclusive(&g_depthTrackLock);
+    size_t lists = g_depthChanges.size();
+    retired.swap(g_trackedDepth);
+    // These closed-list records contain raw resource pointers. Discard them in the
+    // same transaction so neither submission nor address reuse can revive old state.
+    g_depthChanges.clear();
+    uint64_t resets = ++g_depthResetCount;
+    ReleaseSRWLockExclusive(&g_depthTrackLock);
+    for (auto& d : retired) d.resource->Release();
+    log("depth: tracker reset %llu, retired %zu resources / %zu list records",
+        (unsigned long long)resets, retired.size(), lists);
 }
+static void depth_tracking_shutdown() { depth_tracking_reset(); }

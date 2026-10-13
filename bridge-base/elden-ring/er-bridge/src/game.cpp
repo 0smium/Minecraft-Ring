@@ -2,8 +2,10 @@
 // Addresses and layouts were found by reverse engineering this build and verified live; each is
 // checked against its byte signature at startup.
 //
-// No inline hooks: per-frame code runs as tasks registered with the game's own task system
-// (CSTaskImp::RegisterTask), so Arxan's code restoration can't undo anything. The task
+// Per-frame code runs as tasks registered with the game's own task system
+// (CSTaskImp::RegisterTask), so Arxan's code restoration can't undo those tasks. Incoming
+// hit observation additionally uses one version-checked function hook (see incoming_hits.h).
+// Its coverage must be verified live; native code restoration may remove that hook. The task
 // objects and their tiny forwarding stubs live in one RWX page that survives core hot
 // reloads (its address is kept in the shared-memory header); the core only swaps the
 // function pointers the stubs jump to.
@@ -24,6 +26,7 @@
 #include "world_environment.h"
 #include "support_surface.h"
 #include "host_effects.h"
+#include "incoming_hits.h"
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
@@ -648,6 +651,7 @@ static bool g_havePut = false;
 static int g_clampFrames = 0;        // consecutive ticks the game knocked HP down to 1 (see stand_in)
 
 static void release_player(uint8_t* ins, uint8_t* data, uint8_t* phys) {
+    incoming_hits::set_target(nullptr, nullptr, 0);
     g_putHavokValid = false;
     if (ins && mem_readable(ins + kChrDebugFlags, 4)) {
         *(uint32_t*)(ins + kChrDebugFlags) &= ~(1u << 5);          // NoMove off
@@ -1073,47 +1077,44 @@ static void stand_in(const Player& p, const ErmcControl* c, bool active) {
     // plane under the map): report nothing more, update_life lets it die after 3 ticks.
     bool clamped = hp == 1 && g_lastHp > 1;
     g_clampFrames = clamped ? g_clampFrames + 1 : 0;
-    if (g_lastHp > 0 && hp < g_lastHp && g_clampFrames <= 1) {
-        float dmg = (float)(g_lastHp - hp);
-        // Use the existing attacker marker before choosing a damage channel. An absent
-        // attacker does not become a monster attack merely because an enemy is nearby.
-        uint64_t by = *(uint64_t*)(p.ins + 0x180);
-        *(uint64_t*)(p.ins + 0x180) = ~0ull;
-        bool hasAttacker = (uint32_t)by != 0xFFFFFFFFu;
+    const incoming_hits::Batch hits = incoming_hits::take(p.data, p.ins, shm_header()->hostLife);
+    const float observed = g_lastHp > 0 && hp < g_lastHp && g_clampFrames <= 1 ? (float)(g_lastHp - hp) : 0.0f;
+    const float confirmed = (float)hits.actualLoss;
+    const float residual = fmaxf(0.0f, observed - confirmed);
+    if (hits.count || residual > 0) {
         ErmcHunterEvents* ev = shm_hunter();
         ev->seq = ev->seq + 1;
         __asm__ __volatile__("" ::: "memory");
-        const char* source = "no recorded attacker";
-        if (!hasAttacker) {
-            // This is unattributed HP loss, not proof of a specific poison effect.
-            // Minecraft already has a separate damage channel without attack knockback.
-            ev->totalStatusDamage = ev->totalStatusDamage + dmg;
-        } else {
-            ev->hitCount = ev->hitCount + 1;
-            ev->totalDamage = ev->totalDamage + dmg;
-            ev->lastDamage = dmg;
+        // Source attribution never decides whether an attack occurred. Periodic poison
+        // remains in the observed residual and is translated separately from actual effects.
+        ev->totalStatusDamage = ev->totalStatusDamage + residual;
+        const char* source = "no confirmed attack";
+        if (hits.count) {
+            ev->hitCount = ev->hitCount + hits.count;
+            ev->totalDamage = ev->totalDamage + confirmed;
+            ev->lastDamage = confirmed;
             float apos[3];
             uint32_t akind = 0;
-            if (published_attacker(by, apos, &akind)) {
+            if ((uint32_t)hits.sourceHint != 0xFFFFFFFFu && published_attacker(hits.sourceHint, apos, &akind)) {
                 memcpy(ev->lastHitFrom, apos, 12);
                 ev->lastHitKind = akind;
-                source = "recorded attacker";
+                source = "last-hit source hint (not per-hit attribution)";
             } else if (g_nearestHostile.valid) {
                 memcpy(ev->lastHitFrom, g_nearestHostile.pos, 12);
                 ev->lastHitKind = g_nearestHostile.kind;
-                source = "recorded attacker, nearest position fallback";
+                source = "approximate nearest-hostile direction fallback after confirmed attack";
             } else {
-                memcpy(ev->lastHitFrom, c->hunterPos, 12);
-                ev->lastHitKind = ERMC_ENT_LARGE_MONSTER;
-                source = "recorded attacker, position unavailable";
+                memset(ev->lastHitFrom, 0, sizeof(ev->lastHitFrom));
+                ev->lastHitKind = 0;
+                source = "confirmed attack, direction unavailable (kind 0)";
             }
             ev->lastHitFrame = shm_state()->frame;
         }
         ev->hunterMaxHp = (float)mx;
         __asm__ __volatile__("" ::: "memory");
         ev->seq = ev->seq + 1;
-        log("stand-in: the player took %.0f %s damage -> Minecraft; by 0x%llX; %s",
-            dmg, hasAttacker ? "attack" : "status/unattributed", (unsigned long long)by, source);
+        log("stand-in: observed %.0f HP loss; confirmed %u incoming hit(s) %.0f actual HP; unattributed residual %.0f; hint 0x%llX; %s",
+            observed, hits.count, confirmed, residual, (unsigned long long)hits.sourceHint, source);
     }
     if (mx > 0) *(int*)(p.data + kDataHp) = mx;  // never faint while standing in
     g_lastHp = mx;
@@ -1383,11 +1384,16 @@ static bool find_published(uint64_t handle, Chr* out) {
 constexpr size_t kWcmChrSets = 0x1DED8;       // ChrSet* [196]; entries 0x10: {ChrIns*, u8 state (4 = active)...}
 constexpr int kDebugChrSet = 114;             // characters from the game's debug creator (our test enemies)
 
+static void refresh_entity_names();
+static void clear_entity_names();
+static void entity_name(int32_t npcParamId, int model, char* out, size_t capacity);
+
 static void publish_entities(const Player& p) {
     ErmcEntityTable* t = shm_entities();
     static ErmcEntity local[ERMC_MAX_ENTITIES];
     static Published pub[ERMC_MAX_ENTITIES];
     uint32_t n = 0;
+    refresh_entity_names();
     g_nearestHostile.valid = false;
     float nearestSq = 1e30f;
     uint8_t* wcm = global_ptr(rva::kWorldChrMan, rva::kVtWorldChrMan);
@@ -1446,7 +1452,7 @@ static void publish_entities(const Player& p) {
         o.hp = (float)(hp > 0 ? hp : 0);
         o.maxHp = (float)mx;
         o.flags = 2u | (chr_dead(c) ? 1u : 0u);  // world-aligned capsule box
-        snprintf(o.name, sizeof(o.name), "c%04d", model);
+        entity_name((int32_t)o.emId, model, o.name, sizeof(o.name));
         if (hostile && !(o.flags & 1u) && d2 < nearestSq) {
             nearestSq = d2;
             g_nearestHostile.valid = true;
@@ -1480,6 +1486,7 @@ static bool published_attacker(uint64_t handle, float* pos, uint32_t* kind) {
 }
 
 static void clear_entities() {
+    clear_entity_names(); // Loading/unloading can replace current-language resources at the same address.
     ErmcEntityTable* t = shm_entities();
     if (t->count == 0 && g_publishedCount == 0) return;
     t->seq = t->seq | 1;
@@ -1525,8 +1532,8 @@ constexpr size_t kAtkRowSize = 0x1C8;
 static uint8_t* g_pokeRow = nullptr;          // AtkParam_Pc 10176000, patched while the core runs
 static uint8_t g_pokeRowSaved[kAtkRowSize];
 
-// A param row by id (binary search in the loaded param file); null if not found.
-static uint8_t* param_row(uint32_t index, int32_t id) {
+// The loaded parameter file; optional identity records the actual resource chain.
+static uint8_t* param_file(uint32_t index, uintptr_t* identity = nullptr) {
     uint8_t* rep = global_ptr(combat::kSoloParamRepository, 0);
     if (!rep || !mem_readable(rep + 0x88 + 0x48 * index, 8)) return nullptr;
     uint8_t* rescap = *(uint8_t**)(rep + 0x88 + 0x48 * index);
@@ -1535,6 +1542,17 @@ static uint8_t* param_row(uint32_t index, int32_t id) {
     if (!fd4rc || !mem_readable(fd4rc + 0x80, 8)) return nullptr;
     uint8_t* file = *(uint8_t**)(fd4rc + 0x80);
     if (!file || !mem_readable(file, 0x40)) return nullptr;
+    if (identity) {
+        identity[0] = (uintptr_t)rep, identity[1] = (uintptr_t)rescap;
+        identity[2] = (uintptr_t)fd4rc, identity[3] = (uintptr_t)file;
+    }
+    return file;
+}
+
+// A param row by id (binary search in the loaded param file); null if not found.
+static uint8_t* param_row(uint32_t index, int32_t id) {
+    uint8_t* file = param_file(index);
+    if (!file) return nullptr;
     uint16_t rows = *(uint16_t*)(file + 0x0A);
     if (!rows || !mem_readable(file + 0x40, (size_t)rows * 24)) return nullptr;
     int lo = 0, hi = rows - 1;
@@ -1916,6 +1934,173 @@ static const wchar_t* fmg_text(uint32_t category, int32_t id) {
         return (const wchar_t*)(fmg + *slot);
     }
     return nullptr;
+}
+
+// Optional, read-only NPC names for 2.7.1.0. The repository index is 6, not the
+// PARAMDEF XML's Index64: fromsoftware-rs@59fbd3b3b7daaf14aca47c9f73530493dba6bc79
+// cs/solo_param_repository.rs explicitly maps NpcParam to 6. The same commit's
+// NpcParam.xml puts nameId at +0x0C. Target/live accesses and current Chinese
+// FMGs were checked in runtime/experiments/name-research/target-name-field-verification.json.
+// Smithbox@cbd477a8fd6d436b3e011c8548e1de8fd8876918's ER FMG registry independently
+// lists Characters categories 18/328/428; the target NPC text fallback agrees.
+// Event-defined boss-name overrides are outside this NpcParam-only reader.
+static const CodeSig kEntityNameSigs[] = {
+    {0xD42DB8, "48 8B 0D 99 31 04 03 45 33 C0 41 8D 50 06 E8 35 BC 00 00 48 85 C0 0F 84 F3 00 00 00 48 8B 80 80 00 00 00 48 8B 98 80 00 00 00", "NpcParam index6/file"},
+    {0xD4EA00, "81 FA C2 00 00 00 7D 24 48 63 D2 48 8D 04 D2 44 3B 84 C1 80 00 00 00 73 13 41 8B C0 48 8D 14 D2 48 03 D0 48 8B 84 D1 88 00 00 00 C3", "SoloParamRepository holder stride"},
+    {0x7605FB, "FF 90 78 01 00 00 48 85 C0 74 19 48 8B 00 48 85 C0 74 11 44 0F B6 C6 8B 50 0C 48 8B CB E8 C3 16 00 00", "NpcParam nameId +0x0C"},
+    {0x764256, "45 85 C0 7F 07 E8 90 9E E8 FF EB 53", "NpcName positive nameId"},
+    {0xD12242, "44 8B CB 44 8D 40 12 33 D2 48 8B CF E8 ED D9 95 01 48 85 C0 75 3C 44 8B CB 33 D2 41 B8 48 01 00 00 48 8B CF E8 D5 D9 95 01 48 85 C0 75 24 44 8B CB 33 D2 41 B8 AC 01 00 00 48 8B CF E8 BD D9 95 01", "NpcName base/DLC categories"},
+    {0x266FC40, "3B 51 10 73 29 44 3B 41 14 73 23 48 8B 41 08 8B D2 48 8B 0C D0 48 85 C9 74 14 41 8B C0 48 8B 0C C1 48 85 C9 74 08 41 8B D1 E9 A2 08 00 00", "MsgRepository current-language table"},
+    {0x2670510, "44 8B 41 0C 45 33 C9 41 FF C8 4C 8B D9 3B 51 2C", "FMG group lookup"},
+};
+constexpr uint32_t kParamNpc = 6;
+static bool g_entityNamesOk = false;
+static const uint32_t kNpcNameCategories[] = {18, 328, 428};
+
+struct EntityNameResources {
+    uintptr_t words[12]; // Param chain, MsgRepository, versions, files, counts and three FMGs.
+    uint8_t paramHeader[0x40], fmgHeader[3][0x28];
+};
+struct EntityNameEntry {
+    int32_t npcParamId;
+    uint64_t readMs;
+    char text[48]; // Same UTF-8 capacity as ErmcEntity.name; empty is a cached missing name.
+};
+static EntityNameResources g_entityNameResources = {};
+static EntityNameEntry g_entityNames[256];
+static uint32_t g_entityNameCount = 0, g_entityNameNext = 0;
+static uint64_t g_entityNameMs = 0;
+static bool g_entityNameResourcesReady = false;
+
+static void clear_entity_names() {
+    g_entityNameCount = g_entityNameNext = 0;
+    g_entityNameResourcesReady = false;
+}
+
+static void refresh_entity_names() {
+    if (!g_entityNamesOk) return;
+    EntityNameResources next = {};
+    uint8_t* file = param_file(kParamNpc, next.words);
+    uint8_t* repo = global_ptr(rva::kMsgRepository, rva::kVtMsgRepository);
+    bool ready = file && repo && mem_read(file, next.paramHeader, sizeof(next.paramHeader));
+    // The verified target NPC_PARAM_ST is version 9. A different row layout is unknown.
+    uint16_t paramVersion = 0;
+    if (ready) memcpy(&paramVersion, next.paramHeader + 8, sizeof(paramVersion));
+    ready = ready && paramVersion == 9;
+    uintptr_t versions = 0, files = 0;
+    uint32_t counts[2] = {};
+    if (ready) ready = mem_read(repo + 8, &versions, 8) && versions &&
+        mem_read(repo + 0x10, counts, sizeof(counts)) && counts[0] > 0 && counts[0] <= 8 &&
+        counts[1] > 428 && counts[1] <= 1024 && mem_read((void*)versions, &files, 8) && files;
+    next.words[4] = (uintptr_t)repo, next.words[5] = versions, next.words[6] = files;
+    next.words[7] = counts[0], next.words[8] = counts[1];
+    for (size_t i = 0; ready && i < 3; i++) {
+        uintptr_t fmg = 0;
+        ready = mem_read((void*)(files + 8 * kNpcNameCategories[i]), &fmg, 8);
+        next.words[9 + i] = fmg;
+        if (ready && fmg) ready = mem_read((void*)fmg, next.fmgHeader[i], sizeof(next.fmgHeader[i]));
+    }
+    if (!ready) { clear_entity_names(); return; }
+    if (!g_entityNameResourcesReady || memcmp(&next, &g_entityNameResources, sizeof(next))) {
+        g_entityNameCount = g_entityNameNext = 0;
+        g_entityNameResources = next;
+        log("game: NPC name resources loaded/reloaded (param %p, language files %p)", file, (void*)files);
+    }
+    g_entityNameResourcesReady = true;
+    g_entityNameMs = now_ms();
+}
+
+// Read one UTF-16 scalar at a time and stop only between complete UTF-8 scalars.
+// No unbounded wcslen or conversion over a possibly unloaded FMG allocation.
+static bool entity_name_utf8(const wchar_t* source, char* out, size_t capacity) {
+    size_t used = 0;
+    if (!source || !capacity) return false;
+    out[0] = 0;
+    for (size_t i = 0; i < 256; i++) {
+        wchar_t scalar[2] = {};
+        if (!mem_read(source + i, scalar, 2)) return false;
+        if (!scalar[0]) { out[used] = 0; return used > 0; }
+        int units = 1;
+        if (scalar[0] >= 0xD800 && scalar[0] <= 0xDBFF) {
+            if (++i >= 256 || !mem_read(source + i, scalar + 1, 2) ||
+                scalar[1] < 0xDC00 || scalar[1] > 0xDFFF) return false;
+            units = 2;
+        }
+        char encoded[4];
+        int bytes = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, scalar, units,
+                                       encoded, sizeof(encoded), nullptr, nullptr);
+        if (!bytes) return false;
+        if (used + (size_t)bytes >= capacity) { out[used] = 0; return used > 0; }
+        memcpy(out + used, encoded, (size_t)bytes);
+        used += (size_t)bytes;
+    }
+    return false;
+}
+
+// Names use the file/header already checked once this tick. Checking the entire
+// 7045-row NPC directory on each cache refresh would cost hundreds of RPM calls.
+static bool npc_name_id(int32_t npcParamId, int32_t* nameId) {
+    uintptr_t file = g_entityNameResources.words[3];
+    uint16_t count = 0;
+    memcpy(&count, g_entityNameResources.paramHeader + 0x0A, sizeof(count));
+    if (!file || !count || npcParamId < 0 || file > UINTPTR_MAX - 0x40) return false;
+    uintptr_t directory = file + 0x40;
+    int lo = 0, hi = count - 1;
+    while (lo <= hi) {
+        int mid = lo + (hi - lo) / 2;
+        size_t offset = (size_t)mid * 24;
+        struct Row { int32_t id; uint32_t unused; uint64_t dataOffset, nameOffset; } row;
+        static_assert(sizeof(Row) == 24, "PARAM64 row descriptor");
+        if (directory > UINTPTR_MAX - offset) return false;
+        uintptr_t descriptor = directory + offset;
+        if (descriptor > UINTPTR_MAX - sizeof(row) ||
+            !mem_read((void*)descriptor, &row, sizeof(row))) return false;
+        if (row.id == npcParamId) {
+            if (row.dataOffset < 0x40 + (size_t)count * 24 ||
+                row.dataOffset > UINTPTR_MAX - file) return false;
+            uintptr_t data = file + (uintptr_t)row.dataOffset;
+            if (data > UINTPTR_MAX - 0x10) return false;
+            return mem_read((void*)(data + 0x0C), nameId, sizeof(*nameId));
+        }
+        if (row.id < npcParamId) lo = mid + 1;
+        else hi = mid - 1;
+    }
+    return false;
+}
+
+static void entity_name(int32_t npcParamId, int model, char* out, size_t capacity) {
+    snprintf(out, capacity, "c%04d", model);
+    if (!g_entityNamesOk || !g_entityNameResourcesReady || npcParamId < 0) return;
+    EntityNameEntry* entry = nullptr;
+    bool found = false;
+    for (uint32_t i = 0; i < g_entityNameCount; i++) {
+        if (g_entityNames[i].npcParamId == npcParamId) { entry = &g_entityNames[i]; found = true; break; }
+    }
+    if (!entry) {
+        entry = &g_entityNames[g_entityNameNext];
+        g_entityNameNext = (g_entityNameNext + 1) % 256;
+        if (g_entityNameCount < 256) g_entityNameCount++;
+    }
+    // Pointer/header identity handles normal language reload. Expiration also bounds stale
+    // positive and negative results if a resource is rebuilt in place at the same addresses.
+    if (!found || g_entityNameMs - entry->readMs >= 2000) {
+        entry->npcParamId = npcParamId, entry->readMs = g_entityNameMs;
+        memset(entry->text, 0, sizeof(entry->text));
+        int32_t nameId = -1;
+        npc_name_id(npcParamId, &nameId);
+        uint32_t category = 0;
+        if (nameId > 0) for (uint32_t candidate : kNpcNameCategories) {
+            const wchar_t* source = fmg_text(candidate, nameId);
+            if (entity_name_utf8(source, entry->text, sizeof(entry->text))) { category = candidate; break; }
+            entry->text[0] = 0;
+        }
+        if (!found) log("game: NPC name npcParam %d nameId %d fmg %u: %s", npcParamId, nameId,
+                        category, entry->text[0] ? entry->text : "missing (model fallback)");
+    }
+    if (entry->text[0]) {
+        size_t length = strlen(entry->text);
+        if (length < capacity) memcpy(out, entry->text, length + 1);
+    }
 }
 
 static int32_t g_promptShown = -2;  // text id currently in hostPrompt (-2 = never published)
@@ -2362,10 +2547,13 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
     memset(&c, 0, sizeof(c));
     bool ctrl = control_active(&c);
     bool alive = havePlayer && g_life == LIFE_ALIVE;
+    bool standing = alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER);
     service_environment(alive, g_frame.zone);
     update_support(c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER), havePlayer ? p.ins : nullptr);
     update_platform_cells(c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER), g_frame.zone, havePlayer ? p.ins : nullptr);
     if (havePlayer) stand_in(p, &c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER));
+    incoming_hits::set_target(standing && g_standing ? p.data : nullptr, standing && g_standing ? p.ins : nullptr,
+                              standing && g_standing ? shm_header()->hostLife : 0);
     update_passages(havePlayer && alive && g_standing, havePlayer ? p.ins : nullptr);
     if (alive) {
         service_rays(p.ins);
@@ -2473,8 +2661,19 @@ bool game_init() {
         }
     }
     if (!g_ok) return false;
+    incoming_hits::init(g_base);
     const bool hostEffectsOk = g_hostEffects.init(g_base);
     log("game: read-only host effects %s", hostEffectsOk ? "enabled" : "disabled (signature mismatch)");
+    g_entityNamesOk = true;
+    for (const CodeSig& s : kEntityNameSigs) {
+        if (!bytes_match(g_base + s.rva, s.sig)) {
+            log("game: %s differs; NPC name tables disabled", s.name);
+            g_entityNamesOk = false;
+        }
+    }
+    clear_entity_names();
+    log("game: read-only NPC name tables %s (NpcParam 6/+0x0C, FMG 18/328/428)",
+        g_entityNamesOk ? "enabled" : "disabled (signature mismatch)");
     g_fallTraceOk = bytes_match(g_base + 0x44E6B3, "80 7B 1C 00 C6 43 1E 00 74 23 F3 41 0F 10 46 08 F3 0F 58 43 18") &&
         bytes_match(g_base + 0x460A19, "88 81 D0 01 00 00");
     log("game: read-only fall diagnostics %s", g_fallTraceOk ? "enabled" : "disabled (signature mismatch)");
@@ -2514,6 +2713,7 @@ bool game_init() {
 }
 
 void game_detach() {
+    incoming_hits::detach();
     if (g_page) {
         g_page->target[0] = nullptr;
         g_page->target[1] = nullptr;

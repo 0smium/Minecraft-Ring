@@ -1,0 +1,15 @@
+{
+	"required": true,
+	"package": "dev.ermc.bridge.client.integrations.liquidbounce",
+	"plugin": "dev.ermc.bridge.client.integrations.liquidbounce.LiquidBounceMixinPlugin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"TargetConfigurableMixin",
+		"EspBoxMixin",
+		"NametagHealthMixin",
+		"MinimapScanMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
