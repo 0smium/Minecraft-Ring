@@ -131,6 +131,8 @@ exercise collision, movement and capture behavior without launching the games:
 | `python tools/test_meteor_preparation.py` | Optional Meteor 0.5.8 handlers, shared LB target rules and artifact-preflight fixtures; no real Mixin launch |
 | `python tools/test_meteor_adapter.py` | Eight actual optional-client injections into the pinned Meteor release JAR; offline transformer, not module initialization |
 | `python tools/test_b01_preparation.py` | [B01 preparation](b01-preparation.md): character/session isolation, persistent level entitlement and capability policies; simulated hosts and fresh-JVM restore |
+| `python tools/test_local_host_routing.py --fabric-events --regression-ref b8615e1` | Real Combat/Life and Terrain recall code with platform doubles; pinned Fabric/MC JOIN order, local owner isolation and counter restarts; rejects old broadcast behavior |
+| `python tools/test_test_runes.py` | Explicit rune command bounds, ownership/session checks, expiry/replay handling, real function arithmetic on private fixture memory, closed-game backup and CLI tests; no live mailbox access |
 | `python tools/test_stable_terrain.py` | Active block collision path and saved 8x8/16x16 compatibility |
 | `python tools/test_terrain_passages.py` | Two-stage passage refinement, descending stairs, low vaults, wall retention and door invalidation |
 | `python tools/test_terrain_clearance.py` | Narrow arches, corner and one-sided walls, stale openings and floor safety |
