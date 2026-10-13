@@ -2,6 +2,8 @@
 
 Does not launch Minecraft/Elden Ring or validate the Windows DLL/game at runtime.
 Requires C++17 and a full JDK 17+.
+Pass --vanilla to also verify the merge model against locally cached Minecraft 1.21.1
+classes (requires the project JDK 21+ and an already populated production build cache).
 """
 from pathlib import Path
 import argparse
@@ -101,6 +103,8 @@ int main(int argc, char** argv) {
 """
 
 STUBS = {
+    "org/spongepowered/asm/mixin/Mixin.java": 'package org.spongepowered.asm.mixin; public @interface Mixin { Class<?>[] value(); }',
+    "org/spongepowered/asm/mixin/gen/Accessor.java": 'package org.spongepowered.asm.mixin.gen; public @interface Accessor { String value(); }',
     "org/slf4j/Logger.java": 'package org.slf4j; public interface Logger { default void info(String s,Object... args) {} }',
     "org/slf4j/LoggerFactory.java": 'package org.slf4j; public final class LoggerFactory { public static Logger getLogger(String s) { return new Logger() {}; } }',
     "net/minecraft/core/Holder.java": 'package net.minecraft.core; public record Holder<T>(T value) {}',
@@ -116,11 +120,30 @@ CONFUSION=new Holder<>(new MobEffect()), WEAKNESS=new Holder<>(new MobEffect()),
 }''',
     "net/minecraft/world/effect/MobEffectInstance.java": '''package net.minecraft.world.effect;
 import net.minecraft.core.Holder;
-public final class MobEffectInstance {
-public final Holder<MobEffect> type; public int duration, amplifier;
+public final class MobEffectInstance implements dev.ermc.bridge.mixin.MobEffectInstanceAccessor {
+public final Holder<MobEffect> type; public int duration, amplifier; private MobEffectInstance hiddenEffect;
 public MobEffectInstance(Holder<MobEffect> type,int duration,int amplifier) {this.type=type;this.duration=duration;this.amplifier=amplifier;}
+public MobEffectInstance(MobEffectInstance other){this(other.type,other.duration,other.amplifier);}
 public int getDuration(){return duration;} public int getAmplifier(){return amplifier;}
 public boolean isInfiniteDuration(){return duration==-1;}
+public MobEffectInstance erbridge$getHiddenEffect(){return hiddenEffect;}
+private boolean shorterThan(MobEffectInstance other){return !isInfiniteDuration() && (duration<other.duration || other.isInfiniteDuration());}
+public boolean update(MobEffectInstance next){
+if(next.amplifier>amplifier){
+if(next.shorterThan(this)){var oldHidden=hiddenEffect;hiddenEffect=new MobEffectInstance(this);hiddenEffect.hiddenEffect=oldHidden;}
+amplifier=next.amplifier;duration=next.duration;return true;
+}
+if(shorterThan(next)){
+if(next.amplifier==amplifier){duration=next.duration;return true;}
+if(hiddenEffect==null) hiddenEffect=new MobEffectInstance(next); else hiddenEffect.update(next);
+}
+return false;
+}
+private void tickDown(){if(hiddenEffect!=null)hiddenEffect.tickDown();if(duration>0)duration--;}
+public void tick(){
+tickDown();
+if(duration==0 && hiddenEffect!=null){duration=hiddenEffect.duration;amplifier=hiddenEffect.amplifier;hiddenEffect=hiddenEffect.hiddenEffect;}
+}
 }''',
     "net/minecraft/server/level/ServerPlayer.java": '''package net.minecraft.server.level;
 import java.util.*;
@@ -139,18 +162,17 @@ public boolean hasEffect(Holder<MobEffect> type){return effects.containsKey(type
 public boolean removeEffect(Holder<MobEffect> type){return effects.remove(type)!=null;}
 public boolean addEffect(MobEffectInstance next){
 var old=effects.get(next.type);
-if(old==null) effects.put(next.type,next);
-else if(next.amplifier>=old.amplifier){old.amplifier=next.amplifier;old.duration=Math.max(old.duration,next.duration);}
-return true;
+if(old==null){effects.put(next.type,next);return true;}
+return old.update(next);
 }
 public void tick(){
 tickCount++;
 for(var e:effects.values()) {
 if(e.type==MobEffects.POISON && e.duration%25==0) poisonTicks++;
 if(e.type==MobEffects.WITHER && e.duration%40==0) witherTicks++;
-e.duration--;
+e.tick();
 }
-effects.values().removeIf(e->e.duration<=0);
+effects.values().removeIf(e->!e.isInfiniteDuration() && e.duration<=0);
 }
 }''',
     "net/minecraft/server/MinecraftServer.java": '''package net.minecraft.server;
@@ -180,6 +202,7 @@ return true;
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--java-home", default=os.environ.get("JAVA_HOME"))
+    parser.add_argument("--vanilla", action="store_true", help="also exercise actual cached Minecraft effect classes")
     args = parser.parse_args()
     java = java_path(args.java_home)
     cxx = os.environ.get("CXX") or shutil.which("g++") or shutil.which("clang++")
@@ -206,7 +229,8 @@ def main():
         main = MC / "main/java/dev/ermc/bridge"
         files += [main / "link" / f"{name}.java" for name in
                   ("BridgePaths", "Protocol", "HostEffectState", "HostEffectCodec", "HostEffectCursor", "HostEffectRules")]
-        files += [main / "HostEffectsBridge.java", MC / "testFixtures/host-effects/HostEffectsCheck.java"]
+        files += [main / "HostEffectsBridge.java", main / "mixin/MobEffectInstanceAccessor.java",
+                  MC / "testFixtures/host-effects/HostEffectsCheck.java"]
         classes = out / "classes"
         classes.mkdir()
         subprocess.run([java, "-m", "jdk.compiler/com.sun.tools.javac.Main", "--release", "17",
@@ -214,6 +238,29 @@ def main():
         run = ["-cp", str(classes), "dev.ermc.bridge.effects.HostEffectsCheck", str(wire)]
         subprocess.run([java, *run], check=True)
         subprocess.run([java, "-Derbridge.experimentalFrostBurst=true", *run], check=True)
+        if args.vanilla:
+            vanilla_merge_check(java, out)
+
+
+def vanilla_merge_check(java, out):
+    from test_lb_capability_adapter import argument_file, single
+
+    cache = ROOT / ".tools/gradle-home/caches"
+    dependencies = [single((cache / "fabric-loom/minecraftMaven/net/minecraft").glob(
+        f"minecraft-{part}/1.21.1-loom.*/minecraft-{part}-*.jar"), f"named Minecraft {part}")
+        for part in ("common", "clientonly")]
+    dependencies += sorted(path for path in (cache / "modules-2/files-2.1").rglob("*.jar")
+                           if not any(marker in path.name for marker in ("-sources", "-javadoc", "-natives-")))
+    classes = out / "vanilla-classes"
+    classes.mkdir()
+    classpath = os.pathsep.join(map(str, [classes, *dependencies]))
+    arguments = out / "vanilla.args"
+    argument_file(arguments, ["-m", "jdk.compiler/com.sun.tools.javac.Main", "-proc:none", "-encoding", "UTF-8",
+                             "-classpath", classpath, "-d", classes,
+                             MC / "testFixtures/host-effects/VanillaEffectMergeCheck.java"])
+    subprocess.run([java, "@" + str(arguments)], check=True)
+    argument_file(arguments, ["-classpath", classpath, "dev.ermc.bridge.effects.VanillaEffectMergeCheck"])
+    subprocess.run([java, "@" + str(arguments)], cwd=out, check=True)
 
 
 if __name__ == "__main__":

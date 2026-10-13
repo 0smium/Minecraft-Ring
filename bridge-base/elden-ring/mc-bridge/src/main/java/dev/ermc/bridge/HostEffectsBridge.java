@@ -7,6 +7,7 @@ import dev.ermc.bridge.link.HostEffectRules.Effect;
 import dev.ermc.bridge.link.HostEffectRules.LeaseSpec;
 import dev.ermc.bridge.link.HostEffectState;
 import dev.ermc.bridge.link.Protocol;
+import dev.ermc.bridge.mixin.MobEffectInstanceAccessor;
 import net.minecraft.core.Holder;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -52,6 +53,19 @@ public final class HostEffectsBridge {
             return player.getEffect(type(spec.effect())) == effect && effect.getAmplifier() == spec.amplifier()
                     && !effect.isInfiniteDuration() && effect.getDuration() > 0 && effect.getDuration() <= expected;
         }
+        void releaseOwned() {
+            // A weaker, longer external effect is stored beneath our top instance by vanilla.
+            // The hidden chain ticks alongside the top, so restore its remaining duration as-is.
+            MobEffectInstance hidden = hiddenEffect(effect);
+            while (hidden != null && !hidden.isInfiniteDuration() && hidden.getDuration() <= 0) {
+                hidden = hiddenEffect(hidden);
+            }
+            if (player.removeEffect(type(spec.effect())) && hidden != null) player.addEffect(hidden);
+        }
+    }
+
+    private static MobEffectInstance hiddenEffect(MobEffectInstance effect) {
+        return ((MobEffectInstanceAccessor) effect).erbridge$getHiddenEffect();
     }
 
     public static void onServerTick(MinecraftServer server) {
@@ -86,7 +100,7 @@ public final class HostEffectsBridge {
             Lease lease = entry.getValue();
             boolean owned = lease.ownsEffect();
             if (!lease.spec.equals(desired.get(entry.getKey())) || !owned) {
-                if (owned) lease.player.removeEffect(type(entry.getKey()));
+                if (owned) lease.releaseOwned();
                 leases.remove();
             }
         }
@@ -138,7 +152,7 @@ public final class HostEffectsBridge {
 
     private static void clearOwn(String reason) {
         for (Lease lease : LEASES.values()) {
-            if (lease.ownsEffect()) lease.player.removeEffect(type(lease.spec.effect()));
+            if (lease.ownsEffect()) lease.releaseOwned();
             LOG.info("Host {} lease released for {} ({})", lease.spec.effect(), lease.player.getName().getString(), reason);
         }
         LEASES.clear();

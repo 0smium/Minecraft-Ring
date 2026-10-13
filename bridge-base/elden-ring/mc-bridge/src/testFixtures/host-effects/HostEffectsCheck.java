@@ -3,6 +3,7 @@ package dev.ermc.bridge.effects;
 import dev.ermc.bridge.HostEffectsBridge;
 import dev.ermc.bridge.link.*;
 import dev.ermc.bridge.link.HostEffectRules.Effect;
+import dev.ermc.bridge.mixin.MobEffectInstanceAccessor;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.*;
@@ -22,6 +23,7 @@ public final class HostEffectsCheck {
         cursor();
         rules();
         bridge();
+        externalHiddenEffects();
         System.out.println("PASS: Java codec/cursor/rules/real bridge with platform stubs; frostBurst="
                 + Boolean.getBoolean("erbridge.experimentalFrostBurst"));
     }
@@ -160,6 +162,91 @@ public final class HostEffectsCheck {
     private static void advance(MinecraftServer server) {
         ErLink.get().state.frame++; ErLink.get().render++;
         HostEffectsBridge.onServerTick(server);
+    }
+
+    private record Scenario(MinecraftServer server, ServerPlayer player) {}
+
+    private static Scenario sleeping(int extraFlags) {
+        HostEffectsBridge.reset();
+        var server = new MinecraftServer();
+        var player = new ServerPlayer(server.world);
+        server.players.all.put(player.id, player);
+        server.profile = new MinecraftServer.Profile(player.id);
+        var link = ErLink.get();
+        link.connected = link.readable = true;
+        link.state.version = 2;
+        link.state.hostLife = link.life = 7;
+        link.state.frame = link.render = 1;
+        link.state.flags = READY | Protocol.HOST_EFFECT_SLEEP | extraFlags;
+        HostEffectsBridge.onServerTick(server);
+        equal(3, player.getEffect(MobEffects.MOVEMENT_SLOWDOWN).getAmplifier());
+        return new Scenario(server, player);
+    }
+
+    private static void ticks(Scenario scenario, int count) {
+        for (int i = 0; i < count; i++) {
+            scenario.player.tick();
+            advance(scenario.server);
+        }
+    }
+
+    private static MobEffectInstance hidden(MobEffectInstance effect) {
+        return ((MobEffectInstanceAccessor) effect).erbridge$getHiddenEffect();
+    }
+
+    private static void externalHiddenEffects() {
+        var s = sleeping(0);
+        var top = s.player.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
+        // Vanilla mutates only hiddenEffect here; identity/amplifier/duration ownership checks still pass.
+        s.player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 600, 0));
+        check(s.player.getEffect(MobEffects.MOVEMENT_SLOWDOWN) == top);
+        equal(100, top.getDuration()); equal(3, top.getAmplifier());
+        ticks(s, 90); // Cross a bridge renewal; hidden time must keep counting down naturally.
+        ErLink.get().state.flags &= ~Protocol.HOST_EFFECT_MC_CONTROL;
+        advance(s.server);
+        var restored = s.player.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
+        equal(0, restored.getAmplifier()); equal(510, restored.getDuration());
+        check(hidden(restored) == null);
+        check(!s.player.hasEffect(MobEffects.BLINDNESS));
+
+        s = sleeping(Protocol.HOST_EFFECT_FROST);
+        s.player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 500, 1));
+        ticks(s, 17);
+        ErLink.get().state.flags &= ~Protocol.HOST_EFFECT_SLEEP;
+        advance(s.server); // Sleep -> frost downgrade must not erase the external Slowness II.
+        restored = s.player.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
+        equal(1, restored.getAmplifier()); equal(483, restored.getDuration());
+        ErLink.get().state.flags = READY;
+        advance(s.server);
+        check(s.player.getEffect(MobEffects.MOVEMENT_SLOWDOWN) == restored);
+
+        s = sleeping(0);
+        s.player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, -1, 0));
+        ticks(s, 150);
+        ErLink.get().connected = false;
+        HostEffectsBridge.onServerTick(s.server);
+        restored = s.player.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
+        check(restored.isInfiniteDuration()); equal(0, restored.getAmplifier());
+
+        s = sleeping(0);
+        s.player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 2000, 0));
+        s.player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 600, 1));
+        ticks(s, 10);
+        HostEffectsBridge.onServerStopping(s.server);
+        restored = s.player.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
+        equal(1, restored.getAmplifier()); equal(590, restored.getDuration());
+        equal(0, hidden(restored).getAmplifier()); equal(1990, hidden(restored).getDuration());
+        for (int i = 0; i < 590; i++) s.player.tick();
+        equal(0, restored.getAmplifier()); equal(1400, restored.getDuration());
+
+        s = sleeping(0);
+        s.player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 101, 0));
+        ticks(s, 120);
+        ErLink.get().state.flags = READY;
+        advance(s.server);
+        check(!s.player.hasEffect(MobEffects.MOVEMENT_SLOWDOWN)); // Do not revive an expired hidden effect.
+        HostEffectsBridge.reset();
+        System.out.println("PASS: external hidden effects survive F8/downgrade/disconnect/stop, renewal, infinite and nested durations");
     }
 
     private static HostEffectState state(int flags, long frame, int counter) {

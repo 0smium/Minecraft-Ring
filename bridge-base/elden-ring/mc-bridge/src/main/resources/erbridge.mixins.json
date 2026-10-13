@@ -5,6 +5,7 @@
 	"mixins": [
 		"ExplosionMixin",
 		"LivingEntityMixin",
+		"MobEffectInstanceAccessor",
 		"MobMixin",
 		"PlayerMixin",
 		"ServerPlayerMovementMixin",
