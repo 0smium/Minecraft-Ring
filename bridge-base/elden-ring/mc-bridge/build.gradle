@@ -6,6 +6,16 @@ base {
 	archivesName = 'er-bridge'
 }
 
+def skillsJar = file('../../../runtime/downloads/puffish_skills-0.19.2-1.21-fabric.jar')
+if (!skillsJar.isFile()) {
+	throw new GradleException('Prepare the pinned compile dependency with: python tools/prepare_b01_skills.py (from repository root)')
+}
+def skillsHash = java.security.MessageDigest.getInstance('SHA-256').digest(skillsJar.bytes).encodeHex().toString()
+if (skillsHash != '276ce0b5f15bcfeafe632c8eabe0d2d3104b9b0362897e66fd049bcd217ba915') {
+	throw new GradleException('Pufferfish Skills JAR differs from verified 0.19.2 for Minecraft 1.21')
+}
+def b01Enabled = providers.gradleProperty('b01').map { it.toBoolean() }.getOrElse(false)
+
 loom {
 	splitEnvironmentSourceSets()
 
@@ -32,6 +42,11 @@ dependencies {
 	mappings loom.officialMojangMappings()
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	// Optional at runtime; the verified artifact is prepared outside Git (see B01 notes).
+	modCompileOnly files(skillsJar)
+	if (b01Enabled && !providers.gradleProperty('lbProduction').map { it.toBoolean() }.getOrElse(false)) {
+		modLocalRuntime files(skillsJar)
+	}
 
 }
 
@@ -60,6 +75,7 @@ if (providers.gradleProperty('lbProduction').map { it.toBoolean() }.getOrElse(fa
 		group = 'fabric'
 		description = 'Run the bridge with fixed LiquidBounce in the production mapping environment'
 		mods.from tasks.named('remapJar'), file(lbJar), configurations.lbProductionMods
+		if (b01Enabled) mods.from skillsJar
 		runDir = layout.projectDirectory.dir('run')
 		jvmArgs.addAll('-Xms512m', '-Xmx3g')
 		if (providers.gradleProperty('experimentalFrostBurst').map { it.toBoolean() }.getOrElse(false)) {
@@ -125,6 +141,21 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 21
+}
+
+// These test sources are standalone assertion programs, not JUnit classes.
+// Gradle 9 otherwise fails discovery; check must run their real two-JVM harness.
+tasks.named('test') {
+	failOnNoDiscoveredTests = false
+}
+tasks.register('b01PreparationCheck', Exec) {
+	group = 'verification'
+	description = 'Run the production progression/policy checks and fresh-JVM persistence check'
+	workingDir file('../../..')
+	commandLine 'python', 'tools/test_b01_preparation.py'
+}
+tasks.named('check') {
+	dependsOn tasks.named('b01PreparationCheck')
 }
 
 java {

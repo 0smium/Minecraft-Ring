@@ -1,12 +1,29 @@
-param([switch]$LiquidBounce, [switch]$Meteor, [switch]$ExperimentalFrostBurst)
-if ($LiquidBounce -and $Meteor) { throw 'Choose either -LiquidBounce or -Meteor; simultaneous loading is not an accepted profile.' }
+param([switch]$LiquidBounce, [switch]$B01, [switch]$Meteor, [switch]$ExperimentalFrostBurst)
 $ErrorActionPreference = 'Stop'
+if ($Meteor -and ($LiquidBounce -or $B01)) { throw 'Choose -Meteor or the -LiquidBounce/-B01 profile; simultaneous loading is not supported.' }
 $ProjectRoot = $PSScriptRoot
 $Install = Get-Content -LiteralPath "$ProjectRoot\installation.json" -Raw | ConvertFrom-Json
 $GameExe = Join-Path $Install.game_dir 'eldenring.exe'
 if (!(Test-Path -LiteralPath $GameExe)) { throw "Elden Ring was not found: $GameExe" }
 $ClientGradleArgs = @()
 $ClientTask = 'runClient'
+if ($B01) {
+    $LiquidBounce = $true
+    $SkillsJar = Join-Path $ProjectRoot 'runtime\downloads\puffish_skills-0.19.2-1.21-fabric.jar'
+    if (!(Test-Path -LiteralPath $SkillsJar)) {
+        throw 'Prepare the pinned B01 dependency first: python tools/prepare_b01_skills.py'
+    }
+    # Match the existing LB check: start.bat may use Windows PowerShell without
+    # the Get-FileHash command available in its inherited module search path.
+    $SkillsDigest = [Security.Cryptography.SHA256]::Create()
+    $SkillsInput = [IO.File]::OpenRead($SkillsJar)
+    try { $SkillsHash = [BitConverter]::ToString($SkillsDigest.ComputeHash($SkillsInput)).Replace('-', '') }
+    finally { $SkillsInput.Dispose(); $SkillsDigest.Dispose() }
+    if ($SkillsHash -ne '276CE0B5F15BCFEAFE632C8EABE0D2D3104B9B0362897E66FD049BCD217BA915') {
+        throw 'Prepare the pinned B01 dependency first: python tools/prepare_b01_skills.py'
+    }
+    Write-Output 'B01 profile: fixed LiquidBounce + Pufferfish Skills 0.19.2; use /erbridge progression to bind and choose challenge mode.'
+}
 if ($LiquidBounce) {
     $LbJar = Join-Path $ProjectRoot 'runtime\downloads\liquidbounce.jar'
     if (!(Test-Path -LiteralPath $LbJar)) { throw 'LB Build #3530 has not been prepared; see docs/experiments.' }
@@ -18,6 +35,7 @@ if ($LiquidBounce) {
         throw 'LiquidBounce JAR differs from the verified v0.22.0 / Build #3530.'
     }
     $ClientGradleArgs = @("-PlbJar=$LbJar", '-PlbProduction=true')
+    if ($B01) { $ClientGradleArgs += '-Pb01=true' }
     $ClientTask = 'productionLbClient'
     Write-Output "LiquidBounce v0.22.0 / Build #3530 enabled (SHA-256 $LbHash)."
 }
@@ -31,7 +49,10 @@ if ($Meteor) {
     if ($Pin.schema -ne 1 -or $Pin.id -ne 'meteor-client' -or $Pin.version -ne '0.5.8' -or $Pin.minecraft -ne '1.21.1') {
         throw 'Unsupported Meteor artifact manifest.'
     }
-    $MeteorHash = (Get-FileHash -LiteralPath $MeteorJar -Algorithm SHA256).Hash
+    $MeteorDigest = [Security.Cryptography.SHA256]::Create()
+    $MeteorInput = [IO.File]::OpenRead($MeteorJar)
+    try { $MeteorHash = [BitConverter]::ToString($MeteorDigest.ComputeHash($MeteorInput)).Replace('-', '') }
+    finally { $MeteorInput.Dispose(); $MeteorDigest.Dispose() }
     if ($MeteorHash -ne $Pin.sha256) { throw 'Meteor JAR differs from the locally recorded artifact pin.' }
     $ClientGradleArgs = @("-PmeteorJar=$MeteorJar", "-PmeteorSha256=$MeteorHash", '-PmeteorProduction=true')
     $ClientTask = 'productionMeteorClient'

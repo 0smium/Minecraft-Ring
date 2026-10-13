@@ -1,5 +1,7 @@
 # B01 准备内核与模拟验收
 
+> 本页记录 `bb09e36` 的准备内核阶段。其后的真实接线、构建与尚待实机确认的项目见 [B01 游戏接入候选](b01-integration.md)；下文“尚未接入”描述的是准备阶段，不代表当前分支代码状态。
+
 基线：`dev/lb-poc` 的 `e2188391b5ba1257a9853920244909decf3bd97f`。
 开发分支：`feat/b01-preparation`。架构与后续批次见[规划 PR #2](https://github.com/0smium/Minecraft-Ring/pull/2)。
 

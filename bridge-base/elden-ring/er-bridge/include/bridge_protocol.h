@@ -31,6 +31,7 @@
 #define ERMC_OFF_HUNTER   0x000A00u  /* ErmcHunterEvents, written by ER              */
 #define ERMC_OFF_ENVIRONMENT 0x000B00u /* Optional world controls, written by Minecraft */
 #define ERMC_OFF_HOST_EFFECTS 0x000C00u /* Optional actual host effects, written by ER */
+#define ERMC_OFF_HOST_PROGRESSION 0x000D00u /* Optional read-only level/identity observation */
 #define ERMC_OFF_CMD      0x001000u  /* ErmcCmdBlock,  debug/RE command mailbox */
 #define ERMC_OFF_CMD_RESP 0x002000u  /* command response payload                */
 #define ERMC_CMD_RESP_MAX (0x100000u - ERMC_OFF_CMD_RESP)
@@ -120,6 +121,33 @@ typedef struct ErmcHostEffects {
     uint32_t frostProcs;          /* 0x30 observed continuous clean -> frost transitions */
     uint32_t reserved;            /* 0x34 */
 } ErmcHostEffects;                /* 0x38; v1 prefix unchanged, publish/read versions explicitly */
+
+/* Observations only: persistent CharacterBinding UUIDs are assigned by the server.
+ * A name hash cannot distinguish same-name replacement characters or prove save identity. */
+#define ERMC_HOST_PROGRESSION_MAGIC 0x47525048u /* bytes "HPRG" */
+#define ERMC_HOST_PROGRESSION_VERSION 1u
+#define ERMC_PROGRESSION_UNAVAILABLE 0u
+#define ERMC_PROGRESSION_LOADING 1u
+#define ERMC_PROGRESSION_READY 2u
+#define ERMC_PROGRESSION_OBSERVED_NAME 1u
+#define ERMC_PROGRESSION_WEAK_FINGERPRINT 2u
+#define ERMC_PROGRESSION_EXPLICIT_BINDING 4u
+#define ERMC_PROGRESSION_MC_CONTROL 8u
+typedef struct ErmcHostProgression {
+    volatile uint32_t seq;        /* 0x00 seqlock */
+    uint32_t magic;               /* 0x04 */
+    uint32_t version;             /* 0x08 independent extension version */
+    uint32_t state;               /* 0x0C ERMC_PROGRESSION_* availability */
+    uint64_t sampleFrame;         /* 0x10 same tick's GameState.frame */
+    uint32_t hostLife;            /* 0x18 lifecycle observation, not character identity */
+    uint32_t level;               /* 0x1C actual ER level; zero unless READY */
+    uint32_t flags;               /* 0x20 name/fingerprint quality and explicit-binding requirement */
+    int32_t saveSlot;             /* 0x24 -1: no verified save-slot reader */
+    uint64_t fingerprint;         /* 0x28 canonical UTF-16 name FNV-1a; weak, never a persistent ID */
+    uint16_t name[17];            /* 0x30 UTF-16, bounded and zero-terminated */
+    uint16_t nameUnits;           /* 0x52 excludes terminator; zero unless READY */
+    uint32_t reserved;            /* 0x54 */
+} ErmcHostProgression;            /* 0x58 */
 
 typedef struct ErmcHeader {
     uint32_t magic;               /* 0x00 */
@@ -450,6 +478,13 @@ static_assert(sizeof(ErmcHunterEvents) == 0x30, "hunter events size");
 static_assert(sizeof(ErmcHostEffects) == 0x38, "host effects size");
 static_assert(offsetof(ErmcHostEffects, rotEffectId) == 0x20 &&
               offsetof(ErmcHostEffects, frostProcs) == 0x30, "host effects v2 offsets");
+static_assert(sizeof(ErmcHostProgression) == 0x58, "host progression size");
+static_assert(offsetof(ErmcHostProgression, sampleFrame) == 0x10 &&
+              offsetof(ErmcHostProgression, fingerprint) == 0x28 &&
+              offsetof(ErmcHostProgression, name) == 0x30 &&
+              offsetof(ErmcHostProgression, nameUnits) == 0x52, "host progression offsets");
+static_assert(ERMC_OFF_HOST_EFFECTS + sizeof(ErmcHostEffects) <= ERMC_OFF_HOST_PROGRESSION, "effects fit before progression");
+static_assert(ERMC_OFF_HOST_PROGRESSION + sizeof(ErmcHostProgression) <= ERMC_OFF_CMD, "host progression fits");
 static_assert(offsetof(ErmcHostEffects, sampleFrame) == 0x10 &&
               offsetof(ErmcHostEffects, hostLife) == 0x18 &&
               offsetof(ErmcHostEffects, poisonEffectId) == 0x1C, "host effects offsets");

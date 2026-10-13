@@ -32,6 +32,7 @@ public class ErBridgeClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		ProgressionClient.initialize();
 		cameraModeKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.erbridge.camera_mode",
 			InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F7, "category.erbridge"));
 		overlayKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.erbridge.overlay",
