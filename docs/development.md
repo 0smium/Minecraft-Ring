@@ -112,6 +112,7 @@ exercise collision, movement and capture behavior without launching the games:
 
 | Command | Coverage |
 | --- | --- |
+| `python tools/test_b01_preparation.py` | [B01 preparation](b01-preparation.md): character/session isolation, persistent level entitlement and capability policies; simulated hosts and fresh-JVM restore |
 | `python tools/test_stable_terrain.py` | Active block collision path and saved 8x8/16x16 compatibility |
 | `python tools/test_terrain_passages.py` | Two-stage passage refinement, descending stairs, low vaults, wall retention and door invalidation |
 | `python tools/test_terrain_clearance.py` | Narrow arches, corner and one-sided walls, stale openings and floor safety |
@@ -126,8 +127,9 @@ exercise collision, movement and capture behavior without launching the games:
 
 Build the native DLLs with `python tools/build_native.py`, and build the Fabric
 mod with Gradle `build` as described in the [setup guide](installation.md#build).
-The regression scripts generate isolated harnesses under `build/`; those files
-and compiled DLLs stay out of Git. Automated checks do not establish that every
+Most regression scripts generate isolated harnesses under `build/`; B01 uses an
+automatically cleaned temporary directory. Generated files and compiled DLLs
+stay out of Git. Automated checks do not establish that every
 Elden Ring area, GPU driver or gameplay transition works.
 
 ## Logs and local data

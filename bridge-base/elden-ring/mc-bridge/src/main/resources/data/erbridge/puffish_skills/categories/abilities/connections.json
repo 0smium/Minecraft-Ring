@@ -1,0 +1,5 @@
+{
+  "normal": {
+    "unidirectional": [["speed_1", "speed_2"], ["speed_2", "speed_3"], ["aura_1", "aura_2"], ["aura_2", "aura_3"]]
+  }
+}

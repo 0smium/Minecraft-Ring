@@ -80,6 +80,7 @@ public class ErBridgeMod implements ModInitializer {
 		ServerLivingEntityEvents.AFTER_DEATH.register(LifeBridge::onDeath);
 		ServerPlayerEvents.AFTER_RESPAWN.register(LifeBridge::onRespawn);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> TerrainManager.onJoin(server, handler.player));
+		dev.ermc.bridge.gameplay.runtime.B01Runtime.initialize();
 
 		// The host game's ground is not breakable, even in creative mode.
 		PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, blockEntity) -> !isTerrain(state));

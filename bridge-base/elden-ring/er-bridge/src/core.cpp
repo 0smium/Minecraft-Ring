@@ -63,12 +63,15 @@ extern "C" __declspec(dllexport) bool erb_core_init() {
         log("core: MH_Initialize failed %d", st);
         return false;
     }
-    bool ok = game_init();
-    if (ok) compositor_init();  // optional: without it Minecraft shows in its own overlay window
+    if (!game_init()) {
+        log("core: required game initialization failed; workers not started");
+        return false;
+    }
+    compositor_init();  // optional: without it Minecraft shows in its own overlay window
     g_stop = 0;
     g_worker = CreateThread(nullptr, 0, worker, nullptr, 0, nullptr);
     g_pacer = CreateThread(nullptr, 0, pacer, nullptr, 0, nullptr);
-    return ok;
+    return true;
 }
 
 extern "C" __declspec(dllexport) void erb_core_shutdown() {

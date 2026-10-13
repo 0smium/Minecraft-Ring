@@ -1,0 +1,10 @@
+{
+  "title": "ER Bridge · 能力成长",
+  "description": "法环每提升一级获得一点。点数与已学能力保存在当前世界。",
+  "icon": {"type": "texture", "data": {"texture": "minecraft:textures/item/nether_star.png"}},
+  "background": "minecraft:textures/block/deepslate_tiles.png",
+  "unlocked_by_default": false,
+  "starting_points": 0,
+  "exclusive_root": false,
+  "erase_on_death": false
+}

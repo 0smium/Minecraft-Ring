@@ -68,6 +68,14 @@ public final class ErLink {
 		return shm != null ? shm.hostProcessId() : 0;
 	}
 
+	public synchronized long hostStartMs() {
+		return shm != null ? shm.hostStartMs() : 0;
+	}
+
+	public synchronized java.util.Optional<HostProgressionSample> readHostProgression() {
+		return shm != null && alive() ? shm.readHostProgression() : java.util.Optional.empty();
+	}
+
 	public synchronized boolean alive() {
 		return shm != null && lastHeartbeatChange > 0 && System.currentTimeMillis() - lastHeartbeatChange < ALIVE_TIMEOUT_MS;
 	}
