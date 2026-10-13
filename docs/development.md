@@ -51,10 +51,12 @@ than waiting for a fresh Minecraft frame to release old buffers.
 [The Meteor candidate](meteor-integration.md) adds an isolated `run-meteor`
 production profile and exact-version optional mixins. `HostEntityView` shares
 host validity and target rules with LB without a client compile dependency.
-Actual release-JAR and in-game Mixin verification remain outstanding.
+The official release JAR and eight injection calls have passed offline checks;
+module initialization and gameplay remain outstanding.
 [Ability progression](ability-progression-strategy.md) defines the proposed
-server-owned limits, module modes and revocation rules; only the prior B01
-Speed/Aura policy skeleton is executable today.
+server-owned limits, module modes and revocation rules. B01 now connects real
+host levels, the skill tree and fixed LB Speed/Aura authorization; further
+abilities and Meteor growth authorization remain proposals.
 
 ## Terrain and moving platforms
 
@@ -124,7 +126,10 @@ exercise collision, movement and capture behavior without launching the games:
 | Command | Coverage |
 | --- | --- |
 | `python tools/test_host_effects.py` | Native-to-Java HEFX v1/v2, owned vanilla-effect leases, cadence, overlap, cleanup and optional frost events; platform stubs, not a game build |
+| `python tools/test_host_effects.py --vanilla` | Also tests actual MC 1.21.1 weaker/longer hidden-effect merging, ticking, nested and infinite chains; no game startup |
+| `python tools/test_host_effects_mixin.py` | Built production accessor applied to the actual intermediary MC effect class; run after Fabric build |
 | `python tools/test_meteor_preparation.py` | Optional Meteor 0.5.8 handlers, shared LB target rules and artifact-preflight fixtures; no real Mixin launch |
+| `python tools/test_meteor_adapter.py` | Eight actual optional-client injections into the pinned Meteor release JAR; offline transformer, not module initialization |
 | `python tools/test_b01_preparation.py` | [B01 preparation](b01-preparation.md): character/session isolation, persistent level entitlement and capability policies; simulated hosts and fresh-JVM restore |
 | `python tools/test_stable_terrain.py` | Active block collision path and saved 8x8/16x16 compatibility |
 | `python tools/test_terrain_passages.py` | Two-stage passage refinement, descending stairs, low vaults, wall retention and door invalidation |
