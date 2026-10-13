@@ -157,6 +157,8 @@ The [native bridge and Fabric mod](bridge-base/elden-ring/README.md) live under
 `bridge-base/elden-ring/`. Windows build and diagnostic helpers are in `tools/`.
 The [development guide](docs/development.md) covers the protocol, regression
 checks and local data paths.
+For this fork's ongoing work, see the [architecture decisions](docs/architecture.md)
+and [development roadmap](docs/gameplay-roadmap.md), including feature batches and acceptance criteria.
 
 Based on [minecraft-crossover-bridge](https://github.com/justbustin/minecraft-crossover-bridge)
 by **justbustin**, with Windows adaptation and integration by **siddoff**.
