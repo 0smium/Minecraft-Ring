@@ -2,6 +2,8 @@
 
 2026-10-14。历史PR review已引用EldenCraft，见[review](reviews/20261013-actions-growth-world-debug.md)。0.3.3完成下面的固定源码与磁盘研究；0.3.4已按此实现默认关闭的[原生方块碰撞候选](native-block-collision.md)，尚未部署/实测。没有更换底座、升级MC或把对方DLL装进游戏。
 
+后续[地形挖矿专项研究](terrain-mining-feasibility.md)增加了本机MSB、mask类型和Smithbox真实碰撞生成证据，并比较现成洞穴填矿、预制采石区、独立地下维度与任意实时切割；没有把采集掉落误算为山体开洞。
+
 ## 固定基线与本机证据
 
 - 外部只读参考：`SocketByte/EldenCraft@ba7591cdde9fb16e17552cfe53546f44d0fd856e`，目录在本仓库外。

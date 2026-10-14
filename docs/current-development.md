@@ -8,6 +8,8 @@
 
 当前继续推进至 **0.3.4**：增加真实Speed连跳支线、三套对照预设，以及默认关闭的[MC建筑原生碰撞候选](native-block-collision.md)。仍不启动/部署，等待后续一次集中验证；采集材料与Fly精确路线没有冒充已实现。记录见[成长分支与原生碰撞](experiments/2026-10-14-growth-routes-native-blocks.md)。
 
+随后完成[地形破坏/挖矿可行性调查](terrain-mining-feasibility.md)：现成洞穴填MC矿层可先形成真实挖掘闭环；Smithbox支持预制原生空腔的离线工具链，本机mask类型支持继续研究局部切割，但尚无可用运行时接口。此轮只读，不改变0.3.4候选或部署状态。
+
 ## 一个集成候选，四个实现 PR
 
 上一轮代码审查点是 `3f7447096556f11db4bad6066198e6306e5f205f`，当前候选继续位于 [PR #6](https://github.com/0smium/Minecraft-Ring/pull/6) 的 `codex/b02-character-slice`。已同步架构文档 `5401039`，随后在同分支落实独立角色 JAR、公共事件/运动服务与启动预检。所有后续开发与配套测试从这个最新集成候选前进；不把旧 `main` 当作已包含这些功能。
