@@ -1,8 +1,176 @@
 {
-  "speed_1": {"x": -40, "y": 0, "definition": "speed_1", "root": true},
-  "speed_2": {"x": -40, "y": -40, "definition": "speed_2"},
-  "speed_3": {"x": -40, "y": -80, "definition": "speed_3"},
-  "aura_1": {"x": 40, "y": 0, "definition": "aura_1", "root": true},
-  "aura_2": {"x": 40, "y": -40, "definition": "aura_2"},
-  "aura_3": {"x": 40, "y": -80, "definition": "aura_3"}
+  "speed_1": {
+    "x": -330,
+    "y": 0,
+    "definition": "speed_1",
+    "root": true
+  },
+  "speed_2": {
+    "x": -330,
+    "y": -50,
+    "definition": "speed_2",
+    "root": false
+  },
+  "speed_3": {
+    "x": -330,
+    "y": -100,
+    "definition": "speed_3",
+    "root": false
+  },
+  "fly_1": {
+    "x": -260,
+    "y": 0,
+    "definition": "fly_1",
+    "root": true
+  },
+  "fly_2": {
+    "x": -260,
+    "y": -50,
+    "definition": "fly_2",
+    "root": false
+  },
+  "fly_3": {
+    "x": -260,
+    "y": -100,
+    "definition": "fly_3",
+    "root": false
+  },
+  "airjump_1": {
+    "x": -190,
+    "y": 0,
+    "definition": "airjump_1",
+    "root": true
+  },
+  "airjump_2": {
+    "x": -190,
+    "y": -50,
+    "definition": "airjump_2",
+    "root": false
+  },
+  "step_1": {
+    "x": -120,
+    "y": 0,
+    "definition": "step_1",
+    "root": true
+  },
+  "step_2": {
+    "x": -120,
+    "y": -50,
+    "definition": "step_2",
+    "root": false
+  },
+  "step_3": {
+    "x": -120,
+    "y": -100,
+    "definition": "step_3",
+    "root": false
+  },
+  "aura_1": {
+    "x": 0,
+    "y": 0,
+    "definition": "aura_1",
+    "root": true
+  },
+  "aura_2": {
+    "x": 0,
+    "y": -50,
+    "definition": "aura_2",
+    "root": false
+  },
+  "aura_3": {
+    "x": 0,
+    "y": -100,
+    "definition": "aura_3",
+    "root": false
+  },
+  "velocity_1": {
+    "x": 70,
+    "y": 0,
+    "definition": "velocity_1",
+    "root": true
+  },
+  "velocity_2": {
+    "x": 70,
+    "y": -50,
+    "definition": "velocity_2",
+    "root": false
+  },
+  "velocity_3": {
+    "x": 70,
+    "y": -100,
+    "definition": "velocity_3",
+    "root": false
+  },
+  "scaffold_1": {
+    "x": 330,
+    "y": 0,
+    "definition": "scaffold_1",
+    "root": true
+  },
+  "scaffold_2": {
+    "x": 330,
+    "y": -50,
+    "definition": "scaffold_2",
+    "root": false
+  },
+  "scaffold_3": {
+    "x": 330,
+    "y": -100,
+    "definition": "scaffold_3",
+    "root": false
+  },
+  "safewalk_1": {
+    "x": 400,
+    "y": 0,
+    "definition": "safewalk_1",
+    "root": true
+  },
+  "nofall_1": {
+    "x": -330,
+    "y": 250,
+    "definition": "nofall_1",
+    "root": true
+  },
+  "autoarmor_1": {
+    "x": -260,
+    "y": 250,
+    "definition": "autoarmor_1",
+    "root": true
+  },
+  "esp_1": {
+    "x": 0,
+    "y": 250,
+    "definition": "esp_1",
+    "root": true
+  },
+  "nametags_1": {
+    "x": 70,
+    "y": 250,
+    "definition": "nametags_1",
+    "root": true
+  },
+  "nametags_2": {
+    "x": 70,
+    "y": 200,
+    "definition": "nametags_2",
+    "root": false
+  },
+  "nametags_3": {
+    "x": 70,
+    "y": 150,
+    "definition": "nametags_3",
+    "root": false
+  },
+  "tracers_1": {
+    "x": 140,
+    "y": 250,
+    "definition": "tracers_1",
+    "root": true
+  },
+  "autotool_1": {
+    "x": 330,
+    "y": 250,
+    "definition": "autotool_1",
+    "root": true
+  }
 }

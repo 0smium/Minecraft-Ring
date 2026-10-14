@@ -18,13 +18,14 @@ public final class CharacterBridgeClient implements ClientModInitializer {
     public void onInitializeClient() {
         ProgressionClient.initialize();
         MountClient.initialize();
+        dev.ermc.bridge.client.equipment.HostEquipmentClient.initialize();
         KeyMapping inventoryKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.erbridge.inventory",
                 InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_I, "category.erbridge"));
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             while (inventoryKey.consumeClick()) {
                 if (mc.screen == null && mc.player != null && mc.getSingleplayerServer() != null
                         && TerrainManager.isBridgeWorld() && Overlay.active() && !Overlay.hostBusy()) {
-                    mc.setScreen(new HostInventoryScreen());
+                    dev.ermc.bridge.client.equipment.HostEquipmentClient.open();
                 }
             }
         });

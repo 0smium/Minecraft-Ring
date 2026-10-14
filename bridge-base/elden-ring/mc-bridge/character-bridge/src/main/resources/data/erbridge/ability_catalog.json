@@ -1,0 +1,1907 @@
+{
+  "version": 2,
+  "categories": {
+    "movement": "机动",
+    "combat": "战斗",
+    "construction": "建造",
+    "survival": "生存",
+    "information": "情报",
+    "utility": "工具"
+  },
+  "freeModules": [
+    "ClickGUI",
+    "HUD",
+    "Breadcrumbs",
+    "JumpEffect",
+    "Animations",
+    "Targets",
+    "FullBright",
+    "NoBob",
+    "NoHurtCam"
+  ],
+  "abilities": [
+    {
+      "id": "speed",
+      "category": "movement",
+      "name": "迅捷",
+      "description": "LB 原 Custom.Strafe；逐阶放宽水平速度，保留合法偏好。",
+      "module": "Speed",
+      "icon": "minecraft:textures/item/sugar.png",
+      "ranks": [
+        {
+          "node": "speed_1",
+          "cost": 4,
+          "prerequisites": [],
+          "modes": [
+            "ground_custom"
+          ],
+          "limits": {
+            "Mode_Custom_TimerSpeed": [
+              1,
+              1
+            ],
+            "Mode_Custom_Strafe_Strength": [
+              1,
+              1
+            ],
+            "Mode_Custom_Strafe_VelocityTimeout": [
+              0,
+              0
+            ],
+            "speed": [
+              0.05,
+              0.3
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Custom"
+            },
+            "Locked": {
+              "type": "boolean",
+              "path": "Locked",
+              "booleanValue": false
+            },
+            "Mode_Custom_TimerSpeed": {
+              "type": "number",
+              "path": "Mode/Custom/TimerSpeed",
+              "limitKey": "Mode_Custom_TimerSpeed"
+            },
+            "OnlyInCombat_Enabled": {
+              "type": "boolean",
+              "path": "OnlyInCombat/Enabled",
+              "booleanValue": false
+            },
+            "OnlyOnPotionEffect_Enabled": {
+              "type": "boolean",
+              "path": "OnlyOnPotionEffect/Enabled",
+              "booleanValue": false
+            },
+            "YawOffset_Enabled": {
+              "type": "boolean",
+              "path": "YawOffset/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Custom_HorizontalModification_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Custom/HorizontalModification/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Custom_VerticalModification_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Custom/VerticalModification/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Custom_Strafe_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Custom/Strafe/Enabled",
+              "booleanValue": true
+            },
+            "Mode_Custom_Strafe_CustomSpeed": {
+              "type": "boolean",
+              "path": "Mode/Custom/Strafe/CustomSpeed",
+              "booleanValue": true
+            },
+            "Mode_Custom_Strafe_Speed": {
+              "type": "number",
+              "path": "Mode/Custom/Strafe/Speed",
+              "limitKey": "speed"
+            },
+            "Mode_Custom_Strafe_Strength": {
+              "type": "number",
+              "path": "Mode/Custom/Strafe/Strength",
+              "limitKey": "Mode_Custom_Strafe_Strength"
+            },
+            "Mode_Custom_Strafe_VelocityTimeout": {
+              "type": "number",
+              "path": "Mode/Custom/Strafe/VelocityTimeout",
+              "limitKey": "Mode_Custom_Strafe_VelocityTimeout"
+            },
+            "Mode_Custom_Strafe_StrafeKnock": {
+              "type": "boolean",
+              "path": "Mode/Custom/Strafe/StrafeKnock",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "speed_2",
+          "cost": 4,
+          "prerequisites": [
+            "speed_1"
+          ],
+          "modes": [
+            "ground_custom"
+          ],
+          "limits": {
+            "Mode_Custom_TimerSpeed": [
+              1,
+              1
+            ],
+            "Mode_Custom_Strafe_Strength": [
+              1,
+              1
+            ],
+            "Mode_Custom_Strafe_VelocityTimeout": [
+              0,
+              0
+            ],
+            "speed": [
+              0.05,
+              0.33
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Custom"
+            },
+            "Locked": {
+              "type": "boolean",
+              "path": "Locked",
+              "booleanValue": false
+            },
+            "Mode_Custom_TimerSpeed": {
+              "type": "number",
+              "path": "Mode/Custom/TimerSpeed",
+              "limitKey": "Mode_Custom_TimerSpeed"
+            },
+            "OnlyInCombat_Enabled": {
+              "type": "boolean",
+              "path": "OnlyInCombat/Enabled",
+              "booleanValue": false
+            },
+            "OnlyOnPotionEffect_Enabled": {
+              "type": "boolean",
+              "path": "OnlyOnPotionEffect/Enabled",
+              "booleanValue": false
+            },
+            "YawOffset_Enabled": {
+              "type": "boolean",
+              "path": "YawOffset/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Custom_HorizontalModification_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Custom/HorizontalModification/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Custom_VerticalModification_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Custom/VerticalModification/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Custom_Strafe_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Custom/Strafe/Enabled",
+              "booleanValue": true
+            },
+            "Mode_Custom_Strafe_CustomSpeed": {
+              "type": "boolean",
+              "path": "Mode/Custom/Strafe/CustomSpeed",
+              "booleanValue": true
+            },
+            "Mode_Custom_Strafe_Speed": {
+              "type": "number",
+              "path": "Mode/Custom/Strafe/Speed",
+              "limitKey": "speed"
+            },
+            "Mode_Custom_Strafe_Strength": {
+              "type": "number",
+              "path": "Mode/Custom/Strafe/Strength",
+              "limitKey": "Mode_Custom_Strafe_Strength"
+            },
+            "Mode_Custom_Strafe_VelocityTimeout": {
+              "type": "number",
+              "path": "Mode/Custom/Strafe/VelocityTimeout",
+              "limitKey": "Mode_Custom_Strafe_VelocityTimeout"
+            },
+            "Mode_Custom_Strafe_StrafeKnock": {
+              "type": "boolean",
+              "path": "Mode/Custom/Strafe/StrafeKnock",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "speed_3",
+          "cost": 12,
+          "prerequisites": [
+            "speed_2"
+          ],
+          "modes": [
+            "ground_custom"
+          ],
+          "limits": {
+            "Mode_Custom_TimerSpeed": [
+              1,
+              1
+            ],
+            "Mode_Custom_Strafe_Strength": [
+              1,
+              1
+            ],
+            "Mode_Custom_Strafe_VelocityTimeout": [
+              0,
+              0
+            ],
+            "speed": [
+              0.05,
+              0.36
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Custom"
+            },
+            "Locked": {
+              "type": "boolean",
+              "path": "Locked",
+              "booleanValue": false
+            },
+            "Mode_Custom_TimerSpeed": {
+              "type": "number",
+              "path": "Mode/Custom/TimerSpeed",
+              "limitKey": "Mode_Custom_TimerSpeed"
+            },
+            "OnlyInCombat_Enabled": {
+              "type": "boolean",
+              "path": "OnlyInCombat/Enabled",
+              "booleanValue": false
+            },
+            "OnlyOnPotionEffect_Enabled": {
+              "type": "boolean",
+              "path": "OnlyOnPotionEffect/Enabled",
+              "booleanValue": false
+            },
+            "YawOffset_Enabled": {
+              "type": "boolean",
+              "path": "YawOffset/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Custom_HorizontalModification_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Custom/HorizontalModification/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Custom_VerticalModification_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Custom/VerticalModification/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Custom_Strafe_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Custom/Strafe/Enabled",
+              "booleanValue": true
+            },
+            "Mode_Custom_Strafe_CustomSpeed": {
+              "type": "boolean",
+              "path": "Mode/Custom/Strafe/CustomSpeed",
+              "booleanValue": true
+            },
+            "Mode_Custom_Strafe_Speed": {
+              "type": "number",
+              "path": "Mode/Custom/Strafe/Speed",
+              "limitKey": "speed"
+            },
+            "Mode_Custom_Strafe_Strength": {
+              "type": "number",
+              "path": "Mode/Custom/Strafe/Strength",
+              "limitKey": "Mode_Custom_Strafe_Strength"
+            },
+            "Mode_Custom_Strafe_VelocityTimeout": {
+              "type": "number",
+              "path": "Mode/Custom/Strafe/VelocityTimeout",
+              "limitKey": "Mode_Custom_Strafe_VelocityTimeout"
+            },
+            "Mode_Custom_Strafe_StrafeKnock": {
+              "type": "boolean",
+              "path": "Mode/Custom/Strafe/StrafeKnock",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 20
+        }
+      ]
+    },
+    {
+      "id": "aura",
+      "category": "combat",
+      "name": "近战辅助",
+      "description": "LB 原 KillAura 单目标；距离逐阶提升，不穿墙、不自动格挡。",
+      "module": "KillAura",
+      "icon": "minecraft:textures/item/iron_sword.png",
+      "ranks": [
+        {
+          "node": "aura_1",
+          "cost": 8,
+          "prerequisites": [],
+          "modes": [
+            "single_target"
+          ],
+          "limits": {
+            "WallRange": [
+              0,
+              0
+            ],
+            "ScanExtraRange": [
+              0,
+              0
+            ],
+            "range": [
+              1,
+              2.5
+            ],
+            "cooldown": [
+              1,
+              1
+            ]
+          },
+          "settings": {
+            "Range": {
+              "type": "number",
+              "path": "Range",
+              "limitKey": "range"
+            },
+            "WallRange": {
+              "type": "number",
+              "path": "WallRange",
+              "limitKey": "WallRange"
+            },
+            "ScanExtraRange": {
+              "type": "number",
+              "path": "ScanExtraRange",
+              "limitKey": "ScanExtraRange"
+            },
+            "Rotations_ThroughWalls": {
+              "type": "boolean",
+              "path": "Rotations/ThroughWalls",
+              "booleanValue": false
+            },
+            "AutoBlocking_Enabled": {
+              "type": "boolean",
+              "path": "AutoBlocking/Enabled",
+              "booleanValue": false
+            },
+            "FailSwing_Enabled": {
+              "type": "boolean",
+              "path": "FailSwing/Enabled",
+              "booleanValue": false
+            },
+            "FightBot_Enabled": {
+              "type": "boolean",
+              "path": "FightBot/Enabled",
+              "booleanValue": false
+            },
+            "SimulateInventoryClosing": {
+              "type": "boolean",
+              "path": "SimulateInventoryClosing",
+              "booleanValue": false
+            },
+            "ClickScheduler_Cooldown_Enabled": {
+              "type": "boolean",
+              "path": "ClickScheduler/Cooldown/Enabled",
+              "booleanValue": true
+            },
+            "ClickScheduler_Cooldown_Minimum": {
+              "type": "range",
+              "path": "ClickScheduler/Cooldown/Minimum",
+              "limitKey": "cooldown"
+            },
+            "ClickScheduler_Cooldown_ConsiderMissCooldown": {
+              "type": "boolean",
+              "path": "ClickScheduler/ConsiderMissCooldown",
+              "booleanValue": true
+            },
+            "Criticals": {
+              "type": "choice",
+              "path": "Criticals",
+              "stringValue": "IGNORE"
+            },
+            "Raycast": {
+              "type": "choice",
+              "path": "Raycast",
+              "stringValue": "TRACE_ONLYENEMY"
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "aura_2",
+          "cost": 6,
+          "prerequisites": [
+            "aura_1"
+          ],
+          "modes": [
+            "single_target"
+          ],
+          "limits": {
+            "WallRange": [
+              0,
+              0
+            ],
+            "ScanExtraRange": [
+              0,
+              0
+            ],
+            "range": [
+              1,
+              3
+            ],
+            "cooldown": [
+              1,
+              1
+            ]
+          },
+          "settings": {
+            "Range": {
+              "type": "number",
+              "path": "Range",
+              "limitKey": "range"
+            },
+            "WallRange": {
+              "type": "number",
+              "path": "WallRange",
+              "limitKey": "WallRange"
+            },
+            "ScanExtraRange": {
+              "type": "number",
+              "path": "ScanExtraRange",
+              "limitKey": "ScanExtraRange"
+            },
+            "Rotations_ThroughWalls": {
+              "type": "boolean",
+              "path": "Rotations/ThroughWalls",
+              "booleanValue": false
+            },
+            "AutoBlocking_Enabled": {
+              "type": "boolean",
+              "path": "AutoBlocking/Enabled",
+              "booleanValue": false
+            },
+            "FailSwing_Enabled": {
+              "type": "boolean",
+              "path": "FailSwing/Enabled",
+              "booleanValue": false
+            },
+            "FightBot_Enabled": {
+              "type": "boolean",
+              "path": "FightBot/Enabled",
+              "booleanValue": false
+            },
+            "SimulateInventoryClosing": {
+              "type": "boolean",
+              "path": "SimulateInventoryClosing",
+              "booleanValue": false
+            },
+            "ClickScheduler_Cooldown_Enabled": {
+              "type": "boolean",
+              "path": "ClickScheduler/Cooldown/Enabled",
+              "booleanValue": true
+            },
+            "ClickScheduler_Cooldown_Minimum": {
+              "type": "range",
+              "path": "ClickScheduler/Cooldown/Minimum",
+              "limitKey": "cooldown"
+            },
+            "ClickScheduler_Cooldown_ConsiderMissCooldown": {
+              "type": "boolean",
+              "path": "ClickScheduler/ConsiderMissCooldown",
+              "booleanValue": true
+            },
+            "Criticals": {
+              "type": "choice",
+              "path": "Criticals",
+              "stringValue": "IGNORE"
+            },
+            "Raycast": {
+              "type": "choice",
+              "path": "Raycast",
+              "stringValue": "TRACE_ONLYENEMY"
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "aura_3",
+          "cost": 18,
+          "prerequisites": [
+            "aura_2"
+          ],
+          "modes": [
+            "single_target"
+          ],
+          "limits": {
+            "WallRange": [
+              0,
+              0
+            ],
+            "ScanExtraRange": [
+              0,
+              0
+            ],
+            "range": [
+              1,
+              3.5
+            ],
+            "cooldown": [
+              1,
+              1
+            ]
+          },
+          "settings": {
+            "Range": {
+              "type": "number",
+              "path": "Range",
+              "limitKey": "range"
+            },
+            "WallRange": {
+              "type": "number",
+              "path": "WallRange",
+              "limitKey": "WallRange"
+            },
+            "ScanExtraRange": {
+              "type": "number",
+              "path": "ScanExtraRange",
+              "limitKey": "ScanExtraRange"
+            },
+            "Rotations_ThroughWalls": {
+              "type": "boolean",
+              "path": "Rotations/ThroughWalls",
+              "booleanValue": false
+            },
+            "AutoBlocking_Enabled": {
+              "type": "boolean",
+              "path": "AutoBlocking/Enabled",
+              "booleanValue": false
+            },
+            "FailSwing_Enabled": {
+              "type": "boolean",
+              "path": "FailSwing/Enabled",
+              "booleanValue": false
+            },
+            "FightBot_Enabled": {
+              "type": "boolean",
+              "path": "FightBot/Enabled",
+              "booleanValue": false
+            },
+            "SimulateInventoryClosing": {
+              "type": "boolean",
+              "path": "SimulateInventoryClosing",
+              "booleanValue": false
+            },
+            "ClickScheduler_Cooldown_Enabled": {
+              "type": "boolean",
+              "path": "ClickScheduler/Cooldown/Enabled",
+              "booleanValue": true
+            },
+            "ClickScheduler_Cooldown_Minimum": {
+              "type": "range",
+              "path": "ClickScheduler/Cooldown/Minimum",
+              "limitKey": "cooldown"
+            },
+            "ClickScheduler_Cooldown_ConsiderMissCooldown": {
+              "type": "boolean",
+              "path": "ClickScheduler/ConsiderMissCooldown",
+              "booleanValue": true
+            },
+            "Criticals": {
+              "type": "choice",
+              "path": "Criticals",
+              "stringValue": "IGNORE"
+            },
+            "Raycast": {
+              "type": "choice",
+              "path": "Raycast",
+              "stringValue": "TRACE_ONLYENEMY"
+            }
+          },
+          "requiredSpent": 40
+        }
+      ]
+    },
+    {
+      "id": "scaffold",
+      "category": "construction",
+      "name": "自动搭桥",
+      "description": "消耗 MC 实际方块；逐阶放宽搭桥速度。关闭塔升、Blink 和 Timer 加速。",
+      "module": "Scaffold",
+      "icon": "minecraft:textures/item/bricks.png",
+      "ranks": [
+        {
+          "node": "scaffold_1",
+          "cost": 7,
+          "prerequisites": [],
+          "modes": [
+            "normal"
+          ],
+          "limits": {
+            "Timer": [
+              1,
+              1
+            ],
+            "speed": [
+              0.01,
+              0.12
+            ],
+            "placement_delay": [
+              4,
+              40
+            ]
+          },
+          "settings": {
+            "Technique": {
+              "type": "choice",
+              "path": "Technique",
+              "stringValue": "Normal"
+            },
+            "Tower": {
+              "type": "choice",
+              "path": "Tower",
+              "stringValue": "None"
+            },
+            "SafeWalk": {
+              "type": "choice",
+              "path": "SafeWalk",
+              "stringValue": "Safe"
+            },
+            "Timer": {
+              "type": "number",
+              "path": "Timer",
+              "limitKey": "Timer"
+            },
+            "SpeedLimiter_Enabled": {
+              "type": "boolean",
+              "path": "SpeedLimiter/Enabled",
+              "booleanValue": true
+            },
+            "SpeedLimiter_SpeedLimit": {
+              "type": "number",
+              "path": "SpeedLimiter/SpeedLimit",
+              "limitKey": "speed"
+            },
+            "Blink_Enabled": {
+              "type": "boolean",
+              "path": "Blink/Enabled",
+              "booleanValue": false
+            },
+            "SimulatePlacementAttempts_Enabled": {
+              "type": "boolean",
+              "path": "SimulatePlacementAttempts/Enabled",
+              "booleanValue": false
+            },
+            "StrafeOnJump_Enabled": {
+              "type": "boolean",
+              "path": "StrafeOnJump/Enabled",
+              "booleanValue": false
+            },
+            "Technique/Normal/Telly/Enabled": {
+              "type": "boolean",
+              "path": "Technique/Normal/Telly/Enabled",
+              "booleanValue": false
+            },
+            "Technique/Normal/HeadHitter/Enabled": {
+              "type": "boolean",
+              "path": "Technique/Normal/HeadHitter/Enabled",
+              "booleanValue": false
+            },
+            "Technique/Normal/RequiresSight": {
+              "type": "boolean",
+              "path": "Technique/Normal/RequiresSight",
+              "booleanValue": true
+            },
+            "Delay": {
+              "type": "range",
+              "path": "Delay",
+              "limitKey": "placement_delay"
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "scaffold_2",
+          "cost": 5,
+          "prerequisites": [
+            "scaffold_1"
+          ],
+          "modes": [
+            "normal"
+          ],
+          "limits": {
+            "Timer": [
+              1,
+              1
+            ],
+            "speed": [
+              0.01,
+              0.2
+            ],
+            "placement_delay": [
+              2,
+              40
+            ]
+          },
+          "settings": {
+            "Technique": {
+              "type": "choice",
+              "path": "Technique",
+              "stringValue": "Normal"
+            },
+            "Tower": {
+              "type": "choice",
+              "path": "Tower",
+              "stringValue": "None"
+            },
+            "SafeWalk": {
+              "type": "choice",
+              "path": "SafeWalk",
+              "stringValue": "Safe"
+            },
+            "Timer": {
+              "type": "number",
+              "path": "Timer",
+              "limitKey": "Timer"
+            },
+            "SpeedLimiter_Enabled": {
+              "type": "boolean",
+              "path": "SpeedLimiter/Enabled",
+              "booleanValue": true
+            },
+            "SpeedLimiter_SpeedLimit": {
+              "type": "number",
+              "path": "SpeedLimiter/SpeedLimit",
+              "limitKey": "speed"
+            },
+            "Blink_Enabled": {
+              "type": "boolean",
+              "path": "Blink/Enabled",
+              "booleanValue": false
+            },
+            "SimulatePlacementAttempts_Enabled": {
+              "type": "boolean",
+              "path": "SimulatePlacementAttempts/Enabled",
+              "booleanValue": false
+            },
+            "StrafeOnJump_Enabled": {
+              "type": "boolean",
+              "path": "StrafeOnJump/Enabled",
+              "booleanValue": false
+            },
+            "Technique/Normal/Telly/Enabled": {
+              "type": "boolean",
+              "path": "Technique/Normal/Telly/Enabled",
+              "booleanValue": false
+            },
+            "Technique/Normal/HeadHitter/Enabled": {
+              "type": "boolean",
+              "path": "Technique/Normal/HeadHitter/Enabled",
+              "booleanValue": false
+            },
+            "Technique/Normal/RequiresSight": {
+              "type": "boolean",
+              "path": "Technique/Normal/RequiresSight",
+              "booleanValue": true
+            },
+            "Delay": {
+              "type": "range",
+              "path": "Delay",
+              "limitKey": "placement_delay"
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "scaffold_3",
+          "cost": 16,
+          "prerequisites": [
+            "scaffold_2"
+          ],
+          "modes": [
+            "normal"
+          ],
+          "limits": {
+            "Timer": [
+              1,
+              1
+            ],
+            "speed": [
+              0.01,
+              0.4
+            ],
+            "placement_delay": [
+              0,
+              40
+            ]
+          },
+          "settings": {
+            "Technique": {
+              "type": "choice",
+              "path": "Technique",
+              "stringValue": "Normal"
+            },
+            "Tower": {
+              "type": "choice",
+              "path": "Tower",
+              "stringValue": "None"
+            },
+            "SafeWalk": {
+              "type": "choice",
+              "path": "SafeWalk",
+              "stringValue": "Safe"
+            },
+            "Timer": {
+              "type": "number",
+              "path": "Timer",
+              "limitKey": "Timer"
+            },
+            "SpeedLimiter_Enabled": {
+              "type": "boolean",
+              "path": "SpeedLimiter/Enabled",
+              "booleanValue": true
+            },
+            "SpeedLimiter_SpeedLimit": {
+              "type": "number",
+              "path": "SpeedLimiter/SpeedLimit",
+              "limitKey": "speed"
+            },
+            "Blink_Enabled": {
+              "type": "boolean",
+              "path": "Blink/Enabled",
+              "booleanValue": false
+            },
+            "SimulatePlacementAttempts_Enabled": {
+              "type": "boolean",
+              "path": "SimulatePlacementAttempts/Enabled",
+              "booleanValue": false
+            },
+            "StrafeOnJump_Enabled": {
+              "type": "boolean",
+              "path": "StrafeOnJump/Enabled",
+              "booleanValue": false
+            },
+            "Technique/Normal/Telly/Enabled": {
+              "type": "boolean",
+              "path": "Technique/Normal/Telly/Enabled",
+              "booleanValue": false
+            },
+            "Technique/Normal/HeadHitter/Enabled": {
+              "type": "boolean",
+              "path": "Technique/Normal/HeadHitter/Enabled",
+              "booleanValue": false
+            },
+            "Technique/Normal/RequiresSight": {
+              "type": "boolean",
+              "path": "Technique/Normal/RequiresSight",
+              "booleanValue": true
+            },
+            "Delay": {
+              "type": "range",
+              "path": "Delay",
+              "limitKey": "placement_delay"
+            }
+          },
+          "requiredSpent": 30
+        }
+      ]
+    },
+    {
+      "id": "fly",
+      "category": "movement",
+      "name": "空中行走",
+      "description": "高门槛自由飞行；使用服务端授权与 LB Creative。首版不声称限时、限高或免坠落。",
+      "module": "Fly",
+      "icon": "minecraft:textures/item/elytra.png",
+      "ranks": [
+        {
+          "node": "fly_1",
+          "cost": 14,
+          "prerequisites": [],
+          "modes": [
+            "creative"
+          ],
+          "limits": {
+            "Mode_Creative_MaxVelocity": [
+              1,
+              1
+            ],
+            "speed": [
+              0.1,
+              0.1
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Creative"
+            },
+            "Mode_Creative_Speed": {
+              "type": "number",
+              "path": "Mode/Creative/Speed",
+              "limitKey": "speed"
+            },
+            "Mode_Creative_SprintSpeed_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Creative/SprintSpeed/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Creative_MaxVelocity": {
+              "type": "number",
+              "path": "Mode/Creative/MaxVelocity",
+              "limitKey": "Mode_Creative_MaxVelocity"
+            },
+            "Mode_Creative_BypassVanillaCheck": {
+              "type": "boolean",
+              "path": "Mode/Creative/BypassVanillaCheck",
+              "booleanValue": false
+            },
+            "Mode_Creative_ForceFlight": {
+              "type": "boolean",
+              "path": "Mode/Creative/ForceFlight",
+              "booleanValue": true
+            },
+            "Locked": {
+              "type": "boolean",
+              "path": "Locked",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 24
+        },
+        {
+          "node": "fly_2",
+          "cost": 6,
+          "prerequisites": [
+            "fly_1"
+          ],
+          "modes": [
+            "creative"
+          ],
+          "limits": {
+            "Mode_Creative_MaxVelocity": [
+              1,
+              1
+            ],
+            "speed": [
+              0.1,
+              0.15
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Creative"
+            },
+            "Mode_Creative_Speed": {
+              "type": "number",
+              "path": "Mode/Creative/Speed",
+              "limitKey": "speed"
+            },
+            "Mode_Creative_SprintSpeed_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Creative/SprintSpeed/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Creative_MaxVelocity": {
+              "type": "number",
+              "path": "Mode/Creative/MaxVelocity",
+              "limitKey": "Mode_Creative_MaxVelocity"
+            },
+            "Mode_Creative_BypassVanillaCheck": {
+              "type": "boolean",
+              "path": "Mode/Creative/BypassVanillaCheck",
+              "booleanValue": false
+            },
+            "Mode_Creative_ForceFlight": {
+              "type": "boolean",
+              "path": "Mode/Creative/ForceFlight",
+              "booleanValue": true
+            },
+            "Locked": {
+              "type": "boolean",
+              "path": "Locked",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 40
+        },
+        {
+          "node": "fly_3",
+          "cost": 20,
+          "prerequisites": [
+            "fly_2"
+          ],
+          "modes": [
+            "creative"
+          ],
+          "limits": {
+            "Mode_Creative_MaxVelocity": [
+              1,
+              1
+            ],
+            "speed": [
+              0.1,
+              0.2
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Creative"
+            },
+            "Mode_Creative_Speed": {
+              "type": "number",
+              "path": "Mode/Creative/Speed",
+              "limitKey": "speed"
+            },
+            "Mode_Creative_SprintSpeed_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Creative/SprintSpeed/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Creative_MaxVelocity": {
+              "type": "number",
+              "path": "Mode/Creative/MaxVelocity",
+              "limitKey": "Mode_Creative_MaxVelocity"
+            },
+            "Mode_Creative_BypassVanillaCheck": {
+              "type": "boolean",
+              "path": "Mode/Creative/BypassVanillaCheck",
+              "booleanValue": false
+            },
+            "Mode_Creative_ForceFlight": {
+              "type": "boolean",
+              "path": "Mode/Creative/ForceFlight",
+              "booleanValue": true
+            },
+            "Locked": {
+              "type": "boolean",
+              "path": "Locked",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 60
+        }
+      ]
+    },
+    {
+      "id": "airjump",
+      "category": "movement",
+      "name": "空中跳跃",
+      "description": "第一阶使用原 DoubleJump；精通增加 JumpFreely 无限空跳选项，保留原模式，不自动切换。",
+      "module": "AirJump",
+      "icon": "minecraft:textures/item/rabbit_foot.png",
+      "ranks": [
+        {
+          "node": "airjump_1",
+          "cost": 7,
+          "prerequisites": [],
+          "modes": [
+            "air_jump"
+          ],
+          "limits": {},
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "DOUBLE_JUMP"
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "airjump_2",
+          "cost": 20,
+          "prerequisites": [
+            "airjump_1"
+          ],
+          "modes": [
+            "air_jump"
+          ],
+          "limits": {},
+          "settings": {
+            "Mode": {
+              "type": "choice_set",
+              "path": "Mode",
+              "stringValue": "DOUBLE_JUMP",
+              "allowedChoices": [
+                "DOUBLE_JUMP",
+                "JUMP_FREELY"
+              ]
+            }
+          },
+          "requiredSpent": 60
+        }
+      ]
+    },
+    {
+      "id": "step",
+      "category": "movement",
+      "name": "越障",
+      "description": "原 Step Instant；逐阶提高步高，保留原碰撞与重力。",
+      "module": "Step",
+      "icon": "minecraft:textures/item/leather_boots.png",
+      "ranks": [
+        {
+          "node": "step_1",
+          "cost": 4,
+          "prerequisites": [],
+          "modes": [
+            "instant"
+          ],
+          "limits": {
+            "height": [
+              0.6,
+              1
+            ],
+            "jumpOrder": [
+              0,
+              0
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Instant"
+            },
+            "Mode_Instant_Height": {
+              "type": "number",
+              "path": "Mode/Instant/Height",
+              "limitKey": "height"
+            },
+            "Mode_Instant_SimulateJumpOrder": {
+              "type": "range",
+              "path": "Mode/Instant/SimulateJumpOrder",
+              "limitKey": "jumpOrder"
+            },
+            "Mode_Instant_Trim": {
+              "type": "boolean",
+              "path": "Mode/Instant/Trim",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "step_2",
+          "cost": 3,
+          "prerequisites": [
+            "step_1"
+          ],
+          "modes": [
+            "instant"
+          ],
+          "limits": {
+            "height": [
+              0.6,
+              1.5
+            ],
+            "jumpOrder": [
+              0,
+              0
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Instant"
+            },
+            "Mode_Instant_Height": {
+              "type": "number",
+              "path": "Mode/Instant/Height",
+              "limitKey": "height"
+            },
+            "Mode_Instant_SimulateJumpOrder": {
+              "type": "range",
+              "path": "Mode/Instant/SimulateJumpOrder",
+              "limitKey": "jumpOrder"
+            },
+            "Mode_Instant_Trim": {
+              "type": "boolean",
+              "path": "Mode/Instant/Trim",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "step_3",
+          "cost": 12,
+          "prerequisites": [
+            "step_2"
+          ],
+          "modes": [
+            "instant"
+          ],
+          "limits": {
+            "height": [
+              0.6,
+              2
+            ],
+            "jumpOrder": [
+              0,
+              0
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Instant"
+            },
+            "Mode_Instant_Height": {
+              "type": "number",
+              "path": "Mode/Instant/Height",
+              "limitKey": "height"
+            },
+            "Mode_Instant_SimulateJumpOrder": {
+              "type": "range",
+              "path": "Mode/Instant/SimulateJumpOrder",
+              "limitKey": "jumpOrder"
+            },
+            "Mode_Instant_Trim": {
+              "type": "boolean",
+              "path": "Mode/Instant/Trim",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 20
+        }
+      ]
+    },
+    {
+      "id": "safewalk",
+      "category": "construction",
+      "name": "谨慎行走",
+      "description": "原 SafeWalk Safe；只限制 MC 方块边缘，不保证法环所有采样边缘可靠。",
+      "module": "SafeWalk",
+      "icon": "minecraft:textures/item/leather.png",
+      "ranks": [
+        {
+          "node": "safewalk_1",
+          "cost": 2,
+          "prerequisites": [],
+          "modes": [
+            "safe"
+          ],
+          "limits": {},
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Safe"
+            }
+          },
+          "requiredSpent": 0
+        }
+      ]
+    },
+    {
+      "id": "nofall",
+      "category": "survival",
+      "name": "落地保护",
+      "description": "原 NoFall SpoofGround。只作用于 MC 坠落路径，不阻止法环必死线或未桥接伤害。",
+      "module": "NoFall",
+      "icon": "minecraft:textures/item/feather.png",
+      "ranks": [
+        {
+          "node": "nofall_1",
+          "cost": 10,
+          "prerequisites": [],
+          "modes": [
+            "spoof_ground"
+          ],
+          "limits": {
+            "Mode_SpoofGround_FallDistance": [
+              2.5,
+              2.5
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "SpoofGround"
+            },
+            "Mode_SpoofGround_FallDistance": {
+              "type": "number",
+              "path": "Mode/SpoofGround/FallDistance",
+              "limitKey": "Mode_SpoofGround_FallDistance"
+            }
+          },
+          "requiredSpent": 0
+        }
+      ]
+    },
+    {
+      "id": "velocity",
+      "category": "combat",
+      "name": "稳固架势",
+      "description": "逐阶减弱 MC 受击速度；最高阶仍保留至少 40% 垂直击退，不免伤。",
+      "module": "Velocity",
+      "icon": "minecraft:textures/item/shield.png",
+      "ranks": [
+        {
+          "node": "velocity_1",
+          "cost": 8,
+          "prerequisites": [],
+          "modes": [
+            "modify"
+          ],
+          "limits": {
+            "Mode_Modify_MotionHorizontal": [
+              0,
+              0
+            ],
+            "Mode_Modify_MotionVertical": [
+              0,
+              0
+            ],
+            "Mode_Modify_Chance": [
+              100,
+              100
+            ],
+            "horizontal": [
+              0.75,
+              1
+            ],
+            "vertical": [
+              1,
+              1
+            ],
+            "Delay": [
+              0,
+              0
+            ],
+            "PauseOnFlag": [
+              0,
+              0
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Modify"
+            },
+            "Mode_Modify_Horizontal": {
+              "type": "number",
+              "path": "Mode/Modify/Horizontal",
+              "limitKey": "horizontal"
+            },
+            "Mode_Modify_Vertical": {
+              "type": "number",
+              "path": "Mode/Modify/Vertical",
+              "limitKey": "vertical"
+            },
+            "Mode_Modify_MotionHorizontal": {
+              "type": "number",
+              "path": "Mode/Modify/MotionHorizontal",
+              "limitKey": "Mode_Modify_MotionHorizontal"
+            },
+            "Mode_Modify_MotionVertical": {
+              "type": "number",
+              "path": "Mode/Modify/MotionVertical",
+              "limitKey": "Mode_Modify_MotionVertical"
+            },
+            "Mode_Modify_Chance": {
+              "type": "number",
+              "path": "Mode/Modify/Chance",
+              "limitKey": "Mode_Modify_Chance"
+            },
+            "Mode_Modify_Filter": {
+              "type": "choice",
+              "path": "Mode/Modify/Filter",
+              "stringValue": "ALWAYS"
+            },
+            "Mode_Modify_OnlyMove": {
+              "type": "boolean",
+              "path": "Mode/Modify/OnlyMove",
+              "booleanValue": false
+            },
+            "Locked": {
+              "type": "boolean",
+              "path": "Locked",
+              "booleanValue": false
+            },
+            "Delay": {
+              "type": "range",
+              "path": "Delay",
+              "limitKey": "Delay"
+            },
+            "PauseOnFlag": {
+              "type": "number",
+              "path": "PauseOnFlag",
+              "limitKey": "PauseOnFlag"
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "velocity_2",
+          "cost": 6,
+          "prerequisites": [
+            "velocity_1"
+          ],
+          "modes": [
+            "modify"
+          ],
+          "limits": {
+            "Mode_Modify_MotionHorizontal": [
+              0,
+              0
+            ],
+            "Mode_Modify_MotionVertical": [
+              0,
+              0
+            ],
+            "Mode_Modify_Chance": [
+              100,
+              100
+            ],
+            "horizontal": [
+              0.5,
+              1
+            ],
+            "vertical": [
+              0.85,
+              1
+            ],
+            "Delay": [
+              0,
+              0
+            ],
+            "PauseOnFlag": [
+              0,
+              0
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Modify"
+            },
+            "Mode_Modify_Horizontal": {
+              "type": "number",
+              "path": "Mode/Modify/Horizontal",
+              "limitKey": "horizontal"
+            },
+            "Mode_Modify_Vertical": {
+              "type": "number",
+              "path": "Mode/Modify/Vertical",
+              "limitKey": "vertical"
+            },
+            "Mode_Modify_MotionHorizontal": {
+              "type": "number",
+              "path": "Mode/Modify/MotionHorizontal",
+              "limitKey": "Mode_Modify_MotionHorizontal"
+            },
+            "Mode_Modify_MotionVertical": {
+              "type": "number",
+              "path": "Mode/Modify/MotionVertical",
+              "limitKey": "Mode_Modify_MotionVertical"
+            },
+            "Mode_Modify_Chance": {
+              "type": "number",
+              "path": "Mode/Modify/Chance",
+              "limitKey": "Mode_Modify_Chance"
+            },
+            "Mode_Modify_Filter": {
+              "type": "choice",
+              "path": "Mode/Modify/Filter",
+              "stringValue": "ALWAYS"
+            },
+            "Mode_Modify_OnlyMove": {
+              "type": "boolean",
+              "path": "Mode/Modify/OnlyMove",
+              "booleanValue": false
+            },
+            "Locked": {
+              "type": "boolean",
+              "path": "Locked",
+              "booleanValue": false
+            },
+            "Delay": {
+              "type": "range",
+              "path": "Delay",
+              "limitKey": "Delay"
+            },
+            "PauseOnFlag": {
+              "type": "number",
+              "path": "PauseOnFlag",
+              "limitKey": "PauseOnFlag"
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "velocity_3",
+          "cost": 18,
+          "prerequisites": [
+            "velocity_2"
+          ],
+          "modes": [
+            "modify"
+          ],
+          "limits": {
+            "Mode_Modify_MotionHorizontal": [
+              0,
+              0
+            ],
+            "Mode_Modify_MotionVertical": [
+              0,
+              0
+            ],
+            "Mode_Modify_Chance": [
+              100,
+              100
+            ],
+            "horizontal": [
+              0,
+              1
+            ],
+            "vertical": [
+              0.4,
+              1
+            ],
+            "Delay": [
+              0,
+              0
+            ],
+            "PauseOnFlag": [
+              0,
+              0
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Modify"
+            },
+            "Mode_Modify_Horizontal": {
+              "type": "number",
+              "path": "Mode/Modify/Horizontal",
+              "limitKey": "horizontal"
+            },
+            "Mode_Modify_Vertical": {
+              "type": "number",
+              "path": "Mode/Modify/Vertical",
+              "limitKey": "vertical"
+            },
+            "Mode_Modify_MotionHorizontal": {
+              "type": "number",
+              "path": "Mode/Modify/MotionHorizontal",
+              "limitKey": "Mode_Modify_MotionHorizontal"
+            },
+            "Mode_Modify_MotionVertical": {
+              "type": "number",
+              "path": "Mode/Modify/MotionVertical",
+              "limitKey": "Mode_Modify_MotionVertical"
+            },
+            "Mode_Modify_Chance": {
+              "type": "number",
+              "path": "Mode/Modify/Chance",
+              "limitKey": "Mode_Modify_Chance"
+            },
+            "Mode_Modify_Filter": {
+              "type": "choice",
+              "path": "Mode/Modify/Filter",
+              "stringValue": "ALWAYS"
+            },
+            "Mode_Modify_OnlyMove": {
+              "type": "boolean",
+              "path": "Mode/Modify/OnlyMove",
+              "booleanValue": false
+            },
+            "Locked": {
+              "type": "boolean",
+              "path": "Locked",
+              "booleanValue": false
+            },
+            "Delay": {
+              "type": "range",
+              "path": "Delay",
+              "limitKey": "Delay"
+            },
+            "PauseOnFlag": {
+              "type": "number",
+              "path": "PauseOnFlag",
+              "limitKey": "PauseOnFlag"
+            }
+          },
+          "requiredSpent": 0
+        }
+      ]
+    },
+    {
+      "id": "autotool",
+      "category": "utility",
+      "name": "工具选择",
+      "description": "自动选择当前 MC 背包中的合适工具；不生成工具。",
+      "module": "AutoTool",
+      "icon": "minecraft:textures/item/iron_pickaxe.png",
+      "ranks": [
+        {
+          "node": "autotool_1",
+          "cost": 2,
+          "prerequisites": [],
+          "modes": [
+            "default"
+          ],
+          "limits": {},
+          "settings": {
+            "IgnoreDurability": {
+              "type": "boolean",
+              "path": "IgnoreDurability",
+              "booleanValue": false
+            }
+          },
+          "requiredSpent": 0
+        }
+      ]
+    },
+    {
+      "id": "autoarmor",
+      "category": "survival",
+      "name": "护甲整理",
+      "description": "整理已有 MC 护甲；不代替法环装备，不生成装备。",
+      "module": "AutoArmor",
+      "icon": "minecraft:textures/item/iron_chestplate.png",
+      "ranks": [
+        {
+          "node": "autoarmor_1",
+          "cost": 3,
+          "prerequisites": [],
+          "modes": [
+            "default"
+          ],
+          "limits": {},
+          "settings": {},
+          "requiredSpent": 0
+        }
+      ]
+    },
+    {
+      "id": "esp",
+      "category": "information",
+      "name": "敌情轮廓",
+      "description": "固定 Box 显示已桥接实体；不改变敌人判定。",
+      "module": "ESP",
+      "icon": "minecraft:textures/item/glow_ink_sac.png",
+      "ranks": [
+        {
+          "node": "esp_1",
+          "cost": 3,
+          "prerequisites": [],
+          "modes": [
+            "box"
+          ],
+          "limits": {},
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Box"
+            }
+          },
+          "requiredSpent": 0
+        }
+      ]
+    },
+    {
+      "id": "nametags",
+      "category": "information",
+      "name": "敌情标记",
+      "description": "真实 ER HP 和名称视图；逐阶放宽标签距离。",
+      "module": "Nametags",
+      "icon": "minecraft:textures/item/name_tag.png",
+      "ranks": [
+        {
+          "node": "nametags_1",
+          "cost": 2,
+          "prerequisites": [],
+          "modes": [
+            "default"
+          ],
+          "limits": {
+            "distance": [
+              1,
+              24
+            ]
+          },
+          "settings": {
+            "MaximumDistance": {
+              "type": "number",
+              "path": "MaximumDistance",
+              "limitKey": "distance"
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "nametags_2",
+          "cost": 2,
+          "prerequisites": [
+            "nametags_1"
+          ],
+          "modes": [
+            "default"
+          ],
+          "limits": {
+            "distance": [
+              1,
+              48
+            ]
+          },
+          "settings": {
+            "MaximumDistance": {
+              "type": "number",
+              "path": "MaximumDistance",
+              "limitKey": "distance"
+            }
+          },
+          "requiredSpent": 0
+        },
+        {
+          "node": "nametags_3",
+          "cost": 8,
+          "prerequisites": [
+            "nametags_2"
+          ],
+          "modes": [
+            "default"
+          ],
+          "limits": {
+            "distance": [
+              1,
+              96
+            ]
+          },
+          "settings": {
+            "MaximumDistance": {
+              "type": "number",
+              "path": "MaximumDistance",
+              "limitKey": "distance"
+            }
+          },
+          "requiredSpent": 20
+        }
+      ]
+    },
+    {
+      "id": "tracers",
+      "category": "information",
+      "name": "方向指示",
+      "description": "原 Tracers；仅显示当前已桥接实体，不承诺原生未加载敌人可见。",
+      "module": "Tracers",
+      "icon": "minecraft:textures/item/compass.png",
+      "ranks": [
+        {
+          "node": "tracers_1",
+          "cost": 2,
+          "prerequisites": [],
+          "modes": [
+            "default"
+          ],
+          "limits": {},
+          "settings": {},
+          "requiredSpent": 0
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "id": "starter",
+      "name": "开荒 · 行走与工具",
+      "ranks": {
+        "speed": 1,
+        "step": 1,
+        "safewalk": 1,
+        "autotool": 1,
+        "nametags": 1
+      },
+      "budget": 14
+    },
+    {
+      "id": "explorer",
+      "name": "探索 · 搭桥与机动",
+      "ranks": {
+        "speed": 2,
+        "step": 2,
+        "scaffold": 2,
+        "safewalk": 1,
+        "autotool": 1,
+        "nametags": 2,
+        "esp": 1,
+        "tracers": 1,
+        "airjump": 1
+      },
+      "budget": 47
+    },
+    {
+      "id": "fighter",
+      "name": "战斗 · Aura 与稳固精通",
+      "ranks": {
+        "aura": 3,
+        "velocity": 3,
+        "speed": 1,
+        "autoarmor": 1,
+        "esp": 1,
+        "nametags": 2
+      },
+      "budget": 78
+    },
+    {
+      "id": "journey",
+      "name": "通关广修 · 两项精通",
+      "ranks": {
+        "speed": 3,
+        "aura": 3,
+        "scaffold": 1,
+        "fly": 1,
+        "airjump": 1,
+        "step": 1,
+        "safewalk": 1,
+        "nofall": 1,
+        "velocity": 1,
+        "autotool": 1,
+        "autoarmor": 1,
+        "esp": 1,
+        "nametags": 1,
+        "tracers": 1
+      },
+      "budget": 116
+    },
+    {
+      "id": "flight",
+      "name": "飞行调试 · 后期空中构筑",
+      "ranks": {
+        "fly": 3,
+        "airjump": 2,
+        "step": 2,
+        "nametags": 2,
+        "speed": 2,
+        "scaffold": 1,
+        "safewalk": 1,
+        "esp": 1,
+        "tracers": 1,
+        "autotool": 1
+      },
+      "budget": 102
+    }
+  ]
+}

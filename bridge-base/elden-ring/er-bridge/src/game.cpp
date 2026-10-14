@@ -29,6 +29,7 @@
 #include "host_progression.h"
 #include "host_inventory.h"
 #include "host_test_runes.h"
+#include "host_equipment.h"
 #include "debug_test_enemy.h"
 #include "incoming_hits.h"
 #include <string.h>
@@ -130,6 +131,11 @@ static bool g_fallTraceOk = false;
 static HostEffectsReader g_hostEffects;
 static HostProgressionReader g_hostProgression;
 static HostInventoryFeed g_hostInventory;
+static host_equipment::Access g_hostEquipment;
+static host_equipment::Mailbox g_equipmentMailbox;
+static ErmcEquipmentMailbox* equipment_mailbox() {
+    return (ErmcEquipmentMailbox*)((uint8_t*)shm_header()+ERMC_OFF_HOST_EQUIPMENT);
+}
 static bool g_hostProgressionOk = false;
 
 struct CodeSig {
@@ -1577,6 +1583,39 @@ static uint8_t* param_row(uint32_t index, int32_t id) {
     return nullptr;
 }
 
+// Equipment metadata is read from the currently loaded regulation, not inferred
+// from item IDs. The field layout is Paramdex EquipParamProtector v6 / PlayerCommon.
+static bool equipment_param_bytes(uint32_t index, int32_t id, uint8_t* out, size_t size, uint16_t version = 0) {
+    uint8_t* file=param_file(index);
+    uint8_t header[0x40];
+    if (!file || !mem_read(file,header,sizeof(header))) return false;
+    uint16_t rows=0,dataVersion=0;memcpy(&rows,header+0x0A,2);memcpy(&dataVersion,header+8,2);
+    if (!rows || rows>16384 || (version && dataVersion!=version)) return false;
+    int lo=0,hi=rows-1;
+    while (lo<=hi) {
+        int mid=(lo+hi)/2;uint8_t record[24];
+        if (!mem_read(file+0x40+size_t(mid)*24,record,sizeof(record))) return false;
+        int32_t rowId;uint64_t offset;memcpy(&rowId,record,4);memcpy(&offset,record+8,8);
+        if (rowId==id) {
+            if(offset<0x40+uint64_t(rows)*24 || offset>0x10000000 || (uintptr_t)file>UINTPTR_MAX-offset-size) return false;
+            return mem_read(file+offset,out,size);
+        }
+        if(rowId<id)lo=mid+1;else hi=mid-1;
+    }
+    return false;
+}
+static bool armor_fits_slot(uint32_t itemId,uint32_t slot) {
+    uint8_t row[0xDD];
+    if(slot<12 || slot>15 || itemId>>28!=1 ||
+        !equipment_param_bytes(1,int32_t(itemId&0x0FFFFFFF),row,sizeof(row),6)) return false;
+    const uint8_t mask=uint8_t(1u<<(slot-12+1));
+    return row[0xD6]==slot-12 && (row[0xDC]&0x1E)==mask;
+}
+static uint32_t base_talisman_slots() {
+    uint8_t row[0x0E];
+    return equipment_param_bytes(144,0,row,sizeof(row)) && row[0x0D]>=1 && row[0x0D]<=4 ? row[0x0D] : 0;
+}
+
 // Small flinch (dmgLevel 1) and some poise damage, 1 physical damage as vanilla. In memory only:
 // params are rebuilt from regulation.bin at every launch; restored when the core unloads.
 static void patch_poke_row() {
@@ -2625,6 +2664,20 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
             return result;
         });
     bool standing = alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER);
+    const bool equipmentReady=standing && g_standing && (c.flags & ERMC_CTRL_GROUNDED) && !(c.flags & ERMC_CTRL_FLYING);
+    if (g_equipmentMailbox.service(equipment_mailbox(),now_ms(),[&](const ErmcEquipmentRequest& request,uint32_t seq) {
+        auto result=g_hostEquipment.execute(request,*shm_header(),alive?p.ins:nullptr,equipmentReady,g_frame.zone,
+            armor_fits_slot,[](uintptr_t fn,void* equipment,const ErmcEquipmentRequest& req) {
+                if(req.operation==1) {
+                    uint32_t handle=req.handle;
+                    ((void(__fastcall*)(void*,uint32_t,const uint32_t*,uint32_t,bool,bool,bool))fn)
+                        (equipment,req.equipmentSlot,&handle,req.inventorySlot,true,true,false);
+                } else ((void(__fastcall*)(void*,uint32_t,bool))fn)(equipment,req.equipmentSlot,true);
+            },[]{return now_ms();},[&]{return equipment_mailbox()->reqSeq==seq;});
+        log("equipment: nonce=%llu op=%u slot=%u status=%d observed item=%08X index=%u",
+            (unsigned long long)request.nonce,request.operation,request.equipmentSlot,result.status,result.itemId,result.inventorySlot);
+        return result;
+    })) g_hostInventory.refresh();
     update_test_enemy_context(alive);
     service_environment(alive, g_frame.zone);
     update_support(c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER), havePlayer ? p.ins : nullptr);
@@ -2658,7 +2711,9 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
                              shm_state()->frame, shm_header()->hostLife);
     g_hostInventory.tick(alive ? p.ins : nullptr, progression, progressionLoading,
                          alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER) && g_standing,
-                         shm_state()->frame, shm_header()->hostLife, now_ms());
+                         shm_state()->frame, shm_header()->hostLife, now_ms(),g_frame.zone,
+                         equipmentReady ? g_hostEquipment.writableSlots() : 0,
+                         alive && progression.valid ? g_hostEquipment.talismanSlots(p.ins,base_talisman_slots()) : 0);
     QueryPerformanceCounter(&t1);
     QueryPerformanceFrequency(&fq);
     perf_add_tick((double)(t1.QuadPart - t0.QuadPart) * 1000.0 / fq.QuadPart);
@@ -2739,6 +2794,7 @@ static void unlock_fps() {
 bool game_init() {
     g_base = main_module_base();
     g_hostInventory.reset(shm_state()->frame, shm_header()->hostLife, now_ms());
+    g_equipmentMailbox.reset(equipment_mailbox());
     publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
     publish_host_progression({}, false, false, shm_state()->frame, shm_header()->hostLife);
     log("game: eldenring.exe base %p size 0x%zx", (void*)g_base, main_module_size());
@@ -2760,8 +2816,9 @@ bool game_init() {
     const bool hostEffectsOk = g_hostEffects.init(g_base);
     log("game: read-only host effects %s", hostEffectsOk ? "enabled" : "disabled (signature mismatch)");
     g_hostProgressionOk = g_hostProgression.init(g_base);
-    log("game: read-only host inventory %s (HINV v1, at most 2 Hz)",
+    log("game: read-only host inventory %s (HINV v2, at most 2 Hz)",
         g_hostInventory.init(g_base) ? "enabled" : "disabled (signature mismatch)");
+    log("game: native armor equipment intents %s",g_hostEquipment.init(g_base) ? "available (explicit UI intent only)" : "disabled (signature mismatch)");
     log("game: explicit test-rune command %s", g_testRunes.init(g_base) ? "available (never automatic)" : "disabled (signature mismatch)");
     log("game: read-only host progression %s (level/name; explicit character binding required)",
         g_hostProgressionOk ? "enabled" : "disabled (signature mismatch)");
@@ -2823,6 +2880,7 @@ void game_detach() {
 
 void game_shutdown() {
     g_hostInventory.reset(shm_state()->frame, shm_header()->hostLife, now_ms());
+    g_equipmentMailbox.reset(equipment_mailbox());
     publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
     publish_host_progression({}, false, false, shm_state()->frame, shm_header()->hostLife);
     if (g_environmentOk) release_environment();

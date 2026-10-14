@@ -24,108 +24,66 @@ JAVA = r'''
 import dev.ermc.bridge.api.*;
 import dev.ermc.bridge.api.CapabilitySnapshot.*;
 import dev.ermc.bridge.gameplay.runtime.B01Payload;
+import dev.ermc.bridge.gameplay.capability.AbilityCatalog;
 import io.netty.buffer.Unpooled;
 import java.util.*;
 import java.util.function.Consumer;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-
 public final class B01PayloadCheck {
-    static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-000000000001");
-    static final UUID CAMPAIGN = UUID.fromString("00000000-0000-0000-0000-000000000002");
-    static final UUID CHARACTER = UUID.fromString("00000000-0000-0000-0000-000000000003");
+    static final UUID OWNER=new UUID(0,1), CAMPAIGN=new UUID(0,2), CHARACTER=new UUID(0,3);
     static int rejected;
     interface Action {void run();}
-    static void check(boolean condition,String label) {if(!condition)throw new AssertionError(label);}
-    static void reject(Action action,String label) {
-        try {action.run();} catch(RuntimeException expected) {rejected++;return;}
-        throw new AssertionError("Accepted " + label);
+    static void check(boolean c,String label){if(!c)throw new AssertionError(label);}
+    static void reject(Action a,String label){try{a.run();}catch(RuntimeException expected){rejected++;return;}throw new AssertionError("Accepted "+label);}
+    static RegistryFriendlyByteBuf buffer(){return new RegistryFriendlyByteBuf(Unpooled.buffer(),RegistryAccess.EMPTY);}
+    static CapabilitySnapshot snapshot(Map<Ability,Integer> ranks){return AbilityCatalog.instance().policy(7,true).snapshot(new CharacterBinding(OWNER,CAMPAIGN,CHARACTER),ranks);}
+    static B01Payload payload(CapabilitySnapshot s){return new B01Payload(OWNER,true,s,164,116,80,36,"成长 · 真实 0 + 测试 116");}
+    static void roundtrip(B01Payload p){var b=buffer();try{B01Payload.CODEC.encode(b,p);check(B01Payload.CODEC.decode(b).equals(p),"changed roundtrip");check(!b.isReadable(),"incomplete decode");}finally{b.release();}}
+    static void corrupt(B01Payload p,Consumer<RegistryFriendlyByteBuf> action,String label){var b=buffer();try{B01Payload.CODEC.encode(b,p);action.accept(b);b.readerIndex(0);reject(()->B01Payload.CODEC.decode(b),label);}finally{b.release();}}
+    static Map<String,Integer> positions(RegistryFriendlyByteBuf b) {
+        b.readerIndex(0);b.readVarInt();b.readUUID();b.readBoolean();check(b.readBoolean(),"fixture snapshot");
+        b.readUUID();b.readUUID();Map<String,Integer> p=new HashMap<>();p.put("revision",b.readerIndex());b.readLong();
+        p.put("count",b.readerIndex());int count=b.readVarInt();
+        for(int i=0;i<count;i++) {
+            String id=b.readUtf(48);p.put(id+":rank",b.readerIndex());b.readVarInt();b.readBoolean();int modes=b.readVarInt();
+            for(int j=0;j<modes;j++)b.readUtf(64);
+            int limits=b.readVarInt();for(int j=0;j<limits;j++){String key=b.readUtf(128);p.put(id+":"+key,b.readerIndex());b.readDouble();b.readDouble();}
+        }
+        return p;
     }
-    static RegistryFriendlyByteBuf buffer() {return new RegistryFriendlyByteBuf(Unpooled.buffer(),RegistryAccess.EMPTY);}
-    static Grant grant(Ability ability,int rank,double cap,boolean visible) {
-        return rank==0 ? new Grant(0,visible,Set.of(),Map.of())
-            : new Grant(rank,visible,Set.of(ability==Ability.SPEED?"ground_custom":"single_target"),
-                Map.of(ability==Ability.SPEED?"speed":"range",new NumericRange(ability==Ability.SPEED?.05:1,cap)));
+    static void malformedCounters(int level,int earned,int spent,int remaining,String status) {
+        var b=buffer();try{b.writeVarInt(2);b.writeUUID(OWNER);b.writeBoolean(true);b.writeBoolean(false);b.writeVarInt(level);b.writeVarInt(earned);b.writeVarInt(spent);b.writeVarInt(remaining);b.writeUtf(status,32767);reject(()->B01Payload.CODEC.decode(b),"counter/status");}finally{b.release();}
     }
-    static CapabilitySnapshot snapshot(UUID player,int rank,double speed,double aura) {
-        return new CapabilitySnapshot(new CharacterBinding(player,CAMPAIGN,CHARACTER),7,
-            Map.of(Ability.SPEED,grant(Ability.SPEED,rank,speed,true),Ability.AURA,grant(Ability.AURA,rank,aura,rank!=0)));
-    }
-    static B01Payload payload(CapabilitySnapshot snapshot,boolean challenge) {
-        return new B01Payload(OWNER,challenge,snapshot,100,6,3,3,"角色 · 技能点 3/6");
-    }
-    static void roundtrip(B01Payload source) {
-        var b=buffer();try {
-            B01Payload.CODEC.encode(b,source);
-            check(B01Payload.CODEC.decode(b).equals(source),"Roundtrip changed payload");
-            check(!b.isReadable(),"CODEC did not consume its complete encoded payload");
-        } finally {b.release();}
-    }
-    static void corrupt(B01Payload source,Consumer<RegistryFriendlyByteBuf> mutation,String label) {
-        var b=buffer();try {
-            B01Payload.CODEC.encode(b,source);mutation.accept(b);b.readerIndex(0);
-            reject(()->B01Payload.CODEC.decode(b),label);
-        } finally {b.release();}
-    }
-    // Locate numeric fields in actual CODEC output through the actual MC buffer API.
-    static int speedRank(RegistryFriendlyByteBuf b) {
-        b.readerIndex(0);b.readUUID();b.readBoolean();check(b.readBoolean(),"Expected snapshot fixture");
-        b.readUUID();b.readUUID();b.readLong();return b.readerIndex();
-    }
-    static int speedMinimum(RegistryFriendlyByteBuf b) {speedRank(b);b.readVarInt();b.readBoolean();return b.readerIndex();}
-    static int auraMinimum(RegistryFriendlyByteBuf b) {
-        speedMinimum(b);b.readDouble();b.readDouble();b.readVarInt();b.readBoolean();return b.readerIndex();
-    }
-    static void malformedCounters(int level,int earned,int spent,int remaining,String status,String label) {
-        var b=buffer();try {
-            // Deliberately malformed sender fixture, decoded by the production CODEC.
-            b.writeUUID(OWNER);b.writeBoolean(true);b.writeBoolean(false);
-            b.writeVarInt(level);b.writeVarInt(earned);b.writeVarInt(spent);b.writeVarInt(remaining);b.writeUtf(status,32767);
-            reject(()->B01Payload.CODEC.decode(b),label);
-        } finally {b.release();}
-    }
-    public static void main(String[] args) {
-        roundtrip(payload(null,true)); // unbound/loading challenge state, no authorization
-        roundtrip(payload(null,false)); // free mode without a snapshot
-        roundtrip(payload(snapshot(OWNER,0,.3,2.5),true)); // explicit locked grants and visibility
-        double[] speed={.30,.33,.36},aura={2.5,3,3.5};
-        for(int i=0;i<3;i++)roundtrip(payload(snapshot(OWNER,i+1,speed[i],aura[i]),true));
-        roundtrip(new B01Payload(OWNER,false,snapshot(OWNER,3,.6,6),713,100000,100000,0,"x".repeat(256)));
-        System.out.println("PASS: production CODEC roundtrips unbound, free, locked, all three ranks, boundary counts and Unicode status");
-
-        reject(()->payload(snapshot(UUID.randomUUID(),1,.3,2.5),true),"snapshot UUID != payload owner");
-        reject(()->new B01Payload(OWNER,true,null,0,0,0,0,"x".repeat(257)),"constructor status >256");
-        B01Payload valid=payload(snapshot(OWNER,1,.3,2.5),true);
-        corrupt(valid,b->b.writerIndex(b.writerIndex()-1),"truncated packet");
-        corrupt(valid,b->b.setByte(speedRank(b),4),"rank 4");
-        corrupt(valid,b->b.setLong(speedRank(b)-8,0),"revision 0");
-        System.out.println("PASS: mismatched snapshot owner, long status, truncated wire, rank 4 and revision 0 are rejected");
-
+    public static void main(String[] args){
+        roundtrip(payload(null));roundtrip(new B01Payload(OWNER,false,null,0,0,0,0,"自由"));
+        roundtrip(payload(snapshot(Map.of())));
+        for(var preset:AbilityCatalog.instance().presets().values())roundtrip(payload(snapshot(preset.ranks())));
+        B01Payload valid=payload(snapshot(AbilityCatalog.instance().presets().get("journey").ranks()));
+        reject(()->new B01Payload(UUID.randomUUID(),true,valid.snapshot(),1,1,0,1,"x"),"mismatched owner");
+        reject(()->payload(new CapabilitySnapshot(valid.snapshot().binding(),7,Map.of(Ability.SPEED,valid.snapshot().abilities().get(Ability.SPEED)))),"missing abilities");
+        Map<Ability,Grant> unknown=new HashMap<>(valid.snapshot().abilities());unknown.put(new Ability("timer"),new Grant(0,true,Set.of(),Map.of()));
+        reject(()->payload(new CapabilitySnapshot(valid.snapshot().binding(),7,unknown)),"unknown abilities");
+        corrupt(valid,b->b.setByte(0,1),"old protocol");
+        corrupt(valid,b->b.writerIndex(b.writerIndex()-1),"truncated");
+        corrupt(valid,b->b.setByte(positions(b).get("speed:rank"),8),"unsupported rank");
+        corrupt(valid,b->b.setLong(positions(b).get("revision"),0),"revision zero");
+        corrupt(valid,b->b.setByte(positions(b).get("count"),65),"oversized count");
         for(double bad:new double[]{Double.NaN,Double.POSITIVE_INFINITY,Double.NEGATIVE_INFINITY}) {
-            corrupt(valid,b->b.setDouble(speedMinimum(b),bad),"non-finite Speed minimum");
-            corrupt(valid,b->b.setDouble(speedMinimum(b)+8,bad),"non-finite Speed maximum");
-            corrupt(valid,b->b.setDouble(auraMinimum(b),bad),"non-finite Aura minimum");
-            corrupt(valid,b->b.setDouble(auraMinimum(b)+8,bad),"non-finite Aura maximum");
+            corrupt(valid,b->b.setDouble(positions(b).get("speed:speed"),bad),"bad minimum");
+            corrupt(valid,b->b.setDouble(positions(b).get("aura:range")+8,bad),"bad maximum");
         }
-        corrupt(valid,b->b.setDouble(speedMinimum(b),.049),"Speed below lower bound");
-        corrupt(valid,b->b.setDouble(speedMinimum(b)+8,.601),"Speed above upper bound");
-        corrupt(valid,b->b.setDouble(auraMinimum(b),.999),"Aura below lower bound");
-        corrupt(valid,b->b.setDouble(auraMinimum(b)+8,6.001),"Aura above upper bound");
-        corrupt(valid,b->b.setDouble(speedMinimum(b),.4),"inverted Speed range");
-        System.out.println("PASS: real decoder rejects NaN, both infinities, out-of-bounds and inverted numeric limits");
-
-        malformedCounters(-1,0,0,0,"ok","negative level");
-        malformedCounters(714,0,0,0,"ok","level above 713");
-        for(int bad:new int[]{-1,100001}) {
-            malformedCounters(1,bad,0,0,"ok","earned out of bounds");
-            malformedCounters(1,0,bad,0,"ok","spent out of bounds");
-            malformedCounters(1,0,0,bad,"ok","remaining out of bounds");
-        }
-        malformedCounters(0,0,0,0,"x".repeat(257),"wire status above 256");
-        System.out.println("PASS: production decoder rejects invalid level/point counters and overlong wire status ("+rejected+" rejected cases)");
-        System.out.println("LIMIT: recipient UUID authentication, world/session ownership and network delivery require the separate client/runtime checks");
+        corrupt(valid,b->b.setDouble(positions(b).get("speed:speed"),.049),"below catalog lower bound");
+        corrupt(valid,b->b.setDouble(positions(b).get("speed:speed")+8,.37),"above rank bound");
+        corrupt(valid,b->b.setDouble(positions(b).get("aura:WallRange")+8,1),"relaxed fixed guard");
+        corrupt(valid,b->b.setDouble(positions(b).get("speed:speed"),.4),"inverted range");
+        malformedCounters(-1,0,0,0,"ok");malformedCounters(714,0,0,0,"ok");
+        for(int bad:new int[]{-1,100001}){malformedCounters(1,bad,0,0,"ok");malformedCounters(1,0,bad,0,"ok");malformedCounters(1,0,0,bad,"ok");}
+        malformedCounters(1,0,0,0,"x".repeat(257));
+        System.out.println("PASS: production policy_v2 CODEC, all five 14-ability presets, locked/free/loading, UTF-8, "+rejected+" corrupt packet cases; real Minecraft buffer, no games");
     }
 }
+
 '''
 
 
@@ -142,7 +100,7 @@ def main():
     classpath = args.classpath_file.read_text(encoding='utf-8-sig').strip()
     java_home = args.java_home or next((ROOT / '.tools/java').glob('*/bin/java.exe')).parent.parent
     executable = '.exe' if os.name == 'nt' else ''
-    sources = [COMMON / 'api/CharacterBinding.java', COMMON / 'api/CapabilitySnapshot.java', CHARACTER / 'gameplay/runtime/B01Payload.java']
+    sources = [COMMON / 'api/CharacterBinding.java', COMMON / 'api/CapabilitySnapshot.java', CHARACTER / 'gameplay/runtime/B01Payload.java', CHARACTER / 'gameplay/capability/AbilityCatalog.java', CHARACTER / 'gameplay/capability/AbilityPolicy.java']
     with tempfile.TemporaryDirectory(prefix='ermc-b01-wire-') as directory:
         output = Path(directory)
         fixture = output / 'B01PayloadCheck.java'
@@ -151,7 +109,7 @@ def main():
         arguments_file(compile_args, ['-encoding', 'UTF-8', '-cp', classpath, '-d', output, *sources, fixture])
         subprocess.run([str(java_home / 'bin' / f'javac{executable}'), '@' + str(compile_args)], cwd=ROOT, check=True)
         run_args = output / 'run.args'
-        arguments_file(run_args, ['-cp', str(output) + os.pathsep + classpath, 'B01PayloadCheck'])
+        arguments_file(run_args, ['-cp', str(output) + os.pathsep + str(ROOT / 'bridge-base/elden-ring/mc-bridge/character-bridge/src/main/resources') + os.pathsep + classpath, 'B01PayloadCheck'])
         subprocess.run([str(java_home / 'bin' / f'java{executable}'), '@' + str(run_args)], cwd=ROOT, check=True)
 
 

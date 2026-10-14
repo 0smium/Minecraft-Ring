@@ -22,6 +22,10 @@
     {
       "config": "er_character_bridge.liquidbounce.mixins.json",
       "environment": "client"
+    },
+    {
+      "config": "er_character_bridge.equipment.mixins.json",
+      "environment": "client"
     }
   ],
   "depends": {

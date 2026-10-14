@@ -3,6 +3,8 @@ package dev.ermc.bridge.gameplay.runtime;
 import dev.ermc.bridge.TerrainManager;
 import dev.ermc.bridge.api.*;
 import dev.ermc.bridge.gameplay.capability.AbilityPolicy;
+import dev.ermc.bridge.gameplay.capability.AbilityCatalog;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import dev.ermc.bridge.gameplay.progression.*;
 import dev.ermc.bridge.gameplay.skills.SkillsBridge;
 import dev.ermc.bridge.link.*;
@@ -51,6 +53,14 @@ public final class B01Runtime {
         try { install(files.loadSettings(true)); }
         catch (Exception e) { fail(e); }
     }
+    public static Optional<CapabilitySnapshot> snapshotFor(ServerPlayer player) {
+        B01Runtime runtime = active;
+        return runtime != null && runtime.owner == player && runtime.fault == null ? Optional.ofNullable(runtime.grants) : Optional.empty();
+    }
+    public static boolean challengeFor(ServerPlayer player) {
+        B01Runtime runtime = active;
+        return runtime == null || runtime.owner != player || runtime.settings == null || runtime.settings.challenge();
+    }
     private void install(B01Files.Settings next) {
         closeSession();
         settings = next; policy = next.policy();
@@ -81,6 +91,15 @@ public final class B01Runtime {
                         .then(Commands.literal("challenge").executes(c -> command(c.getSource(), "challenge")))
                         .then(Commands.literal("free").executes(c -> command(c.getSource(), "free")))
                         .then(Commands.literal("refund").executes(c -> command(c.getSource(), "refund")))
+                        .then(Commands.literal("catalog").executes(c -> command(c.getSource(), "catalog")))
+                        .then(Commands.literal("migrate").executes(c -> command(c.getSource(), "migrate")))
+                        .then(Commands.literal("preset")
+                                .executes(c -> command(c.getSource(), "preset_preview"))
+                                .then(Commands.literal("preview").executes(c -> command(c.getSource(), "preset_preview")))
+                                .then(Commands.literal("apply").then(Commands.argument("name", StringArgumentType.word())
+                                        .suggests((c, b) -> { AbilityCatalog.instance().presets().keySet().forEach(b::suggest); return b.buildFuture(); })
+                                        .executes(c -> command(c.getSource(), "preset_apply:" + StringArgumentType.getString(c, "name")))))
+                                .then(Commands.literal("clear").executes(c -> command(c.getSource(), "preset_clear"))))
                         .then(Commands.literal("reload").executes(c -> command(c.getSource(), "reload"))))));
     }
     private ServerPlayer localOwner() {
@@ -159,14 +178,18 @@ public final class B01Runtime {
         var reconciled = SkillsBridge.reconcile(owner, progress);
         if (reconciled.isEmpty()) { skills = null; status = "技能树依赖/资源不可用；请用 B01 启动配置"; return; }
         skills = reconciled.get();
-        if (skills.sourcePoints() != progress.earnedPoints() || skills.totalPoints() != progress.earnedPoints()
-                || skills.spentPoints() < 0 || skills.spentPoints() > skills.totalPoints() || skills.remainingPoints() < 0) {
+        if (skills.migrationRequired()) {
+            status = "旧树成本已改变；能力暂停。progression migrate 将备份旧节点并全额退款，等级额度不变"; return;
+        }
+        if (skills.sourcePoints() != progress.earnedPoints() || skills.totalPoints() != progress.earnedPoints() + skills.testPoints()
+                || skills.spentPoints() < 0 || skills.spentPoints() > skills.totalPoints() || skills.remainingPoints() != skills.totalPoints() - skills.spentPoints()) {
             skills = null;
             status = "技能点账目尚未同步；能力暂时锁定"; return;
         }
         grants = policy.snapshot(binding.identity(), skills.learnedRanks());
         status = (settings.challenge() ? "挑战" : "自由") + " | " + sample.name() + " Lv." + sample.level()
-                + " | 技能点 " + skills.remainingPoints() + "/" + progress.earnedPoints()
+                + " | 技能点 " + skills.remainingPoints() + "/" + skills.totalPoints()
+                + (skills.testPoints() > 0 ? "（真实 " + progress.earnedPoints() + " + 测试 " + skills.testPoints() + " · " + skills.preset() + "）" : "")
                 + " | /erbridge progression skills";
     }
     private void fail(Exception e) {
@@ -184,6 +207,25 @@ public final class B01Runtime {
         catch (Exception e) { LOG.warn("B01 command {} rejected", operation, e); return error(source,e.getMessage() == null ? e.toString() : e.getMessage()); }
     }
     private int execute(CommandSourceStack source, ServerPlayer player, String operation) throws IOException {
+        if (operation.equals("catalog")) {
+            for (var group : AbilityCatalog.instance().categories().entrySet()) {
+                reply(source, group.getValue() + "：" + String.join("；", AbilityCatalog.instance().entries().stream().filter(e -> e.category().equals(group.getKey()))
+                        .map(e -> e.name() + " " + e.ranks().stream().map(r -> Integer.toString(r.cost())).toList() + " 点").toList()));
+            }
+            reply(source, "76 点可学全部基础；116 点广修并精通 Speed/Aura；满配 232 点。HUD/装饰免费，其余未适配行为模块在挑战模式关闭。"); return 1;
+        }
+        if (operation.equals("preset_preview")) {
+            for (var preset : AbilityCatalog.instance().presets().values()) reply(source, preset.id() + " · " + preset.name() + " | 测试额度/实际消费 " + preset.budget() + "/"
+                    + AbilityCatalog.instance().cost(preset.ranks()) + " | " + preset.ranks());
+            reply(source, "apply <名称> 暂存原构筑，使用 Skills 正式购买；不改 ER 等级、不启用模块。clear 撤销测试点并恢复原构筑。"); return 1;
+        }
+        // Recovery remains available even if an interrupted preset currently fails closed.
+        if (operation.equals("migrate") || operation.equals("preset_clear")) {
+            if (binding == null) throw new IOException("先绑定角色");
+            LevelProgress saved = new FileLevelProgressStore(files.root().resolve("levels")).load(binding.identity()).orElseThrow(() -> new IOException("缺少真实等级记录"));
+            reply(source, operation.equals("migrate") ? SkillsBridge.migrate(player, saved) : SkillsBridge.clearPreset(player, saved));
+            fault = null; sent.clear(); tick(); return 1;
+        }
         if (operation.equals("status")) {
             reply(source, fault == null ? status : "B01 错误：" + fault);
             reply(source,"配置：" + files.configPath());
@@ -200,6 +242,13 @@ public final class B01Runtime {
             files.saveSettings(next); install(next); sent.clear(); tick(); reply(source,"B01 配置已重载；已有角色保留其原发点曲线"); return 1;
         }
         if (fault != null || settings == null) throw new IOException("先修复配置/存储错误并执行 reload");
+        if (operation.startsWith("preset_apply:")) {
+            update();
+            if (!settings.challenge()) throw new IOException("先 progression challenge；测试预设始终受技能限制");
+            if (binding == null || progress == null || grants == null) throw new IOException("需要已绑定、已迁移且同步正常的角色");
+            reply(source, SkillsBridge.applyPreset(player, progress, operation.substring("preset_apply:".length())));
+            sent.clear(); tick(); return 1;
+        }
         if (operation.equals("bind")) {
             if (binding != null) throw new IOException("本世界已有角色绑定；不会覆盖。换角色请使用新 MC 世界");
             update();
@@ -211,7 +260,7 @@ public final class B01Runtime {
             boolean challenge = operation.equals("challenge");
             if (challenge && (!SkillsBridge.available() || binding == null)) throw new IOException("挑战模式需要 B01 技能树依赖和显式角色绑定");
             B01Files.Settings next = settings.mode(challenge); files.saveSettings(next); settings = next; policy = next.policy();
-            reply(source,challenge ? "挑战模式：Speed/Aura 由技能树授权；其他 LB 模块不在本轮范围" : "自由模式：解除 B01 对 Speed/Aura 的限制");
+            reply(source,challenge ? "挑战模式：六类 14 项由技能树授权；其余未适配行为模块关闭，HUD/装饰免费" : "自由模式：解除成长限制，测试预设仍可用 preset clear 撤销");
         } else if (operation.equals("skills")) {
             if (binding == null || progress == null || !SkillsBridge.openScreen(player)) throw new IOException("请先绑定角色并等待技能树同步");
         } else if (operation.equals("refund")) {

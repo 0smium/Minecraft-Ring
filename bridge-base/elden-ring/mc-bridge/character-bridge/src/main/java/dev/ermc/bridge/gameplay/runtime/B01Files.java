@@ -4,6 +4,7 @@ import dev.ermc.bridge.api.CharacterBinding;
 import dev.ermc.bridge.api.CapabilitySnapshot.Ability;
 import dev.ermc.bridge.api.CapabilitySnapshot.NumericRange;
 import dev.ermc.bridge.gameplay.capability.AbilityPolicy;
+import dev.ermc.bridge.gameplay.capability.AbilityCatalog;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
@@ -25,9 +26,19 @@ public final class B01Files {
             validateTiers(speed, .05, .6); validateTiers(aura, 1, 6);
         }
         public AbilityPolicy policy() {
-            return new AbilityPolicy(revision, showLocked, Map.of(
-                    Ability.SPEED, tiers(speed, "ground_custom", "speed", .05),
-                    Ability.AURA, tiers(aura, "single_target", "range", 1)));
+            // Preserve existing world caps. The shared catalog owns all other rules and costs.
+            Map<Ability, List<AbilityPolicy.Tier>> rules = new LinkedHashMap<>();
+            for (var entry : AbilityCatalog.instance().entries()) {
+                List<AbilityPolicy.Tier> ranks = new ArrayList<>();
+                for (int i = 0; i < entry.ranks().size(); i++) {
+                    var rank = entry.ranks().get(i); Map<String, NumericRange> limits = new HashMap<>(rank.limits());
+                    if (entry.id().equals(Ability.SPEED)) limits.put("speed", new NumericRange(.05, Math.min(speed.get(i), limits.get("speed").maximum())));
+                    if (entry.id().equals(Ability.AURA)) limits.put("range", new NumericRange(1, Math.min(aura.get(i), limits.get("range").maximum())));
+                    ranks.add(new AbilityPolicy.Tier(rank.modes(), limits));
+                }
+                rules.put(entry.id(), List.copyOf(ranks));
+            }
+            return new AbilityPolicy(revision, showLocked, rules);
         }
         public Settings mode(boolean value) { return new Settings(campaign, value, Math.incrementExact(revision), pointsPerLevel, startingPoints, showLocked, speed, aura); }
         public Settings revision(long value) { return new Settings(campaign, challenge, value, pointsPerLevel, startingPoints, showLocked, speed, aura); }

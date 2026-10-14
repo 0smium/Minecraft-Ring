@@ -3,6 +3,11 @@ package dev.ermc.bridge.client.integrations;
 import dev.ermc.bridge.api.CapabilitySnapshot;
 import dev.ermc.bridge.api.CapabilitySnapshot.Ability;
 import dev.ermc.bridge.api.CapabilitySnapshot.Grant;
+import dev.ermc.bridge.api.CapabilitySnapshot.NumericRange;
+import dev.ermc.bridge.gameplay.capability.AbilityCatalog;
+import dev.ermc.bridge.gameplay.capability.AbilityCatalog.Entry;
+import dev.ermc.bridge.gameplay.capability.AbilityCatalog.Rank;
+import dev.ermc.bridge.gameplay.capability.AbilityCatalog.Setting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
@@ -10,302 +15,369 @@ import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.lang.invoke.*;
+import java.lang.reflect.*;
+import java.util.*;
 
-/** Two fixed 3530 mappings, outside the reserved Mixin package. No LB compile dependency. */
+/** Fixed LB #3530 adapter. The shared catalog describes policy; LB still executes every module. */
 public final class LiquidBounceCapabilityAccess {
     private static final Logger LOG = LoggerFactory.getLogger("erbridge");
-    private static final String SPEED = "net.ccbluex.liquidbounce.features.module.modules.movement.speed.ModuleSpeed";
-    private static final String AURA = "net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura";
-    private static final String STRAFE = "net.ccbluex.liquidbounce.features.module.modules.movement.speed.modes.SpeedCustom$Strafe";
     private static final String TYPES = "net.ccbluex.liquidbounce.config.types.";
+    private static final String STRAFE = "net.ccbluex.liquidbounce.features.module.modules.movement.speed.modes.SpeedCustom$Strafe";
     private static final MethodType OBJECT_GET = MethodType.methodType(Object.class, Object.class);
     private static volatile Map<Object, Rule> rules = Map.of();
-    private static volatile Map<Object, Object> choices = Map.of();
-    private static Binding speed, aura;
+    private static volatile Map<Object, Binding> bindings = Map.of();
     private static Access access;
     private static Object unit;
-    private static boolean failed;
     private static long reconciledGeneration = -1;
     private static final ThreadLocal<Boolean> routingEnabled = ThreadLocal.withInitial(() -> false);
-
     private LiquidBounceCapabilityAccess() {}
 
-    private record Rule(Ability ability, String parameter, Object fixed, boolean enabled) {}
+    private record Rule(Binding binding, String path, boolean enabled, Object original, Object vanillaRange) {}
 
-    /** Register after each module's complete static initializer, before ordinary config loading. */
-    public static synchronized void register(String className) {
-        if (failed) return;
+    /** ModuleManager.addModule TAIL: full object and config initialization, including script registrations. */
+    public static synchronized void register(Object module) {
+        if (bindings.containsKey(module)) return;
         try {
             if (access == null) access = new Access();
-            Class<?> type = Class.forName(className, false, LiquidBounceCapabilityAccess.class.getClassLoader());
-            Object module = type.getField("INSTANCE").get(null);
-            Binding binding = new Binding(module, className.equals(SPEED) ? Ability.SPEED : Ability.AURA);
+            String name = (String) access.name.invoke(module);
+            boolean builtIn = module.getClass().getName().startsWith("net.ccbluex.liquidbounce.features.module.modules.")
+                    && module.getClass().getSimpleName().equalsIgnoreCase("Module" + name);
+            Entry entry = builtIn ? AbilityCatalog.instance().entryForModule(name).orElse(null) : null;
+            boolean free = builtIn && AbilityCatalog.instance().freeModules().contains(name);
+            Binding binding = new Binding(module, name, entry, free);
             IdentityHashMap<Object, Rule> next = new IdentityHashMap<>(rules);
-            IdentityHashMap<Object, Object> nextChoices = new IdentityHashMap<>(choices);
-            binding.add(next, "Enabled", new Rule(binding.ability, null, null, true));
-            if (binding.ability == Ability.SPEED) {
-                Object mode = binding.required("Mode");
-                Object custom = binding.choice(mode, "Custom");
-                nextChoices.put(mode, custom);
-                binding.add(next, "Locked", fixed(Ability.SPEED, false)); // Own policy, not LB's bypass lock.
-                for (String path : List.of("OnlyInCombat/Enabled", "OnlyOnPotionEffect/Enabled", "YawOffset/Enabled",
-                        "Mode/Custom/HorizontalModification/Enabled", "Mode/Custom/VerticalModification/Enabled"))
-                    binding.add(next, path, fixed(Ability.SPEED, false));
-                binding.add(next, "Mode/Custom/TimerSpeed", fixed(Ability.SPEED, 1F));
-                binding.add(next, "Mode/Custom/Strafe/Enabled", fixed(Ability.SPEED, true));
-                binding.add(next, "Mode/Custom/Strafe/CustomSpeed", fixed(Ability.SPEED, true));
-                binding.add(next, "Mode/Custom/Strafe/Strength", fixed(Ability.SPEED, 1F));
-                binding.add(next, "Mode/Custom/Strafe/VelocityTimeout", fixed(Ability.SPEED, 0));
-                binding.add(next, "Mode/Custom/Strafe/StrafeKnock", fixed(Ability.SPEED, false));
-                binding.add(next, "Mode/Custom/Strafe/Speed", new Rule(Ability.SPEED, "speed", null, false));
-                speed = binding;
-            } else {
-                binding.add(next, "Range", new Rule(Ability.AURA, "range", null, false));
-                binding.add(next, "WallRange", fixed(Ability.AURA, 0F));
-                binding.add(next, "ScanExtraRange", fixed(Ability.AURA, 0F));
-                for (String path : List.of("Rotations/ThroughWalls", "AutoBlocking/Enabled", "FailSwing/Enabled",
-                        "FightBot/Enabled", "SimulateInventoryClosing")) binding.add(next, path, fixed(Ability.AURA, false));
-                binding.add(next, "ClickScheduler/Cooldown/Enabled", fixed(Ability.AURA, true));
-                Object fullCooldown = (Object) access.floatRange.invokeExact(1F, 1F);
-                binding.add(next, "ClickScheduler/Cooldown/Minimum", fixed(Ability.AURA, fullCooldown));
-                binding.add(next, "ClickScheduler/ConsiderMissCooldown", fixed(Ability.AURA, true));
-                binding.add(next, "Criticals", fixed(Ability.AURA, enumConstant(binding.required("Criticals"), "IGNORE")));
-                binding.add(next, "Raycast", fixed(Ability.AURA, enumConstant(binding.required("Raycast"), "TRACE_ONLYENEMY")));
-                aura = binding;
+            Object enabled = binding.required("Enabled");
+            next.put(enabled, new Rule(binding, "Enabled", true, false, null));
+            if (entry != null) {
+                for (Rank rank : entry.ranks()) for (Setting setting : rank.settings().values()) {
+                    Object value = binding.required(setting.path());
+                    if (!next.containsKey(value)) next.put(value, new Rule(binding, setting.path(), false,
+                            access.raw.invoke(value), access.rangeType.isInstance(value) ? access.rangeField.get(value) : null));
+                    binding.validate(setting, next.get(value));
+                }
             }
             rules = Collections.unmodifiableMap(next);
-            choices = Collections.unmodifiableMap(nextChoices);
-            LOG.info("B01 LiquidBounce capability mapping ready: {}", binding.ability);
+            IdentityHashMap<Object, Binding> nextBindings = new IdentityHashMap<>(bindings);
+            nextBindings.put(module, binding); bindings = Collections.unmodifiableMap(nextBindings);
+            if (entry != null) LOG.info("Growth LB mapping ready: {} / {} ranks", name, entry.ranks().size());
+            if (challenge() && !allowModule(module)) disable(binding);
         } catch (Throwable error) {
-            failed = true;
-            LOG.error("B01 LiquidBounce capability mapping unavailable; challenge modules stay locked", error);
+            // An unregistered module is denied by allowModule in challenge, rather than accidentally free.
+            LOG.error("Growth LB mapping failed: {}; challenge execution remains locked", module.getClass().getName(), error);
         }
-    }
-
-    private static Rule fixed(Ability ability, Object value) { return new Rule(ability, null, value, false); }
-
-    private static Object enumConstant(Object value, String name) throws Throwable {
-        Object raw = access.raw.invoke(value);
-        for (Object constant : ((Enum<?>) raw).getDeclaringClass().getEnumConstants())
-            if (((Enum<?>) constant).name().equals(name)) return constant;
-        throw new IllegalStateException("Missing fixed LB enum constant " + name);
     }
 
     public static boolean challenge() { return CapabilityPolicyClient.view().challengeActive(); }
-
-    private static Ability ability(Object module) {
-        String name = module.getClass().getName();
-        return name.equals(SPEED) ? Ability.SPEED : name.equals(AURA) ? Ability.AURA : null;
-    }
-
-    private static Grant grant(Ability ability) {
+    private static Grant grant(Binding binding) {
         CapabilitySnapshot snapshot = CapabilityPolicyClient.view().snapshot();
-        if (snapshot == null || ability == null || failed) return null;
-        Grant grant = snapshot.abilities().get(ability);
-        String mode = ability == Ability.SPEED ? "ground_custom" : "single_target";
-        String key = ability == Ability.SPEED ? "speed" : "range";
-        return grant != null && grant.unlocked() && grant.allowedModes().contains(mode)
-                && grant.numericLimits().keySet().equals(java.util.Set.of(key)) ? grant : null;
-    }
-
-    public static boolean allowModule(Object module) {
-        Ability ability = ability(module);
-        return !challenge() || ability == null || grant(ability) != null;
-    }
-
-    /** Invoked inside LB's activation listener, before enable or choice lifecycle side effects. */
-    public static boolean allowActivation(Object module) {
-        if (!challenge() || ability(module) == null) return true;
-        Binding binding = ability(module) == Ability.SPEED ? speed : aura;
-        if (binding == null || !allowModule(module)) {
-            if (binding != null) disable(binding);
-            return false;
+        if (binding == null || binding.failed || binding.entry == null || snapshot == null) return null;
+        Grant grant = snapshot.abilities().get(binding.entry.id());
+        if (grant == null || !grant.unlocked() || grant.rank() > binding.entry.ranks().size()) return null;
+        Rank expected = binding.entry.ranks().get(grant.rank() - 1);
+        // A mismatched content pack cannot silently grant a different mapping.
+        if (!expected.modes().equals(grant.allowedModes()) || !expected.limits().keySet().equals(grant.numericLimits().keySet())) return null;
+        for (var limit : grant.numericLimits().entrySet()) {
+            NumericRange maximum = expected.limits().get(limit.getKey());
+            if (limit.getValue().minimum() < maximum.minimum() || limit.getValue().maximum() > maximum.maximum()) return null;
         }
-        apply(binding);
-        return !failed;
+        return grant;
+    }
+    private static Rank rank(Binding binding) {
+        Grant grant = grant(binding);
+        return binding.entry.ranks().get(grant == null ? 0 : grant.rank() - 1);
+    }
+    private static Setting setting(Rule rule) {
+        return rank(rule.binding).settings().values().stream().filter(s -> s.path().equals(rule.path)).findFirst().orElse(null);
+    }
+    public static boolean allowModule(Object module) {
+        if (!challenge()) return true;
+        Binding binding = bindings.get(module);
+        return binding != null && (binding.free || grant(binding) != null);
+    }
+    public static boolean allowActivation(Object module) {
+        if (!challenge()) return true;
+        Binding binding = bindings.get(module);
+        if (!allowModule(module)) return false;
+        if (!binding.free) apply(binding);
+        return !binding.failed;
+    }
+    public static boolean isActive(String moduleName) {
+        for (Binding binding : bindings.values()) if (binding.name.equals(moduleName) && allowModule(binding.module)) {
+            try { return Boolean.TRUE.equals(access.raw.invoke(binding.required("Enabled"))); }
+            catch (Throwable ignored) { return false; }
+        }
+        return false;
     }
 
-    /** Normal set/get guard for GUI, imports, scripts and execution reads; only registered Value identities. */
+    /** Guards setters, config imports, scripts, direct backing writes and delegated execution reads. */
     public static Object normalizeValue(Object value, Object input, boolean write) {
         if (!challenge()) return input;
         Rule rule = rules.get(value);
-        if (rule == null) {
-            Object choice = choices.get(value);
-            return choice != null && input instanceof List<?> ? List.of(choice) : input;
-        }
-        if (rule.enabled) return Boolean.TRUE.equals(input) && grant(rule.ability) != null;
-        if (rule.parameter == null) return rule.fixed;
-        Grant grant = grant(rule.ability);
-        if (grant == null) return 0F; // No numeric authority; the module execution guard is closed.
+        if (rule == null) return input;
+        if (rule.enabled) return Boolean.TRUE.equals(input) && allowModule(rule.binding.module);
+        Setting setting = setting(rule);
+        if (setting == null) return rule.original; // A lower rank cannot inherit an upper-only override.
+        try {
+            return switch (setting.type()) {
+                case "boolean" -> setting.booleanValue();
+                case "choice", "choice_set" -> {
+                    Object candidate = access.choiceType.isInstance(value) && input instanceof List<?> list ? (list.isEmpty() ? null : list.get(0)) : input;
+                    Object selected = effectiveChoice(rule.binding, value, setting, candidate);
+                    yield access.choiceType.isInstance(value) ? List.of(selected) : selected;
+                }
+                case "number" -> number(input, rule.original, bounds(rule, setting), write);
+                case "range" -> {
+                    NumericRange bounds = bounds(rule, setting);
+                    if (!access.closedRangeType.isInstance(input)) {
+                        if (write) throw new IllegalArgumentException("Invalid growth setting range");
+                        input = rule.original;
+                    }
+                    Number first = (Number) access.rangeStart.invoke(input);
+                    Number last = (Number) access.rangeEnd.invoke(input);
+                    Number prototype = (Number) access.rangeStart.invoke(rule.original);
+                    Number lo = (Number) number(first, prototype, bounds, write);
+                    Number hi = (Number) number(last, prototype, bounds, write);
+                    yield access.makeRange(prototype, Math.min(lo.doubleValue(), hi.doubleValue()), Math.max(lo.doubleValue(), hi.doubleValue()));
+                }
+                default -> throw new IllegalStateException("Unknown growth setting type");
+            };
+        } catch (RuntimeException error) { throw error; }
+        catch (Throwable error) { rule.binding.failed = true; throw new IllegalStateException("Growth mapping failed: " + rule.path, error); }
+    }
+    private static Object number(Object input, Object prototype, NumericRange range, boolean write) {
         if (!(input instanceof Number number) || !Double.isFinite(number.doubleValue())) {
-            if (write) throw new IllegalArgumentException("Non-finite B01 capability setting");
-            return (float) grant.numericLimits().get(rule.parameter).minimum();
+            if (write) throw new IllegalArgumentException("Non-finite growth capability setting");
+            input = range.minimum();
         }
-        return (float) grant.numericLimits().get(rule.parameter).clamp(number.doubleValue());
+        double value = range.clamp(((Number) input).doubleValue());
+        if (prototype instanceof Integer) return (int) Math.max(Math.ceil(range.minimum()), Math.min(Math.floor(range.maximum()), Math.round(value)));
+        if (prototype instanceof Long) return Math.round(value);
+        if (prototype instanceof Double) return value;
+        if (prototype instanceof Float) return (float) value;
+        throw new IllegalArgumentException("Unsupported LB numeric value type");
     }
-
+    private static NumericRange bounds(Rule rule, Setting setting) throws Throwable {
+        Grant authority = grant(rule.binding);
+        NumericRange policy = (authority == null ? rank(rule.binding).limits() : authority.numericLimits()).get(setting.limitKey());
+        if (rule.vanillaRange == null) throw new IllegalStateException("Numeric setting has no vanilla range: " + rule.path);
+        Number originalStart = (Number) access.rangeStart.invoke(rule.vanillaRange);
+        double policyLo = originalStart instanceof Float ? (double)(float)policy.minimum() : policy.minimum();
+        double policyHi = originalStart instanceof Float ? (double)(float)policy.maximum() : policy.maximum();
+        double lo = Math.max(policyLo, originalStart.doubleValue());
+        double hi = Math.min(policyHi, ((Number) access.rangeEnd.invoke(rule.vanillaRange)).doubleValue());
+        if (lo > hi) throw new IllegalStateException("Empty vanilla / capability range intersection: " + rule.path);
+        return new NumericRange(lo, hi);
+    }
     public static Object normalizeChoice(Object configurable, Object selected) {
-        return challenge() ? choices.getOrDefault(configurable, selected) : selected;
+        if (!challenge()) return selected;
+        Rule rule = rules.get(configurable);
+        if (rule == null || rule.enabled || rule.binding.entry == null) return selected;
+        Setting setting = setting(rule);
+        if (setting == null || !setting.type().startsWith("choice")) return selected;
+        try { return effectiveChoice(rule.binding, configurable, setting, selected); }
+        catch (Throwable error) { rule.binding.failed = true; return selected; }
     }
-
-    /** Internal/script Enabled writes must still execute LB's lifecycle, not just flip its backing field. */
+    private static List<Object> allowedChoices(Binding binding,Object value,Setting setting) throws Throwable {
+        List<Object> allowed=new ArrayList<>();
+        for(String name : setting.type().equals("choice_set") ? setting.allowedChoices() : Set.of(setting.stringValue())) allowed.add(binding.select(value,name));
+        return allowed;
+    }
+    private static Object effectiveChoice(Binding binding,Object value,Setting setting,Object requested) throws Throwable {
+        List<Object> allowed=allowedChoices(binding,value,setting);
+        return allowed.contains(requested) ? requested : binding.select(value,setting.stringValue());
+    }
     public static boolean routeInternalEnabled(Object value, Object requested) {
         if (!challenge() || routingEnabled.get()) return false;
         Rule rule = rules.get(value);
         if (rule == null || !rule.enabled) return false;
-        Binding binding = rule.ability == Ability.SPEED ? speed : aura;
-        if (binding == null) return true; // Never permit an unbound raw activation.
         routingEnabled.set(true);
-        try {
-            boolean bounded = Boolean.TRUE.equals(normalizeValue(value, requested, true));
-            access.moduleEnabled.invoke(binding.module, bounded);
-        } catch (Throwable error) {
-            failed = true;
-            LOG.error("B01 failed to route internal {} Enabled write normally", binding.ability, error);
-        } finally { routingEnabled.set(false); }
+        try { access.moduleEnabled.invoke(rule.binding.module, Boolean.TRUE.equals(normalizeValue(value, requested, true))); }
+        catch (Throwable error) { rule.binding.failed = true; LOG.error("Growth failed to route {} lifecycle", rule.binding.name, error); }
+        finally { routingEnabled.set(false); }
         return true;
     }
-
-    /** LB's original Custom.Strafe sequence is active only for ordinary grounded locomotion. */
     public static boolean skipToggleable(Object configurable) {
         if (!challenge() || !configurable.getClass().getName().equals(STRAFE)) return false;
         Minecraft mc = Minecraft.getInstance();
-        return grant(Ability.SPEED) == null || mc.player == null || !mc.player.onGround()
-                || mc.player.isInWaterOrBubble() || mc.player.isInLava() || mc.player.isPassenger()
-                || mc.player.getAbilities().flying;
+        return !isActive("Speed") || mc.player == null || !mc.player.onGround()
+                || mc.player.isInWaterOrBubble() || mc.player.isInLava() || mc.player.isPassenger() || mc.player.getAbilities().flying;
     }
-
     public static Object kotlinUnit() {
         if (unit == null) throw new IllegalStateException("LB policy access not initialized");
         return unit;
     }
-
-    /** Recheck immediately before each Aura click, including a sequence resumed after policy lowering. */
     public static boolean allowAuraAttack(Entity target) {
         if (!challenge()) return true;
         Minecraft mc = Minecraft.getInstance();
-        if (aura == null || grant(Ability.AURA) == null || mc.player == null || !target.isAlive()
-                || mc.player.getAttackStrengthScale(0F) < 1F) return false;
+        Binding aura = bindings.values().stream().filter(b -> b.name.equals("KillAura")).findFirst().orElse(null);
+        if (aura == null || grant(aura) == null || mc.player == null || !target.isAlive() || mc.player.getAttackStrengthScale(0F) < 1F) return false;
         try {
-            float range = (float) normalizeValue(aura.required("Range"), access.raw.invoke(aura.required("Range")), false);
-            Vec3 eye = mc.player.getEyePosition();
-            AABB box = target.getBoundingBox();
-            Vec3 point = new Vec3(Math.max(box.minX, Math.min(box.maxX, eye.x)),
-                    Math.max(box.minY, Math.min(box.maxY, eye.y)), Math.max(box.minZ, Math.min(box.maxZ, eye.z)));
+            float range = ((Number) normalizeValue(aura.required("Range"), access.raw.invoke(aura.required("Range")), false)).floatValue();
+            Vec3 eye = mc.player.getEyePosition(); AABB box = target.getBoundingBox();
+            Vec3 point = new Vec3(Math.max(box.minX, Math.min(box.maxX, eye.x)), Math.max(box.minY, Math.min(box.maxY, eye.y)), Math.max(box.minZ, Math.min(box.maxZ, eye.z)));
             return eye.distanceToSqr(point) <= (double) range * range;
         } catch (Throwable error) { return false; }
     }
-
     public static void tick(Minecraft mc) {
-        if (!challenge()) return;
         CapabilityPolicyClient.View view = CapabilityPolicyClient.view();
         if (reconciledGeneration != view.generation()) {
-            for (Binding binding : new Binding[] {speed, aura}) {
-                if (binding == null) continue;
-                if (grant(binding.ability) == null) disable(binding);
-                else apply(binding);
+            for (Binding binding : bindings.values()) {
+                if (!challenge()) restoreMetadata(binding);
+                else if (!binding.free) { if (!allowModule(binding.module)) disable(binding); if (binding.entry != null && !binding.failed) apply(binding); }
             }
             reconciledGeneration = view.generation();
         }
-        // A direct internal/script write cannot leave a locked module enabled between policy updates.
-        for (Binding binding : new Binding[] {speed, aura})
-            if (binding != null && grant(binding.ability) == null) disable(binding);
+        if (challenge()) for (Binding binding : bindings.values()) if (!allowModule(binding.module)) disable(binding);
     }
-
     public static void stopManagedModules() {
-        for (Binding binding : new Binding[] {speed, aura}) if (binding != null) disable(binding);
+        for (Binding binding : bindings.values()) if (!binding.free) disable(binding);
     }
-
     private static void disable(Binding binding) {
-        try {
-            if (Boolean.TRUE.equals(access.raw.invoke(binding.required("Enabled"))))
-                access.moduleEnabled.invoke(binding.module, false); // Executes LB's normal disable/children cleanup.
-        } catch (Throwable error) {
-            failed = true;
-            LOG.error("B01 failed to disable {} normally", binding.ability, error);
-        }
+        try { if (Boolean.TRUE.equals(access.raw.invoke(binding.required("Enabled")))) access.moduleEnabled.invoke(binding.module, false); }
+        catch (Throwable error) { binding.failed = true; LOG.error("Growth failed to disable {} normally", binding.name, error); }
     }
-
     private static void apply(Binding binding) {
+        if (binding.entry == null || binding.failed) return;
         try {
-            if (binding.ability == Ability.SPEED) access.choiceSet.invoke(binding.required("Mode"), "Custom");
-            for (Map.Entry<String, Object> item : binding.values.entrySet()) {
-                Rule rule = rules.get(item.getValue());
-                if (rule == null || rule.enabled) continue;
-                Object old = access.raw.invoke(item.getValue());
-                Object bounded = normalizeValue(item.getValue(), old, false);
-                if (!Objects.equals(old, bounded)) access.valueSet.invoke(item.getValue(), bounded);
+            for (Setting setting : rank(binding).settings().values()) {
+                Object value = binding.required(setting.path()); Rule rule = rules.get(value);
+                if (setting.type().startsWith("choice")) {
+                    Object current = access.choiceType.isInstance(value) ? access.activeChoice.invoke(value) : access.raw.invoke(value);
+                    Object selected = effectiveChoice(binding,value,setting,current);
+                    List<Object> allowed = allowedChoices(binding,value,setting);
+                    if (access.choiceType.isInstance(value)) {
+                        access.choicesSet.invoke(value, new ArrayList<>((List<?>) binding.originalChoices.get(value)));
+                        access.choiceSet.invoke(value, (String) access.name.invoke(selected));
+                        access.choicesSet.invoke(value, new ArrayList<>(allowed));
+                    } else {
+                        Object old = access.raw.invoke(value);
+                        if (!Objects.equals(old, selected)) access.valueSet.invoke(value, selected);
+                        Object one = Array.newInstance(access.enumChoicesField.get(value).getClass().getComponentType(), allowed.size());
+                        for(int i=0;i<allowed.size();i++)Array.set(one,i,allowed.get(i)); access.enumChoicesField.set(value, one);
+                    }
+                    access.notifyValue(value);
+                }
+                else {
+                    Object old = access.raw.invoke(value), bounded = normalizeValue(value, old, false);
+                    if (!Objects.equals(old, bounded)) access.valueSet.invoke(value, bounded);
+                }
+                if (rule.vanillaRange != null) {
+                    NumericRange bounds = bounds(rule, setting);
+                    Object prototype = access.rangeStart.invoke(rule.vanillaRange);
+                    // INTEROP Gson serializes fields directly, so changing only getRange would leave stale sliders.
+                    access.rangeField.set(value, access.makeRange((Number) prototype, bounds.minimum(), bounds.maximum()));
+                    access.notifyValue(value);
+                }
             }
-        } catch (Throwable error) {
-            failed = true;
-            LOG.error("B01 failed to apply {} capability settings", binding.ability, error);
-            disable(binding);
-        }
+        } catch (Throwable error) { binding.failed = true; LOG.error("Growth failed to apply {} settings", binding.name, error); disable(binding); }
+    }
+    private static void restoreMetadata(Binding binding) {
+        try {
+            for (Object value : binding.values.values()) {
+                Rule rule = rules.get(value);
+                if (rule == null || rule.enabled) continue;
+                Object originalChoices = binding.originalChoices.get(value);
+                if (originalChoices != null) {
+                    if (access.choiceType.isInstance(value)) access.choicesSet.invoke(value, new ArrayList<>((List<?>) originalChoices));
+                    else access.enumChoicesField.set(value, originalChoices);
+                    access.notifyValue(value);
+                }
+                if (rule.vanillaRange != null && !Objects.equals(access.rangeField.get(value), rule.vanillaRange)) {
+                    access.rangeField.set(value, rule.vanillaRange); access.notifyValue(value);
+                }
+            }
+        } catch (Throwable error) { LOG.warn("Growth could not restore LB slider metadata for {}", binding.name, error); }
     }
 
     private static final class Binding {
-        final Object module;
-        final Ability ability;
-        final Map<String, Object> values = new HashMap<>();
-        Binding(Object module, Ability ability) throws Throwable { this.module = module; this.ability = ability; walk(module, ""); }
+        final Object module; final String name; final Entry entry; final boolean free;
+        final Map<String, Object> values = new LinkedHashMap<>();
+        final Map<Object, Object> originalChoices = new IdentityHashMap<>(); boolean failed;
+        Binding(Object module, String name, Entry entry, boolean free) throws Throwable {
+            this.module = module; this.name = name; this.entry = entry; this.free = free; walk(module, "");
+        }
         Object required(String path) {
             Object value = values.get(path);
-            if (value == null) throw new IllegalStateException("Fixed 3530 setting missing: " + ability + "/" + path);
+            if (value == null) throw new IllegalStateException("LB3530 setting missing: " + name + "/" + path);
             return value;
         }
-        void add(Map<Object, Rule> target, String path, Rule rule) { target.put(required(path), rule); }
-        Object choice(Object value, String name) throws Throwable {
-            for (Object candidate : (List<?>) access.choiceList.invoke(value))
-                if (name.equals(access.name.invoke(candidate))) return candidate;
-            throw new IllegalStateException("Fixed 3530 choice missing: " + name);
+        Object select(Object value, String name) throws Throwable {
+            if (access.choiceType.isInstance(value)) {
+                for (Object choice : (List<?>) originalChoices.get(value)) if (name.equals(access.name.invoke(choice))) return choice;
+            } else {
+                Object raw = access.raw.invoke(value);
+                if (raw instanceof Enum<?> e) for (Object choice : e.getDeclaringClass().getEnumConstants())
+                    if (name.equals(((Enum<?>)choice).name()) || name.equals(access.namedChoice.invoke(choice))) return choice;
+            }
+            throw new IllegalStateException("LB3530 choice missing: " + this.name + "/" + name);
+        }
+        void validate(Setting setting, Rule rule) throws Throwable {
+            switch (setting.type()) {
+                case "choice", "choice_set" -> { select(required(setting.path()),setting.stringValue()); allowedChoices(this,required(setting.path()),setting); }
+                case "boolean" -> { if (!(rule.original instanceof Boolean)) throw new IllegalArgumentException("Not boolean: " + setting.path()); }
+                case "number" -> { if (!(rule.original instanceof Number) || rule.vanillaRange == null) throw new IllegalArgumentException("Not ranged number: " + setting.path()); }
+                case "range" -> { if (!access.closedRangeType.isInstance(rule.original) || rule.vanillaRange == null) throw new IllegalArgumentException("Not ranged pair: " + setting.path()); }
+            }
         }
         void walk(Object configurable, String prefix) throws Throwable {
             Object children = access.raw.invoke(configurable);
             if (!(children instanceof List<?> list)) return;
             for (Object child : list) {
                 if (!access.valueType.isInstance(child)) continue;
-                String name = (String) access.name.invoke(child);
-                String path = prefix.isEmpty() ? name : prefix + "/" + name;
+                String name = (String) access.name.invoke(child), path = prefix.isEmpty() ? name : prefix + "/" + name;
                 values.put(path, child);
                 if (access.choiceType.isInstance(child)) {
-                    for (Object candidate : (List<?>) access.choiceList.invoke(child))
-                        walk(candidate, path + "/" + access.name.invoke(candidate));
-                } else walk(child, path);
+                    List<?> options = new ArrayList<>((List<?>)access.choiceList.invoke(child));
+                    originalChoices.put(child, options);
+                    for (Object choice : options) walk(choice, path + "/" + access.name.invoke(choice));
+                } else {
+                    if (access.enumChoiceType.isInstance(child)) originalChoices.put(child, access.enumChoicesField.get(child));
+                    walk(child, path);
+                }
             }
         }
     }
-
     private static final class Access {
-        final Class<?> valueType, choiceType;
-        final MethodHandle raw, name, valueSet, choiceList, choiceSet, moduleEnabled, floatRange;
+        final Class<?> valueType, choiceType, rangeType, closedRangeType, enumChoiceType;
+        final MethodHandle raw, name, valueSet, choiceList, choiceSet, moduleEnabled, floatRange, rangeStart, rangeEnd, namedChoice, eventCall, choicesSet, activeChoice;
+        final Constructor<?> intRange, changedEvent; final Field rangeField, enumChoicesField;
         Access() throws ReflectiveOperationException {
             ClassLoader loader = LiquidBounceCapabilityAccess.class.getClassLoader();
-            Class<?> value = Class.forName(TYPES + "Value", false, loader);
-            valueType = value;
+            valueType = Class.forName(TYPES + "Value", false, loader);
             choiceType = Class.forName(TYPES + "ChoiceConfigurable", false, loader);
+            enumChoiceType = Class.forName(TYPES + "ChooseListValue", false, loader);
+            rangeType = Class.forName(TYPES + "RangedValue", false, loader);
+            closedRangeType = Class.forName("kotlin.ranges.ClosedRange", false, loader);
             Class<?> module = Class.forName("net.ccbluex.liquidbounce.features.module.ClientModule", false, loader);
             MethodHandles.Lookup lookup = MethodHandles.publicLookup();
-            raw = lookup.unreflect(value.getMethod("getInner$liquidbounce")).asType(OBJECT_GET);
-            name = lookup.unreflect(value.getMethod("getName")).asType(MethodType.methodType(String.class, Object.class));
-            valueSet = lookup.unreflect(value.getMethod("set", Object.class)).asType(MethodType.methodType(void.class, Object.class, Object.class));
-            choiceList = lookup.unreflect(choiceType.getMethod("getChoices")).asType(OBJECT_GET);
-            choiceSet = lookup.unreflect(choiceType.getMethod("setByString", String.class)).asType(MethodType.methodType(void.class, Object.class, String.class));
-            moduleEnabled = lookup.unreflect(module.getMethod("setEnabled$liquidbounce", boolean.class)).asType(MethodType.methodType(void.class, Object.class, boolean.class));
-            // ClosedFloatRange is package-private. Resolve Kotlin's public facade factory instead.
-            Class<?> ranges = Class.forName("kotlin.ranges.RangesKt", false, loader);
-            Class<?> range = Class.forName("kotlin.ranges.ClosedFloatingPointRange", false, loader);
-            floatRange = lookup.findStatic(ranges, "rangeTo", MethodType.methodType(range, float.class, float.class))
-                    .asType(MethodType.methodType(Object.class, float.class, float.class));
-            unit = Class.forName("kotlin.Unit", true, loader).getField("INSTANCE").get(null);
+            raw = lookup.unreflect(valueType.getMethod("getInner$liquidbounce")).asType(OBJECT_GET);
+            name = lookup.unreflect(valueType.getMethod("getName")).asType(MethodType.methodType(String.class,Object.class));
+            valueSet = lookup.unreflect(valueType.getMethod("set",Object.class));
+            choiceList = lookup.unreflect(choiceType.getMethod("getChoices"));
+            activeChoice = lookup.unreflect(choiceType.getMethod("getActiveChoice"));
+            choicesSet = lookup.unreflect(choiceType.getMethod("setChoices", List.class));
+            choiceSet = lookup.unreflect(choiceType.getMethod("setByString",String.class));
+            moduleEnabled = lookup.unreflect(module.getMethod("setEnabled$liquidbounce",boolean.class));
+            rangeStart = lookup.unreflect(closedRangeType.getMethod("getStart"));
+            rangeEnd = lookup.unreflect(closedRangeType.getMethod("getEndInclusive"));
+            namedChoice = lookup.unreflect(Class.forName(TYPES + "NamedChoice",false,loader).getMethod("getChoiceName"));
+            Class<?> ranges = Class.forName("kotlin.ranges.RangesKt",false,loader);
+            Class<?> range = Class.forName("kotlin.ranges.ClosedFloatingPointRange",false,loader);
+            floatRange = lookup.findStatic(ranges,"rangeTo",MethodType.methodType(range,float.class,float.class)).asType(MethodType.methodType(Object.class,float.class,float.class));
+            intRange = Class.forName("kotlin.ranges.IntRange",false,loader).getConstructor(int.class,int.class);
+            rangeField = rangeType.getDeclaredField("range"); rangeField.setAccessible(true);
+            enumChoicesField = enumChoiceType.getDeclaredField("choices"); enumChoicesField.setAccessible(true);
+            changedEvent = Class.forName("net.ccbluex.liquidbounce.event.events.ValueChangedEvent",false,loader).getConstructor(valueType);
+            Class<?> events = Class.forName("net.ccbluex.liquidbounce.event.EventManager",false,loader);
+            eventCall = lookup.unreflect(events.getMethod("callEvent",Class.forName("net.ccbluex.liquidbounce.event.Event",false,loader))).bindTo(events.getField("INSTANCE").get(null));
+            unit = Class.forName("kotlin.Unit",true,loader).getField("INSTANCE").get(null);
         }
+        Object makeRange(Number prototype,double lo,double hi) throws Throwable {
+            if (prototype instanceof Integer) return intRange.newInstance((int)Math.ceil(lo),(int)Math.floor(hi));
+            if (prototype instanceof Float) return (Object)floatRange.invokeExact((float)lo,(float)hi);
+            throw new IllegalArgumentException("Unsupported LB range type");
+        }
+        void notifyValue(Object value) throws Throwable { eventCall.invoke(changedEvent.newInstance(value)); }
     }
 }

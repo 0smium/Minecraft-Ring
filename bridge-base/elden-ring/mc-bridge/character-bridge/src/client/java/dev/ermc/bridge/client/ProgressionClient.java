@@ -2,7 +2,7 @@ package dev.ermc.bridge.client;
 
 import dev.ermc.bridge.TerrainManager;
 import dev.ermc.bridge.api.BridgeLifecycle;
-import dev.ermc.bridge.api.CapabilitySnapshot.Ability;
+import dev.ermc.bridge.gameplay.capability.AbilityCatalog;
 import dev.ermc.bridge.api.CharacterBinding;
 import dev.ermc.bridge.client.integrations.CapabilityPolicyClient;
 import dev.ermc.bridge.client.integrations.LiquidBounceCapabilityAccess;
@@ -57,12 +57,11 @@ public final class ProgressionClient {
         if (mc.player == null || mc.options.hideGui || mc.screen != null || Overlay.hostBusy()
                 || !Overlay.active() || latest == null || !latest.challenge()) return;
         int y = g.guiHeight() - 64;
-        g.drawString(mc.font, awaiting ? "B01：等待服务端策略，Speed / Aura 已锁定" : latest.status(), 6, y, 0xFFE8D8A0, true);
+        g.drawString(mc.font, awaiting ? "成长：等待服务端策略，行为模块已锁定" : latest.status(), 6, y, 0xFFE8D8A0, true);
         if (!awaiting && latest.snapshot() != null) {
-            var speed = latest.snapshot().abilities().get(Ability.SPEED);
-            var aura = latest.snapshot().abilities().get(Ability.AURA);
-            String line = "Speed " + speed.rank() + "/3" + (speed.rank() > 0 ? " ≤ " + speed.numericLimits().get("speed").maximum() + " blocks/tick" : " [锁定]")
-                    + " | Aura " + aura.rank() + "/3" + (aura.rank() > 0 ? " ≤ " + aura.numericLimits().get("range").maximum() + " 格" : " [锁定]");
+            long learned = latest.snapshot().abilities().values().stream().filter(grant -> grant.unlocked()).count();
+            String line = "已学习 " + learned + "/" + AbilityCatalog.instance().entries().size()
+                    + " 项能力 | K 查看分类、进阶与点数 | LB 参数已按等级约束";
             g.drawString(mc.font, line, 6, y + 11, 0xFFFFFFFF, true);
         }
     }

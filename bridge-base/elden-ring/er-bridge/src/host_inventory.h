@@ -13,6 +13,18 @@ struct HostInventorySnapshot {
     uint64_t fingerprint = 0;
     uint32_t count = 0, totalEntries = 0, normalCapacity = 0, keyCapacity = 0;
     ErmcInventoryEntry entries[ERMC_MAX_INVENTORY_ENTRIES] = {};
+    uint64_t token() const {
+        if (!valid) return 0;
+        uint64_t hash = 14695981039346656037ull;
+        auto add = [&](const void* data, size_t size) {
+            const auto* bytes = (const uint8_t*)data;
+            for (size_t i = 0; i < size; ++i) { hash ^= bytes[i]; hash *= 1099511628211ull; }
+        };
+        add(&fingerprint, sizeof(fingerprint)); add(&count, sizeof(count));
+        add(&totalEntries, sizeof(totalEntries)); add(&normalCapacity, sizeof(normalCapacity));
+        add(&keyCapacity, sizeof(keyCapacity)); add(entries, size_t(count)*sizeof(entries[0]));
+        return hash ? hash : 1;
+    }
 };
 
 class HostInventoryReader {
@@ -157,7 +169,8 @@ public:
 };
 
 inline void publish_host_inventory(const HostInventorySnapshot& value, bool loading, bool mcControl,
-                                   uint64_t frame, uint32_t life, uint64_t sampleTimeMs) {
+                                   uint64_t frame, uint32_t life, uint64_t sampleTimeMs,
+                                   uint32_t zone = 0, uint32_t writableSlots = 0, uint32_t talismanSlots = 0) {
     auto* out = (ErmcHostInventory*)((uint8_t*)shm_header()+ERMC_OFF_HOST_INVENTORY);
     const uint32_t writing = out->seq | 1u;
     out->seq = writing;
@@ -178,6 +191,11 @@ inline void publish_host_inventory(const HostInventorySnapshot& value, bool load
     out->keyCapacity = ready ? value.keyCapacity : 0;
     if (ready) memcpy(out->entries,value.entries,sizeof(out->entries));
     else memset(out->entries,0,sizeof(out->entries));
+    out->snapshotToken = ready ? value.token() : 0;
+    out->zone = ready ? zone : 0;
+    out->writableSlots = ready && mcControl && value.count == value.totalEntries ? writableSlots : 0;
+    out->talismanSlots = ready && talismanSlots <= 4 ? talismanSlots : 0;
+    memset(out->reserved, 0, sizeof(out->reserved));
     __asm__ __volatile__("" ::: "memory");
     out->seq = writing+1u;
 }
@@ -192,12 +210,14 @@ class HostInventoryFeed {
     uint32_t life_ = UINT32_MAX, state_ = UINT32_MAX;
 public:
     bool init(uintptr_t base) { enabled_ = reader_.init(base); return enabled_; }
+    void refresh() { lastAttempt_ = 0; }
     void reset(uint64_t frame, uint32_t life, uint64_t now) {
         player_ = 0; fingerprint_ = 0; lastAttempt_ = 0; life_ = UINT32_MAX; state_ = UINT32_MAX;
         publish_host_inventory({}, false, false, frame, life, now);
     }
     void tick(const void* player, const HostProgressionSnapshot& identity, bool loading, bool mcControl,
-              uint64_t frame, uint32_t life, uint64_t now) {
+              uint64_t frame, uint32_t life, uint64_t now,
+              uint32_t zone = 0, uint32_t writableSlots = 0, uint32_t talismanSlots = 0) {
         const bool ready = enabled_ && player && identity.valid && !loading;
         const uint32_t unavailable = enabled_ && loading ? ERMC_INVENTORY_LOADING : ERMC_INVENTORY_UNAVAILABLE;
         const uint64_t fingerprint = ready ? identity.fingerprint : 0;
@@ -211,7 +231,7 @@ public:
         auto value = reader_.read(player);
         if (value.valid && value.fingerprint != fingerprint) value = {};
         state_ = value.valid ? ERMC_INVENTORY_READY : ERMC_INVENTORY_UNAVAILABLE;
-        publish_host_inventory(value, false, mcControl, frame, life, now);
+        publish_host_inventory(value, false, mcControl, frame, life, now, zone, writableSlots, talismanSlots);
     }
 };
 

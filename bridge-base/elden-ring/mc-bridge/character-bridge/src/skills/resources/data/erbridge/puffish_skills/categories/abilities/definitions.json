@@ -1,38 +1,379 @@
 {
   "speed_1": {
-    "title": "Speed I · 迅捷",
-    "description": "解锁地面迅捷，默认上限 0.30 格/tick。当前上限见 Bridge HUD；学习后仍需自行启用。",
-    "icon": {"type": "texture", "data": {"texture": "minecraft:textures/item/sugar.png"}},
-    "cost": 1
+    "title": "机动 · 迅捷 1",
+    "description": "LB 原 Custom.Strafe；逐阶放宽水平速度，保留合法偏好。\n消耗 4 点。speed 0.05–0.3\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/sugar.png"
+      }
+    },
+    "cost": 4,
+    "required_skills": 1,
+    "required_spent_points": 0
   },
   "speed_2": {
-    "title": "Speed II · 疾行",
-    "description": "地面速度默认上限 0.33 格/tick。当前上限见 Bridge HUD。",
-    "icon": {"type": "texture", "data": {"texture": "minecraft:textures/item/feather.png"}},
-    "cost": 1
+    "title": "机动 · 迅捷 2",
+    "description": "LB 原 Custom.Strafe；逐阶放宽水平速度，保留合法偏好。\n消耗 4 点。speed 0.05–0.33\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/sugar.png"
+      }
+    },
+    "cost": 4,
+    "required_skills": 1,
+    "required_spent_points": 0
   },
   "speed_3": {
-    "title": "Speed III · 追风",
-    "description": "地面速度默认上限 0.36 格/tick。当前上限见 Bridge HUD。",
-    "icon": {"type": "texture", "data": {"texture": "minecraft:textures/item/rabbit_foot.png"}},
-    "cost": 1
+    "title": "机动 · 迅捷 3",
+    "description": "LB 原 Custom.Strafe；逐阶放宽水平速度，保留合法偏好。\n消耗 12 点；先在本树投入 20 点。speed 0.05–0.36\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/sugar.png"
+      }
+    },
+    "cost": 12,
+    "required_skills": 1,
+    "required_spent_points": 20
+  },
+  "fly_1": {
+    "title": "机动 · 空中行走 1",
+    "description": "高门槛自由飞行；使用服务端授权与 LB Creative。首版不声称限时、限高或免坠落。\n消耗 14 点；先在本树投入 24 点。\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/elytra.png"
+      }
+    },
+    "cost": 14,
+    "required_skills": 1,
+    "required_spent_points": 24
+  },
+  "fly_2": {
+    "title": "机动 · 空中行走 2",
+    "description": "高门槛自由飞行；使用服务端授权与 LB Creative。首版不声称限时、限高或免坠落。\n消耗 6 点；先在本树投入 40 点。speed 0.1–0.15\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/elytra.png"
+      }
+    },
+    "cost": 6,
+    "required_skills": 1,
+    "required_spent_points": 40
+  },
+  "fly_3": {
+    "title": "机动 · 空中行走 3",
+    "description": "高门槛自由飞行；使用服务端授权与 LB Creative。首版不声称限时、限高或免坠落。\n消耗 20 点；先在本树投入 60 点。speed 0.1–0.2\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/elytra.png"
+      }
+    },
+    "cost": 20,
+    "required_skills": 1,
+    "required_spent_points": 60
+  },
+  "airjump_1": {
+    "title": "机动 · 空中跳跃 1",
+    "description": "第一阶使用原 DoubleJump；精通增加 JumpFreely 无限空跳选项，保留原模式，不自动切换。\n消耗 7 点。\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/rabbit_foot.png"
+      }
+    },
+    "cost": 7,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "airjump_2": {
+    "title": "机动 · 空中跳跃 2",
+    "description": "第一阶使用原 DoubleJump；精通增加 JumpFreely 无限空跳选项，保留原模式，不自动切换。\n消耗 20 点；先在本树投入 60 点。\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/rabbit_foot.png"
+      }
+    },
+    "cost": 20,
+    "required_skills": 1,
+    "required_spent_points": 60
+  },
+  "step_1": {
+    "title": "机动 · 越障 1",
+    "description": "原 Step Instant；逐阶提高步高，保留原碰撞与重力。\n消耗 4 点。height 0.6–1\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/leather_boots.png"
+      }
+    },
+    "cost": 4,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "step_2": {
+    "title": "机动 · 越障 2",
+    "description": "原 Step Instant；逐阶提高步高，保留原碰撞与重力。\n消耗 3 点。height 0.6–1.5\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/leather_boots.png"
+      }
+    },
+    "cost": 3,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "step_3": {
+    "title": "机动 · 越障 3",
+    "description": "原 Step Instant；逐阶提高步高，保留原碰撞与重力。\n消耗 12 点；先在本树投入 20 点。height 0.6–2\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/leather_boots.png"
+      }
+    },
+    "cost": 12,
+    "required_skills": 1,
+    "required_spent_points": 20
   },
   "aura_1": {
-    "title": "Aura I · 近战辅助",
-    "description": "解锁单目标近战辅助，默认距离上限 2.5 格。当前上限见 Bridge HUD；学习后仍需自行启用。",
-    "icon": {"type": "texture", "data": {"texture": "minecraft:textures/item/iron_sword.png"}},
-    "cost": 1
+    "title": "战斗 · 近战辅助 1",
+    "description": "LB 原 KillAura 单目标；距离逐阶提升，不穿墙、不自动格挡。\n消耗 8 点。range 1–2.5\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/iron_sword.png"
+      }
+    },
+    "cost": 8,
+    "required_skills": 1,
+    "required_spent_points": 0
   },
   "aura_2": {
-    "title": "Aura II · 延伸打击",
-    "description": "单目标近战辅助默认距离上限 3 格。当前上限见 Bridge HUD。",
-    "icon": {"type": "texture", "data": {"texture": "minecraft:textures/item/diamond_sword.png"}},
-    "cost": 1
+    "title": "战斗 · 近战辅助 2",
+    "description": "LB 原 KillAura 单目标；距离逐阶提升，不穿墙、不自动格挡。\n消耗 6 点。range 1–3\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/iron_sword.png"
+      }
+    },
+    "cost": 6,
+    "required_skills": 1,
+    "required_spent_points": 0
   },
   "aura_3": {
-    "title": "Aura III · 先手打击",
-    "description": "单目标近战辅助默认距离上限 3.5 格。当前上限见 Bridge HUD。",
-    "icon": {"type": "texture", "data": {"texture": "minecraft:textures/item/netherite_sword.png"}},
-    "cost": 1
+    "title": "战斗 · 近战辅助 3",
+    "description": "LB 原 KillAura 单目标；距离逐阶提升，不穿墙、不自动格挡。\n消耗 18 点；先在本树投入 40 点。range 1–3.5\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/iron_sword.png"
+      }
+    },
+    "cost": 18,
+    "required_skills": 1,
+    "required_spent_points": 40
+  },
+  "velocity_1": {
+    "title": "战斗 · 稳固架势 1",
+    "description": "逐阶减弱 MC 受击速度；最高阶仍保留至少 40% 垂直击退，不免伤。\n消耗 8 点。horizontal 0.75–1\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/shield.png"
+      }
+    },
+    "cost": 8,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "velocity_2": {
+    "title": "战斗 · 稳固架势 2",
+    "description": "逐阶减弱 MC 受击速度；最高阶仍保留至少 40% 垂直击退，不免伤。\n消耗 6 点。horizontal 0.5–1、vertical 0.85–1\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/shield.png"
+      }
+    },
+    "cost": 6,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "velocity_3": {
+    "title": "战斗 · 稳固架势 3",
+    "description": "逐阶减弱 MC 受击速度；最高阶仍保留至少 40% 垂直击退，不免伤。\n消耗 18 点。horizontal 0–1、vertical 0.4–1\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/shield.png"
+      }
+    },
+    "cost": 18,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "scaffold_1": {
+    "title": "建造 · 自动搭桥 1",
+    "description": "消耗 MC 实际方块；逐阶放宽搭桥速度。关闭塔升、Blink 和 Timer 加速。\n消耗 7 点。speed 0.01–0.12、placement_delay 4–40\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/bricks.png"
+      }
+    },
+    "cost": 7,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "scaffold_2": {
+    "title": "建造 · 自动搭桥 2",
+    "description": "消耗 MC 实际方块；逐阶放宽搭桥速度。关闭塔升、Blink 和 Timer 加速。\n消耗 5 点。speed 0.01–0.2、placement_delay 2–40\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/bricks.png"
+      }
+    },
+    "cost": 5,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "scaffold_3": {
+    "title": "建造 · 自动搭桥 3",
+    "description": "消耗 MC 实际方块；逐阶放宽搭桥速度。关闭塔升、Blink 和 Timer 加速。\n消耗 16 点；先在本树投入 30 点。speed 0.01–0.4、placement_delay 0–40\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/bricks.png"
+      }
+    },
+    "cost": 16,
+    "required_skills": 1,
+    "required_spent_points": 30
+  },
+  "safewalk_1": {
+    "title": "建造 · 谨慎行走 1",
+    "description": "原 SafeWalk Safe；只限制 MC 方块边缘，不保证法环所有采样边缘可靠。\n消耗 2 点。\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/leather.png"
+      }
+    },
+    "cost": 2,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "nofall_1": {
+    "title": "生存 · 落地保护 1",
+    "description": "原 NoFall SpoofGround。只作用于 MC 坠落路径，不阻止法环必死线或未桥接伤害。\n消耗 10 点。\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/feather.png"
+      }
+    },
+    "cost": 10,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "autoarmor_1": {
+    "title": "生存 · 护甲整理 1",
+    "description": "整理已有 MC 护甲；不代替法环装备，不生成装备。\n消耗 3 点。\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/iron_chestplate.png"
+      }
+    },
+    "cost": 3,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "esp_1": {
+    "title": "情报 · 敌情轮廓 1",
+    "description": "固定 Box 显示已桥接实体；不改变敌人判定。\n消耗 3 点。\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/glow_ink_sac.png"
+      }
+    },
+    "cost": 3,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "nametags_1": {
+    "title": "情报 · 敌情标记 1",
+    "description": "真实 ER HP 和名称视图；逐阶放宽标签距离。\n消耗 2 点。distance 1–24\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/name_tag.png"
+      }
+    },
+    "cost": 2,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "nametags_2": {
+    "title": "情报 · 敌情标记 2",
+    "description": "真实 ER HP 和名称视图；逐阶放宽标签距离。\n消耗 2 点。distance 1–48\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/name_tag.png"
+      }
+    },
+    "cost": 2,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "nametags_3": {
+    "title": "情报 · 敌情标记 3",
+    "description": "真实 ER HP 和名称视图；逐阶放宽标签距离。\n消耗 8 点；先在本树投入 20 点。distance 1–96\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/name_tag.png"
+      }
+    },
+    "cost": 8,
+    "required_skills": 1,
+    "required_spent_points": 20
+  },
+  "tracers_1": {
+    "title": "情报 · 方向指示 1",
+    "description": "原 Tracers；仅显示当前已桥接实体，不承诺原生未加载敌人可见。\n消耗 2 点。\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/compass.png"
+      }
+    },
+    "cost": 2,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
+  "autotool_1": {
+    "title": "工具 · 工具选择 1",
+    "description": "自动选择当前 MC 背包中的合适工具；不生成工具。\n消耗 2 点。\n学习不会自动启用模块。",
+    "icon": {
+      "type": "texture",
+      "data": {
+        "texture": "minecraft:textures/item/iron_pickaxe.png"
+      }
+    },
+    "cost": 2,
+    "required_skills": 1,
+    "required_spent_points": 0
   }
 }

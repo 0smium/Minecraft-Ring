@@ -42,7 +42,7 @@ def main():
     sources = [common / "api" / f"{name}.java" for name in DOMAIN_API]
     common = CHARACTER / "main/java/dev/ermc/bridge"
     sources += sorted((common / "gameplay/progression").glob("*.java"))
-    sources += sorted((common / "gameplay/capability").glob("*.java"))
+    sources += [common / "gameplay/capability/AbilityPolicy.java"]
     sources += sorted((CHARACTER / "test/java/dev/ermc/bridge/preparation").glob("*.java"))
     with tempfile.TemporaryDirectory(prefix="ermc-b01-") as temporary:
         output = Path(temporary)

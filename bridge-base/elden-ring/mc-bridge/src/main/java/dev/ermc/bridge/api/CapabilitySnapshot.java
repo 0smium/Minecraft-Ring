@@ -1,6 +1,5 @@
 package dev.ermc.bridge.api;
 
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -8,7 +7,17 @@ import java.util.Set;
 
 /** Immutable per-character policy view. Adapters must authorize against the current server view. */
 public record CapabilitySnapshot(CharacterBinding binding, long policyRevision, Map<Ability, Grant> abilities) {
-    public enum Ability { SPEED, AURA }
+    /** Stable data identifier; adding content does not change a Java enum or packet ordinal. */
+    public record Ability(String id) implements Comparable<Ability> {
+        public static final Ability SPEED = new Ability("speed");
+        public static final Ability AURA = new Ability("aura");
+        public Ability {
+            if (id == null || !id.matches("[a-z][a-z0-9_]{0,47}"))
+                throw new IllegalArgumentException("Invalid ability ID");
+        }
+        @Override public int compareTo(Ability other) { return id.compareTo(other.id); }
+        @Override public String toString() { return id; }
+    }
 
     public record NumericRange(double minimum, double maximum) {
         public NumericRange {
@@ -56,9 +65,7 @@ public record CapabilitySnapshot(CharacterBinding binding, long policyRevision, 
         Objects.requireNonNull(binding, "binding");
         if (policyRevision < 1) throw new IllegalArgumentException("Policy revision must be positive");
         abilities = Map.copyOf(abilities);
-        if (!abilities.keySet().equals(EnumSet.allOf(Ability.class))) {
-            throw new IllegalArgumentException("Every known ability needs an explicit grant");
-        }
+        if (abilities.isEmpty() || abilities.size() > 64) throw new IllegalArgumentException("Invalid ability count");
     }
 
     /** Call on the current snapshot, never on a snapshot supplied by a client. */
@@ -66,6 +73,8 @@ public record CapabilitySnapshot(CharacterBinding binding, long policyRevision, 
                                          Map<String, Double> requested) {
         Objects.requireNonNull(ability, "ability");
         if (expectedRevision != policyRevision) throw new IllegalStateException("Stale capability policy");
-        return abilities.get(ability).validateAndClamp(mode, requested);
+        Grant grant = abilities.get(ability);
+        if (grant == null) throw new IllegalArgumentException("Unknown ability: " + ability);
+        return grant.validateAndClamp(mode, requested);
     }
 }

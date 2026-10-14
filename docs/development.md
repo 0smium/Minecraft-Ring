@@ -40,11 +40,14 @@ second damage event. HEFX v2 adds rot, frost, sleep and madness; the Java reader
 poison-only v1. The mappings, experimental frost burst and rollout checks are in
 [host-state mapping](host-state-mapping.md).
 
-The optional read-only `HINV v1` block at `0x360000` publishes the local host's
+The optional `HINV v2` block at `0x360000` publishes the local host's
 carried inventory and equipment-slot observations. Full reads run at most twice
 per second; loading or owner changes invalidate old data immediately. The B02
 [inventory and Minecraft horse candidate](b02-character-slice.md) includes the
-I-key viewer, managed vanilla Horse trial and scoped debug-enemy cleanup.
+original viewer, managed vanilla Horse trial and scoped debug-enemy cleanup.
+The current [equipment page](equipment-v1.md) uses HINV v2 identity/capabilities
+and a separate confirmed equipment mailbox at `0x370000`; v1 remains readable
+but cannot authorize writes.
 
 State and control slots use sequence counters so readers can reject an update
 in progress. Terrain queries, moving-platform cells, enemy state and combat
@@ -67,8 +70,8 @@ The official release JAR and eight injection calls have passed offline checks;
 module initialization and gameplay remain outstanding.
 [Ability progression](ability-progression-strategy.md) defines the proposed
 server-owned limits, module modes and revocation rules. B01 now connects real
-host levels, the skill tree and fixed LB Speed/Aura authorization; further
-abilities and Meteor growth authorization remain proposals.
+host levels and the [14-ability skill tree](growth-v1.md), with costs, staged
+limits and reversible test presets. Meteor growth authorization remains a proposal.
 
 ## Terrain and moving platforms
 

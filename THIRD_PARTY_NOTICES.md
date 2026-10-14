@@ -33,3 +33,12 @@ Their reference checkouts are excluded from this repository.
 Game installations, save files, downloaded toolchains and executable dumps are
 not included. Game names and assets belong to their respective owners. The MIT
 license covers the bridge code; it does not grant rights to either game.
+
+The separate offline helper `tools/export_host_item_assets.py` uses
+[Soulstruct](https://github.com/Grimrukh/soulstruct) 2.6.0 (GPL-3.0-or-later)
+and is licensed GPL-3.0-or-later, as marked in that file. It is not linked or
+bundled into the Fabric/native bridge. Archive format research also used
+[ER.BDT.Tool](https://github.com/Ekey/ER.BDT.Tool) and
+[SoulsFormatsNEXT](https://github.com/soulsmods/SoulsFormatsNEXT). These local
+references, dependencies, extracted game text and original images are excluded
+from Git and from published JARs. The helper reads a user's own game installation.

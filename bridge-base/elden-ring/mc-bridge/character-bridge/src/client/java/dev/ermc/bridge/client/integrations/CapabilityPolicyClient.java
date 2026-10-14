@@ -14,6 +14,7 @@ public final class CapabilityPolicyClient {
     /** The caller authenticates/binds the packet and applies it on the client thread. */
     public static synchronized void publish(boolean challengeActive, CapabilitySnapshot snapshot) {
         View old = current;
+        if (old.challengeActive() == challengeActive && java.util.Objects.equals(old.snapshot(), challengeActive ? snapshot : null)) return;
         if (challengeActive && snapshot != null && old.snapshot() != null
                 && old.snapshot().binding().equals(snapshot.binding())
                 && snapshot.policyRevision() < old.snapshot().policyRevision()) return;

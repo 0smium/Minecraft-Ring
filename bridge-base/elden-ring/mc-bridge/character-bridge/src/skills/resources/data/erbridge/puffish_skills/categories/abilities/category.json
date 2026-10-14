@@ -1,7 +1,12 @@
 {
-  "title": "ER Bridge · 能力成长",
-  "description": "法环每提升一级获得一点。点数与已学能力保存在当前世界。",
-  "icon": {"type": "texture", "data": {"texture": "minecraft:textures/item/nether_star.png"}},
+  "title": "ER Bridge · 交界地成长",
+  "description": "机动 / 战斗 / 建造 / 生存 / 情报 / 工具。真实升级每级一点；所有栏目共用同一余额。76 点广修，116 点广修加两项精通，满配 232 点。",
+  "icon": {
+    "type": "texture",
+    "data": {
+      "texture": "minecraft:textures/item/nether_star.png"
+    }
+  },
   "background": "minecraft:textures/block/deepslate_tiles.png",
   "unlocked_by_default": false,
   "starting_points": 0,

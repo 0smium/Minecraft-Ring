@@ -22,7 +22,7 @@ public final class SkillsBridge {
     private SkillsBridge() {}
 
     public record Status(int sourcePoints, int totalPoints, int spentPoints, int remainingPoints,
-                         Map<Ability, Integer> learnedRanks) {
+                         Map<Ability, Integer> learnedRanks, int testPoints, boolean migrationRequired, String preset) {
         public Status { learnedRanks = Map.copyOf(learnedRanks); }
     }
 
@@ -32,6 +32,9 @@ public final class SkillsBridge {
         Optional<Status> snapshot(ServerPlayer player);
         boolean openScreen(ServerPlayer player);
         boolean resetSkills(ServerPlayer player);
+        String migrate(ServerPlayer player, LevelProgress progress);
+        String applyPreset(ServerPlayer player, LevelProgress progress, String id);
+        String clearPreset(ServerPlayer player, LevelProgress progress);
     }
 
     /** Call once from common initialization; changed runs only on the player's server thread. */
@@ -92,6 +95,18 @@ public final class SkillsBridge {
     public static boolean resetSkills(ServerPlayer player) {
         requireServerThread(player);
         return backend != null && backend.resetSkills(player);
+    }
+    public static String migrate(ServerPlayer player, LevelProgress progress) {
+        requireServerThread(player); if (backend == null) throw new IllegalStateException("Skills 不可用");
+        return backend.migrate(player, progress);
+    }
+    public static String applyPreset(ServerPlayer player, LevelProgress progress, String id) {
+        requireServerThread(player); if (backend == null) throw new IllegalStateException("Skills 不可用");
+        return backend.applyPreset(player, progress, id);
+    }
+    public static String clearPreset(ServerPlayer player, LevelProgress progress) {
+        requireServerThread(player); if (backend == null) throw new IllegalStateException("Skills 不可用");
+        return backend.clearPreset(player, progress);
     }
 
     private static void requireServerThread(ServerPlayer player) {

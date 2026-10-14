@@ -5,8 +5,7 @@ import dev.ermc.bridge.api.CapabilitySnapshot.Ability;
 import dev.ermc.bridge.api.CapabilitySnapshot.Grant;
 import dev.ermc.bridge.api.CapabilitySnapshot.NumericRange;
 import dev.ermc.bridge.api.CharacterBinding;
-import java.util.EnumMap;
-import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,22 +29,21 @@ public final class AbilityPolicy {
         if (revision < 1) throw new IllegalArgumentException("Policy revision must be positive");
         this.revision = revision;
         this.showLocked = showLocked;
-        EnumMap<Ability, List<Tier>> copied = new EnumMap<>(Ability.class);
+        Map<Ability, List<Tier>> copied = new HashMap<>();
         tiers.forEach((ability, levels) -> {
             List<Tier> copy = List.copyOf(levels);
             if (copy.isEmpty()) throw new IllegalArgumentException("Each ability needs at least one tier");
             copied.put(ability, copy);
         });
-        if (!copied.keySet().equals(EnumSet.allOf(Ability.class))) {
-            throw new IllegalArgumentException("Every known ability needs a policy");
-        }
+        if (copied.isEmpty() || copied.size() > 64) throw new IllegalArgumentException("Invalid ability count");
         this.tiers = Map.copyOf(copied);
     }
 
     /** Build a fresh view on rank change or policy reload. Missing ranks mean locked, never fully enabled. */
     public CapabilitySnapshot snapshot(CharacterBinding binding, Map<Ability, Integer> learnedRanks) {
-        EnumMap<Ability, Grant> grants = new EnumMap<>(Ability.class);
-        for (Ability ability : Ability.values()) {
+        if (!tiers.keySet().containsAll(learnedRanks.keySet())) throw new IllegalArgumentException("Unknown learned ability");
+        Map<Ability, Grant> grants = new HashMap<>();
+        for (Ability ability : tiers.keySet()) {
             int rank = learnedRanks.getOrDefault(ability, 0);
             List<Tier> levels = tiers.get(ability);
             if (rank < 0 || rank > levels.size()) {

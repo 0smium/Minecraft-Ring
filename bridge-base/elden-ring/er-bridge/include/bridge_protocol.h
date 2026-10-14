@@ -153,7 +153,7 @@ typedef struct ErmcHostProgression {
 /* Actual ER inventory observations, never Minecraft container items or write requests.
  * ownerFingerprint has the same weak-name semantics as HPRG; no native pointer crosses ABI. */
 #define ERMC_HOST_INVENTORY_MAGIC 0x564E4948u /* bytes "HINV" */
-#define ERMC_HOST_INVENTORY_VERSION 1u
+#define ERMC_HOST_INVENTORY_VERSION 2u
 #define ERMC_INVENTORY_UNAVAILABLE 0u
 #define ERMC_INVENTORY_LOADING 1u
 #define ERMC_INVENTORY_READY 2u
@@ -184,7 +184,34 @@ typedef struct ErmcHostInventory {
     uint32_t normalCapacity;      /* 0x38 validated native slot capacity */
     uint32_t keyCapacity;         /* 0x3C native key index partition capacity */
     ErmcInventoryEntry entries[ERMC_MAX_INVENTORY_ENTRIES]; /* 0x40 */
-} ErmcHostInventory;              /* 0x8040 */
+    uint64_t snapshotToken;       /* 0x8040 content token; 0 when unavailable */
+    uint32_t zone, writableSlots;
+    uint32_t talismanSlots;       /* 0 unknown, otherwise native total 1..4 */
+    uint32_t reserved[3];
+} ErmcHostInventory;              /* 0x8060, v2 readers also accept read-only v1 */
+
+/* Gameplay equipment intent mailbox, deliberately separate from the debug mailbox.
+ * No native pointers cross this ABI. Only the game thread executes accepted intents. */
+#define ERMC_OFF_HOST_EQUIPMENT 0x370000u
+#define ERMC_HOST_EQUIPMENT_VERSION 1u
+typedef struct ErmcEquipmentRequest {
+    uint32_t version, operation, hostPid, coreGeneration;
+    uint32_t hostLife, zone, equipmentSlot, inventorySlot;
+    uint32_t handle, itemId;
+    uint64_t hostStartMs, fingerprint, snapshotToken, deadlineMs, nonce;
+} ErmcEquipmentRequest; /* 80 bytes */
+typedef struct ErmcEquipmentResult {
+    uint32_t version;
+    int32_t status;
+    uint32_t equipmentSlot, handle, itemId, inventorySlot, hostLife, reserved;
+    uint64_t nonce, snapshotToken, sampledAt, hostStartMs;
+} ErmcEquipmentResult; /* 64 bytes */
+typedef struct ErmcEquipmentMailbox {
+    volatile uint32_t reqSeq, respSeq;
+    uint32_t reserved[2];
+    ErmcEquipmentRequest request;
+    ErmcEquipmentResult result;
+} ErmcEquipmentMailbox; /* 160 bytes */
 
 typedef struct ErmcHeader {
     uint32_t magic;               /* 0x00 */
@@ -533,13 +560,16 @@ static_assert(sizeof(ErmcHostEffects) == 0x38, "host effects size");
 static_assert(offsetof(ErmcHostEffects, rotEffectId) == 0x20 &&
               offsetof(ErmcHostEffects, frostProcs) == 0x30, "host effects v2 offsets");
 static_assert(sizeof(ErmcHostProgression) == 0x58, "host progression size");
-static_assert(sizeof(ErmcInventoryEntry) == 0x20 && sizeof(ErmcHostInventory) == 0x8040, "host inventory size");
+static_assert(sizeof(ErmcInventoryEntry) == 0x20 && sizeof(ErmcHostInventory) == 0x8060, "host inventory size");
+static_assert(sizeof(ErmcEquipmentRequest) == 80 && sizeof(ErmcEquipmentResult) == 64 &&
+              sizeof(ErmcEquipmentMailbox) == 160, "equipment intent ABI");
 static_assert(offsetof(ErmcHostInventory, sampleFrame) == 0x10 &&
               offsetof(ErmcHostInventory, sampleTimeMs) == 0x18 &&
               offsetof(ErmcHostInventory, ownerFingerprint) == 0x20 &&
               offsetof(ErmcHostInventory, entries) == 0x40, "host inventory offsets");
 static_assert(ERMC_OFF_COLLISION_CONTROL + sizeof(ErmcCollisionControl) <= ERMC_OFF_HOST_INVENTORY &&
-              ERMC_OFF_HOST_INVENTORY + sizeof(ErmcHostInventory) <= ERMC_SHM_SIZE, "inventory block fits");
+              ERMC_OFF_HOST_INVENTORY + sizeof(ErmcHostInventory) <= ERMC_OFF_HOST_EQUIPMENT &&
+              ERMC_OFF_HOST_EQUIPMENT + sizeof(ErmcEquipmentMailbox) <= ERMC_SHM_SIZE, "inventory/equipment blocks fit");
 static_assert(offsetof(ErmcHostProgression, sampleFrame) == 0x10 &&
               offsetof(ErmcHostProgression, fingerprint) == 0x28 &&
               offsetof(ErmcHostProgression, name) == 0x30 &&

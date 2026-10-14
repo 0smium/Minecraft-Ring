@@ -73,8 +73,8 @@ public final class B01FilesCheck {
         UUID owner=UUID.randomUUID(),character=UUID.randomUUID();
         CharacterBinding identity=new CharacterBinding(owner,initial.campaign(),character);
         var view=changed.policy().snapshot(identity,Map.of(Ability.SPEED,2,Ability.AURA,3));
-        check(view.policyRevision()==2&&view.authorize(Ability.SPEED,2,"ground_custom",Map.of("speed",5.)).get("speed")==.33,"Speed policy cap/revision");
-        check(view.authorize(Ability.AURA,2,"single_target",Map.of("range",100.)).get("range")==3.5,"Aura policy cap");
+        check(view.policyRevision()==2&&view.abilities().get(Ability.SPEED).numericLimits().get("speed").maximum()==.33,"Speed policy cap/revision");
+        check(view.abilities().get(Ability.AURA).numericLimits().get("range").maximum()==3.5,"Aura policy cap");
         invalid(()->view.authorize(Ability.SPEED,1,"ground_custom",Map.of("speed",.3)),"stale revision");
         invalid(()->view.authorize(Ability.SPEED,2,"other",Map.of("speed",.3)),"unknown mode");
         invalid(()->view.authorize(Ability.SPEED,2,"ground_custom",Map.of("speed",Double.NaN)),"nonfinite request");
@@ -132,13 +132,15 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--java-home',default=os.environ.get('JAVA_HOME'))
     args=parser.parse_args();java=java_path(args.java_home)
+    gson=next((ROOT/'.tools/gradle-home/caches/modules-2/files-2.1/com.google.code.gson/gson/2.10.1').glob('*/*.jar'))
+    resources=ROOT/'bridge-base/elden-ring/mc-bridge/character-bridge/src/main/resources'
     with tempfile.TemporaryDirectory(prefix='ermc-b01-files-') as directory:
         work=Path(directory);fixture=work/'B01FilesCheck.java';fixture.write_text(FIXTURE,encoding='utf8')
         classes=work/'classes';classes.mkdir()
         sources=[COMMON/'api'/f'{name}.java' for name in DOMAIN_API]+sorted((CHARACTER/'gameplay/capability').glob('*.java'))
         sources += [CHARACTER/'gameplay/runtime/B01Files.java',fixture]
-        subprocess.run([java,'-m','jdk.compiler/com.sun.tools.javac.Main','--release','17','-encoding','UTF-8','-Xlint:all','-Werror','-d',str(classes),*map(str,sources)],check=True)
-        command=[java,'-cp',str(classes),'B01FilesCheck',str(work/'data')]
+        subprocess.run([java,'-m','jdk.compiler/com.sun.tools.javac.Main','--release','17','-encoding','UTF-8','-Xlint:all','-Werror','-cp',str(gson),'-d',str(classes),*map(str,sources)],check=True)
+        command=[java,'-cp',os.pathsep.join(map(str,[classes,gson,resources])),'B01FilesCheck',str(work/'data')]
         subprocess.run(command,check=True)
         subprocess.run(command+['--restore'],check=True)
 

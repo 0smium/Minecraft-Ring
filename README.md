@@ -15,8 +15,8 @@ world, and fight its enemies with Minecraft weapons. Elden Ring keeps running
 its own world, characters, interactions and saves.
 
 A native Windows bridge and the Core Fabric mod connect the games.
-The optional [Character mod](docs/character-modules.md) adds inventory views,
-managed mounts, status rules and progression in the current candidate. Minecraft handles
+The optional [Character mod](docs/character-modules.md) adds [equipment](docs/equipment-v1.md),
+managed mounts, status rules and a [14-ability growth tree](docs/growth-v1.md) in the current candidate. Minecraft handles
 the player and blocks; Elden Ring draws the combined scene, including Minecraft's
 hand, character and HUD. Both games stay running throughout a session.
 

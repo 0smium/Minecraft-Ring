@@ -1,5 +1,66 @@
 {
   "normal": {
-    "unidirectional": [["speed_1", "speed_2"], ["speed_2", "speed_3"], ["aura_1", "aura_2"], ["aura_2", "aura_3"]]
+    "unidirectional": [
+      [
+        "speed_1",
+        "speed_2"
+      ],
+      [
+        "speed_2",
+        "speed_3"
+      ],
+      [
+        "fly_1",
+        "fly_2"
+      ],
+      [
+        "fly_2",
+        "fly_3"
+      ],
+      [
+        "airjump_1",
+        "airjump_2"
+      ],
+      [
+        "step_1",
+        "step_2"
+      ],
+      [
+        "step_2",
+        "step_3"
+      ],
+      [
+        "aura_1",
+        "aura_2"
+      ],
+      [
+        "aura_2",
+        "aura_3"
+      ],
+      [
+        "velocity_1",
+        "velocity_2"
+      ],
+      [
+        "velocity_2",
+        "velocity_3"
+      ],
+      [
+        "scaffold_1",
+        "scaffold_2"
+      ],
+      [
+        "scaffold_2",
+        "scaffold_3"
+      ],
+      [
+        "nametags_1",
+        "nametags_2"
+      ],
+      [
+        "nametags_2",
+        "nametags_3"
+      ]
+    ]
   }
 }

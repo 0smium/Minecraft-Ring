@@ -1,5 +1,7 @@
 # B01 游戏接入候选
 
+> 本页保留最初 Speed/Aura 接入说明。当前 0.3.2 已扩为六类 14 项、29 节点，成本、阶段、迁移和测试预设以[成长第一版](growth-v1.md)为准；不再按旧的每阶 1 点使用。
+
 开发分支 `feat/b01-preparation`，继续 [PR #3](https://github.com/0smium/Minecraft-Ring/pull/3)。
 目标是让**真实法环升级 → 技能点 → 技能树购买 → 固定 LB 的 Speed/Aura 执行**形成最小闭环。
 本轮已写入实际入口，完成离线检查；后续已开始 [R09 修复与首次共载](experiments/2026-10-13-r09-b01-smoke.md)，**成长闭环尚待人工验收**。

@@ -7,10 +7,10 @@
     "CapabilityValueMixin",
     "CapabilityChoiceMixin",
     "CapabilityModuleMixin",
-    "CapabilitySpeedMixin",
     "CapabilityAuraMixin",
     "CapabilityToggleableMixin",
-    "CapabilityBHopMixin"
+    "CapabilityBHopMixin",
+    "CapabilityManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -5,7 +5,7 @@ After the normal production build has populated the local cache:
 Optional: --bridge-jar PATH, --java-home PATH, --classpath-file PATH.
 The default discovers existing production/intermediary dependencies and extracts
 LB's bundled JARs only into ignored runtime/experiments. No Gradle or downloads.
-This checks Kotlin's public float-range factory/access handles, 14 real Mixin injections, normal helper class loading, real Value
+This checks Kotlin's public float-range factory/access handles, 13 real Mixin injections, normal helper class loading, real Value
 set/get/inner/restore/Gson import, locking, downgrade and free-mode preservation.
 It does NOT initialize actual LB module singletons or execute lifecycle cleanup,
 GUI, networking, movement/attacks or game startup. Those still need human testing.
@@ -26,7 +26,7 @@ LB_SHA256 = "1824011d91046f8f8b388cfa63782f38cdf754f12cb997317eab8e69e67ef20d"
 FIXTURES = PROJECT / "src/testFixtures/lb-capability"
 OUTPUT = ROOT / "runtime/experiments/lb-capability-check"
 MIXINS = ["CapabilityValueMixin", "CapabilityChoiceMixin", "CapabilityModuleMixin",
-          "CapabilitySpeedMixin", "CapabilityAuraMixin", "CapabilityToggleableMixin", "CapabilityBHopMixin"]
+          "CapabilityManagerMixin", "CapabilityAuraMixin", "CapabilityToggleableMixin", "CapabilityBHopMixin"]
 
 
 def single(paths, label):
@@ -77,8 +77,8 @@ def invoke(binary, arguments, log):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.1.jar")
-    parser.add_argument("--character-jar", type=Path, default=PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.1.jar")
+    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.2.jar")
+    parser.add_argument("--character-jar", type=Path, default=PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.2.jar")
     parser.add_argument("--java-home", type=Path, default=ROOT / ".tools/java/jdk-25.0.4.1+1")
     parser.add_argument("--classpath-file", type=Path)
     args = parser.parse_args()
