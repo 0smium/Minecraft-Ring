@@ -14,7 +14,8 @@ import java.util.*;
 public final class TerrainTravelClearance {
     private TerrainTravelClearance() {}
     private static final int PATCHES = 32, BODY_RAYS = 53;
-    private static final double HALF = .375, HEIGHT = 4;
+    private static final double HEIGHT = 4;
+    private static double half = .375;
     private static final float[] RAYS = new float[PATCHES * BODY_RAYS * 6];
     private static final float[] HITS = new float[RAYS.length];
     private static final int[] FLAGS = new int[PATCHES * BODY_RAYS], ATTRS = FLAGS.clone();
@@ -41,8 +42,10 @@ public final class TerrainTravelClearance {
     public static boolean submit(CoordMap.Mapping map, List<ServerPlayer> players) {
         if (busy() || players.isEmpty()) return false;
         ServerPlayer player = players.getFirst();
-        maxStep = player.maxUpStep();
-        Vec3 feet = player.position(), look = player.getViewVector(1).multiply(1, 0, 1).normalize();
+        var body = MountMotion.body(player);
+        maxStep = body.maxUpStep();
+        half = body == player ? .375 : Math.max(.375, body.getBbWidth() * .5 + .075);
+        Vec3 feet = body.position(), look = player.getViewVector(1).multiply(1, 0, 1).normalize();
         Vec3 movement = previous == null ? Vec3.ZERO : feet.subtract(previous);
         boolean moved = movement.horizontalDistanceSqr() > .12 * .12 || previous == null || Math.abs(movement.y) > .125;
         boolean turned = lastLook == null || look.dot(lastLook) < .95;
@@ -79,7 +82,7 @@ public final class TerrainTravelClearance {
 
     private static double point(double centre, int p, boolean z) {
         if (p == 0) return centre;
-        return centre + (((p - 1) >> (z ? 1 : 0)) & 1) * HALF * 2 - HALF;
+        return centre + (((p - 1) >> (z ? 1 : 0)) & 1) * half * 2 - half;
     }
 
     public static void collect(ServerLevel level, CoordMap.Mapping map) {
@@ -109,12 +112,12 @@ public final class TerrainTravelClearance {
                     ray(map, ray++, x, max + .02, z, x, max + HEIGHT, z);
                 }
                 for (double h : HEIGHTS) {
-                    for (double cross : new double[] {-HALF, 0, HALF}) {
-                        ray = pair(map, ray, X[i] - HALF, max + h, Z[i] + cross, X[i] + HALF, max + h, Z[i] + cross);
-                        ray = pair(map, ray, X[i] + cross, max + h, Z[i] - HALF, X[i] + cross, max + h, Z[i] + HALF);
+                    for (double cross : new double[] {-half, 0, half}) {
+                        ray = pair(map, ray, X[i] - half, max + h, Z[i] + cross, X[i] + half, max + h, Z[i] + cross);
+                        ray = pair(map, ray, X[i] + cross, max + h, Z[i] - half, X[i] + cross, max + h, Z[i] + half);
                     }
-                    ray = pair(map, ray, X[i] - HALF, max + h, Z[i] - HALF, X[i] + HALF, max + h, Z[i] + HALF);
-                    ray = pair(map, ray, X[i] - HALF, max + h, Z[i] + HALF, X[i] + HALF, max + h, Z[i] - HALF);
+                    ray = pair(map, ray, X[i] - half, max + h, Z[i] - half, X[i] + half, max + h, Z[i] + half);
+                    ray = pair(map, ray, X[i] - half, max + h, Z[i] + half, X[i] + half, max + h, Z[i] - half);
                 }
             }
             floors = false; count = ray;
@@ -135,7 +138,7 @@ public final class TerrainTravelClearance {
                 if (FLOOR[i] + HEIGHTS[(probe - 5) / 16] < ceiling - .001 && FLAGS[at + probe] != 0) clear = false;
             if (!clear) continue;
             clearedPatches++;
-            open(level, updates, X[i] - HALF, X[i] + HALF, Z[i] - HALF, Z[i] + HALF, FLOOR[i], ceiling);
+            open(level, updates, X[i] - half, X[i] + half, Z[i] - half, Z[i] + half, FLOOR[i], ceiling);
         }
         for (var entry : updates.entrySet()) TerrainDetailManager.writeMeasured(level, entry.getKey(), entry.getValue());
         lastWaveMs = System.currentTimeMillis() - submittedAt; waves++;

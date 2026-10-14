@@ -46,9 +46,9 @@ public final class MovingPlatformClient {
 		int startEpoch = MOTION.epoch();
 		boolean wasMoving = MOTION.moving(now);
 		var map = CoordMap.get();
-		if (mc.player == null || mc.level == null || !TerrainManager.isBridgeWorld() || !Overlay.active() || Overlay.hostMode()
+		if (mc.player == null || mc.level == null || mc.player.isPassenger() || !TerrainManager.isBridgeWorld() || !Overlay.active() || Overlay.hostMode()
 			|| !TerrainManager.recallSettled(400) || map == null || !ErLink.get().snapshot(STATE) || map.zone() != STATE.stageId) {
-			MOTION.reset();
+			MOTION.reset(); BOARDING.reset();
 			if (startEpoch != 0 && (wasMoving || now < traceUntil) && mc.player != null && mc.level != null) {
 				traceTick = true; traceTickId = mc.player.tickCount;
 				TRACE.info("[platform-trace] client START tick {} gate unavailable: y {} yo {} ground {} vy {} shapeTop {} epoch {} -> {} reset {}",
@@ -118,7 +118,7 @@ public final class MovingPlatformClient {
 	public static void afterTick(Minecraft mc) {
 		boolean applied = false;
 		if (carriedPlayer != null) {
-			if (mc.player != carriedPlayer || mc.player.tickCount != carriedTick + 1
+			if (mc.player != carriedPlayer || mc.player.isPassenger() || mc.player.tickCount != carriedTick + 1
 				|| MOTION.epoch() != carriedEpoch || mc.player.getAbilities().flying
 				|| !Overlay.active() || Overlay.hostMode()) {
 				clearCarry();

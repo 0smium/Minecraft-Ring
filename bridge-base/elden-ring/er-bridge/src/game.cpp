@@ -27,7 +27,9 @@
 #include "support_surface.h"
 #include "host_effects.h"
 #include "host_progression.h"
+#include "host_inventory.h"
 #include "host_test_runes.h"
+#include "debug_test_enemy.h"
 #include "incoming_hits.h"
 #include <string.h>
 #include <stdio.h>
@@ -127,6 +129,7 @@ static bool g_ok = false;
 static bool g_fallTraceOk = false;
 static HostEffectsReader g_hostEffects;
 static HostProgressionReader g_hostProgression;
+static HostInventoryFeed g_hostInventory;
 static bool g_hostProgressionOk = false;
 
 struct CodeSig {
@@ -1386,7 +1389,7 @@ static bool find_published(uint64_t handle, Chr* out) {
 }
 
 constexpr size_t kWcmChrSets = 0x1DED8;       // ChrSet* [196]; entries 0x10: {ChrIns*, u8 state (4 = active)...}
-constexpr int kDebugChrSet = 114;             // characters from the game's debug creator (our test enemies)
+constexpr int kDebugChrSet = 114;             // all characters from the shared debug creator, including other tools
 
 static void refresh_entity_names();
 static void clear_entity_names();
@@ -1748,9 +1751,8 @@ static void apply_hit(const Player& me, const Chr& c, const ErmcDamage& d) {
 // -- a test enemy (dev): the game's debug character creator spawns a Godrick soldier ----------
 // In memory only (no map entry, no event id): gone at the next map load. Removed with
 // ForceDeath(chr, false) (no drops, no runes).
-static uint8_t* g_testEnemy = nullptr;
-static uint8_t* g_testEnemyPrev = nullptr;
-static bool g_testRequested = false;
+static debug_test_enemy::Tracker g_testEnemy;
+static float g_testEnemyPosition[4]{};
 
 static uint8_t* debug_creator() {
     uint8_t* wcm = global_ptr(rva::kWorldChrMan, rva::kVtWorldChrMan);
@@ -1759,12 +1761,71 @@ static uint8_t* debug_creator() {
     return (dc && mem_readable(dc, 0x1C0)) ? dc : nullptr;
 }
 
+static bool test_enemy_context(debug_test_enemy::Context* out) {
+    Player player;
+    if (g_life != LIFE_ALIVE || !g_frame.valid || !get_player(&player) || !block_valid(player)) return false;
+    uint8_t* world = global_ptr(rva::kWorldChrMan, rva::kVtWorldChrMan);
+    uint8_t* creator = debug_creator();
+    if (!world || !creator) return false;
+    *out = {(uintptr_t)world, (uintptr_t)creator,
+            {(uintptr_t)player.ins, *(uint64_t*)(player.ins + kChrHandle)},
+            shm_header()->hostLife, g_frame.zone};
+    return true;
+}
+
+static debug_test_enemy::Snapshot test_enemy_snapshot() {
+    debug_test_enemy::Snapshot snapshot;
+    if (!test_enemy_context(&snapshot.context)) return snapshot;
+    uint8_t* dc = (uint8_t*)snapshot.context.creator;
+    snapshot.busy = dc[0x44] != 0;
+    snapshot.output = (uintptr_t)*(uint8_t**)(dc + 0x1B0);
+    uint16_t expectedName[32] = {'c', '3', '0', '0', '0'};
+    snapshot.parametersMatch = *(int32_t*)(dc + 0xF0) == 30000014 &&
+        *(int32_t*)(dc + 0xF4) == 30000000 && *(int32_t*)(dc + 0xF8) == 0 &&
+        *(int32_t*)(dc + 0xFC) == 0 && *(uint32_t*)(dc + 0x19C) == 1 &&
+        memcmp(dc + 0x100, expectedName, sizeof(expectedName)) == 0 &&
+        memcmp(dc + 0xB0, g_testEnemyPosition, sizeof(g_testEnemyPosition)) == 0;
+    uint8_t* world = (uint8_t*)snapshot.context.world;
+    if (!mem_readable(world + kWcmChrSets + 8 * kDebugChrSet, 8)) return snapshot;
+    uint8_t* set = *(uint8_t**)(world + kWcmChrSets + 8 * kDebugChrSet);
+    if (!set || !mem_readable(set, 0x20)) return snapshot;
+    uint32_t cap = *(uint32_t*)(set + 0x10);
+    uint8_t* entries = *(uint8_t**)(set + 0x18);
+    if (cap > 256 || (cap && (!entries || !mem_readable(entries, (size_t)cap * 16)))) return snapshot;
+    for (uint32_t i = 0; i < cap; ++i) {
+        if (entries[16 * i + 8] != 4) continue;
+        uint8_t* ins = *(uint8_t**)(entries + 16 * i);
+        Chr chr;
+        // An unreadable active member makes the whole baseline uncertain.
+        if (!ins || !get_chr(ins, &chr)) return snapshot;
+        debug_test_enemy::Identity identity{(uintptr_t)ins, *(uint64_t*)(ins + kChrHandle)};
+        for (size_t j = 0; j < snapshot.count; ++j)
+            if (snapshot.entries[j].identity.pointer == identity.pointer) return snapshot;
+        snapshot.entries[snapshot.count++] = {identity,
+            *(int32_t*)(ins + kChrModelId) == 3000 && *(int32_t*)(ins + kChrNpcParamId) == 30000014};
+    }
+    snapshot.complete = true;
+    return snapshot;
+}
+
+// Run even while loading: old addresses and queued requests must not cross a life/zone.
+static void update_test_enemy_context(bool alive) {
+    debug_test_enemy::Context context;
+    const bool usable = alive && test_enemy_context(&context);
+    const bool changed = g_testEnemy.context(usable ? &context : nullptr);
+    if (!usable || changed) {
+        shm_header()->debugFlags = shm_header()->debugFlags & ~12u;
+        if (changed) log("combat: debug test ownership reset for lifecycle change; no characters removed");
+    }
+}
+
 static void request_test_enemy(const Player& me) {
-    uint8_t* dc = debug_creator();
-    if (!dc || dc[0x44]) {
-        log("combat: debug creator %s", dc ? "busy" : "not found");
+    const auto before = test_enemy_snapshot();
+    if (!g_combatOk || !g_standing || !g_testEnemy.begin(before, now_ms())) {
+        log("combat: test spawn refused (inactive/unsupported, busy, unverified set, owned or quarantined request)");
         return;
     }
+    uint8_t* dc = (uint8_t*)before.context.creator;
     // 5 m in front of the camera, at the Tarnished's height.
     uint8_t* cam = final_camera();
     const float* pp = (const float*)(me.phys + kPhysPos);
@@ -1777,6 +1838,7 @@ static void request_test_enemy(const Player& me) {
     }
     float* pos = (float*)(dc + 0xB0);
     pos[0] = pp[0] + fx * 5.0f, pos[1] = pp[1] + 0.2f, pos[2] = pp[2] + fz * 5.0f, pos[3] = 1.0f;
+    memcpy(g_testEnemyPosition, pos, sizeof(g_testEnemyPosition));
     *(int32_t*)(dc + 0xF0) = 30000014;  // NpcParam: Godrick Soldier (as in Stormveil)
     *(int32_t*)(dc + 0xF4) = 30000000;  // NpcThinkParam: their AI
     *(int32_t*)(dc + 0xF8) = 0;         // no event entity: touches no event flags
@@ -1786,55 +1848,47 @@ static void request_test_enemy(const Player& me) {
     const char* m = "c3000";
     for (int i = 0; m[i]; i++) name[i] = (uint16_t)m[i];
     *(uint32_t*)(dc + 0x19C) = 1;
-    g_testEnemyPrev = *(uint8_t**)(dc + 0x1B0);
     dc[0x44] = 1;  // the game's own steps load and create it
-    g_testRequested = true;
     log("combat: test enemy requested (c3000 soldier, 5 m ahead)");
 }
 
-// Every character in the debug set is one of our test enemies: remove them all.
+// Never sweep the shared debug set. Pointer + handle and lifecycle must still match
+// the single instance confirmed for our request. Ambiguous results remain in the map.
 static void remove_test_enemy(const char* why) {
-    g_testEnemy = nullptr;
-    if (!g_combatOk) return;
-    uint8_t* wcm = global_ptr(rva::kWorldChrMan, rva::kVtWorldChrMan);
-    if (!wcm || !mem_readable(wcm + kWcmChrSets + 8 * kDebugChrSet, 8)) return;
-    uint8_t* set = *(uint8_t**)(wcm + kWcmChrSets + 8 * kDebugChrSet);
-    if (!set || !mem_readable(set, 0x20)) return;
-    uint32_t cap = *(uint32_t*)(set + 0x10);
-    uint8_t* ent = *(uint8_t**)(set + 0x18);
-    if (!ent || cap == 0 || cap > 256 || !mem_readable(ent, (size_t)cap * 16)) return;
-    int n = 0;
-    for (uint32_t i = 0; i < cap; i++) {
-        Chr c;
-        uint8_t* ins = *(uint8_t**)(ent + 16 * i);
-        if (!ins || ent[16 * i + 8] != 4 || !get_chr(ins, &c) || chr_dead(c)) continue;
-        ((ForceDeath_t)(g_base + combat::kForceDeath))(c.ins, false);  // no drops, no runes
-        n++;
+    if (g_testEnemy.phase() == debug_test_enemy::Tracker::Phase::Pending) {
+        g_testEnemy.cancel();
+        log("combat: pending test spawn abandoned (%s); late result will not be claimed; wait for next lifecycle", why);
     }
-    if (n) log("combat: %d test enem%s removed (%s)", n, n == 1 ? "y" : "ies", why);
+    if (g_testEnemy.phase() != debug_test_enemy::Tracker::Phase::Owned) return;
+    const auto identity = g_testEnemy.takeOwned(test_enemy_snapshot());
+    Chr chr;
+    if (!g_combatOk || !identity.pointer || !get_chr((uint8_t*)identity.pointer, &chr) ||
+        *(uint64_t*)(chr.ins + kChrHandle) != identity.handle || chr_dead(chr)) {
+        log("combat: test enemy identity expired (%s); no character removed", why);
+        return;
+    }
+    ((ForceDeath_t)(g_base + combat::kForceDeath))(chr.ins, false);
+    log("combat: owned test enemy %p handle=%llu removed (%s)", (void*)identity.pointer,
+        (unsigned long long)identity.handle, why);
 }
 
 static void service_test_enemy(const Player& me) {
     ErmcHeader* h = shm_header();
-    if (h->debugFlags & 4) {  // bit2: spawn a test soldier
-        h->debugFlags = h->debugFlags & ~4u;
-        request_test_enemy(me);
-    }
-    if (h->debugFlags & 8) {  // bit3: remove it (no drops, no runes)
-        h->debugFlags = h->debugFlags & ~8u;
+    const uint32_t requested = h->debugFlags & 12u;
+    h->debugFlags = h->debugFlags & ~12u;
+    // Cancel wins when both bits were set; never submit then cancel in the same tick.
+    if (requested & 8) {
         remove_test_enemy("requested");
+        return;
     }
-    if (g_testRequested) {
-        uint8_t* dc = debug_creator();
-        uint8_t* made = dc ? *(uint8_t**)(dc + 0x1B0) : nullptr;
-        if (made && made != g_testEnemyPrev) {
-            g_testEnemy = made;
-            g_testRequested = false;
-            log("combat: test enemy created: %p", (void*)made);
-        } else if (dc && !dc[0x44] && !made) {
-            g_testRequested = false;
-            log("combat: debug creator finished without a character");
-        }
+    if (requested & 4) request_test_enemy(me);
+    if (g_testEnemy.phase() != debug_test_enemy::Tracker::Phase::Pending) return;
+    const auto result = g_testEnemy.poll(test_enemy_snapshot(), now_ms());
+    if (result == debug_test_enemy::Tracker::Result::Confirmed) {
+        log("combat: test enemy confirmed by new pointer/handle and unchanged request context");
+    } else if (result != debug_test_enemy::Tracker::Result::Waiting) {
+        log("combat: test spawn %s; result not claimed, no character removed; wait for next lifecycle",
+            result == debug_test_enemy::Tracker::Result::TimedOut ? "timed out" : "became ambiguous");
     }
 }
 
@@ -2571,6 +2625,7 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
             return result;
         });
     bool standing = alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER);
+    update_test_enemy_context(alive);
     service_environment(alive, g_frame.zone);
     update_support(c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER), havePlayer ? p.ins : nullptr);
     update_platform_cells(c, alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER), g_frame.zone, havePlayer ? p.ins : nullptr);
@@ -2601,6 +2656,9 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
     publish_host_progression(progression, progressionLoading,
                              alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER) && g_standing,
                              shm_state()->frame, shm_header()->hostLife);
+    g_hostInventory.tick(alive ? p.ins : nullptr, progression, progressionLoading,
+                         alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER) && g_standing,
+                         shm_state()->frame, shm_header()->hostLife, now_ms());
     QueryPerformanceCounter(&t1);
     QueryPerformanceFrequency(&fq);
     perf_add_tick((double)(t1.QuadPart - t0.QuadPart) * 1000.0 / fq.QuadPart);
@@ -2680,6 +2738,7 @@ static void unlock_fps() {
 }
 bool game_init() {
     g_base = main_module_base();
+    g_hostInventory.reset(shm_state()->frame, shm_header()->hostLife, now_ms());
     publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
     publish_host_progression({}, false, false, shm_state()->frame, shm_header()->hostLife);
     log("game: eldenring.exe base %p size 0x%zx", (void*)g_base, main_module_size());
@@ -2701,6 +2760,8 @@ bool game_init() {
     const bool hostEffectsOk = g_hostEffects.init(g_base);
     log("game: read-only host effects %s", hostEffectsOk ? "enabled" : "disabled (signature mismatch)");
     g_hostProgressionOk = g_hostProgression.init(g_base);
+    log("game: read-only host inventory %s (HINV v1, at most 2 Hz)",
+        g_hostInventory.init(g_base) ? "enabled" : "disabled (signature mismatch)");
     log("game: explicit test-rune command %s", g_testRunes.init(g_base) ? "available (never automatic)" : "disabled (signature mismatch)");
     log("game: read-only host progression %s (level/name; explicit character binding required)",
         g_hostProgressionOk ? "enabled" : "disabled (signature mismatch)");
@@ -2761,6 +2822,7 @@ void game_detach() {
 }
 
 void game_shutdown() {
+    g_hostInventory.reset(shm_state()->frame, shm_header()->hostLife, now_ms());
     publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
     publish_host_progression({}, false, false, shm_state()->frame, shm_header()->hostLife);
     if (g_environmentOk) release_environment();

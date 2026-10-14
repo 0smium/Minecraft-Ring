@@ -381,10 +381,11 @@ public final class TerrainManager {
 		TerrainDetailManager.discover(level, players);
 		List<Forecast> forecasts = new ArrayList<>();
 		for (ServerPlayer player : players) {
-			Vec3 previous = LAST_POSITIONS.put(player.getUUID(), player.position());
-			Vec3 velocity = previous == null ? Vec3.ZERO : player.position().subtract(previous).scale(20);
+			var body = MountMotion.body(player);
+			Vec3 previous = LAST_POSITIONS.put(player.getUUID(), body.position());
+			Vec3 velocity = previous == null ? Vec3.ZERO : body.position().subtract(previous).scale(20);
 			Vec3 look = player.getViewVector(1);
-			double[] ahead = TerrainPrefetch.ahead(player.getX(), player.getZ(), velocity.x, velocity.z, look.x, look.z);
+			double[] ahead = TerrainPrefetch.ahead(body.getX(), body.getZ(), velocity.x, velocity.z, look.x, look.z);
 			forecasts.add(new Forecast(player, ahead[0], ahead[1]));
 		}
 		if (pendingSeq < 0 && !TerrainDetailManager.busy() && !TerrainTravelClearance.busy() && !players.isEmpty()) {
@@ -430,6 +431,7 @@ public final class TerrainManager {
 		if (map.zone() == STATE.stageId && recallSettled(400)) PLATFORM_BOARDING.refresh(level, map, MOVING_COLUMNS);
 		for (ServerPlayer player : players) {
 			MovingPlatformMotion motion = PLATFORM_MOTION.computeIfAbsent(player.getUUID(), id -> new MovingPlatformMotion());
+			if (player.isPassenger()) { motion.reset(); continue; }
 			long traceNow = System.currentTimeMillis();
 			int previousEpoch = motion.epoch();
 			boolean wasMoving = motion.moving(traceNow);
@@ -573,14 +575,16 @@ public final class TerrainManager {
 		BATCH_KEYS.clear();
 		int n = 0;
 		for (ServerPlayer player : players) {
-			n = sampleAround(map, player.getX(), player.getY(), player.getZ(), priority ? TerrainPrefetch.NEAR_RADIUS : SAMPLE_RADIUS,
-				n, priority, player.getX(), player.getZ());
+			var body = MountMotion.body(player);
+			n = sampleAround(map, body.getX(), body.getY(), body.getZ(), priority ? TerrainPrefetch.NEAR_RADIUS : SAMPLE_RADIUS,
+				n, priority, body.getX(), body.getZ());
 		}
 		if (priority) {
 			for (Forecast forecast : forecasts) {
 				ServerPlayer player = forecast.player();
-				n = sampleAround(map, forecast.aheadX(), player.getY(), forecast.aheadZ(), TerrainPrefetch.NEAR_RADIUS,
-					n, true, player.getX(), player.getZ());
+				var body = MountMotion.body(player);
+				n = sampleAround(map, forecast.aheadX(), body.getY(), forecast.aheadZ(), TerrainPrefetch.NEAR_RADIUS,
+					n, true, body.getX(), body.getZ());
 			}
 		}
 		if (!priority && !players.isEmpty() && n + RAYS_PER_COLUMN <= BATCH) {
@@ -602,9 +606,11 @@ public final class TerrainManager {
 		INVALIDATED_PENDING.clear();
 		BATCH_KEYS.clear();
 		int n = 0;
-		for (ServerPlayer player : players)
-			n = sampleAround(map, player.getX(), player.getY(), player.getZ(), 2, n,
-				true, player.getX(), player.getZ());
+		for (ServerPlayer player : players) {
+			var body = MountMotion.body(player);
+			n = sampleAround(map, body.getX(), body.getY(), body.getZ(), 2, n,
+				true, body.getX(), body.getZ());
+		}
 		return n;
 	}
 
@@ -936,6 +942,7 @@ public final class TerrainManager {
 
 	private static void teleportToHunter(ServerLevel level, ServerPlayer player, CoordMap.Mapping map) {
 		if (!LocalHostOwner.isOwner(player)) return;
+		MountRuntime.beforeRecall(player);
 		boolean known = STATE.has(Protocol.STATE_PLAYER_VALID);
 		Vec3 target = known
 			? map.toMc(STATE.playerPos[0], STATE.playerPos[1], STATE.playerPos[2])

@@ -54,6 +54,7 @@ public class ErBridgeMod implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		ErBridgeEntities.init();
+		MountRuntime.initialize();
 		ServerLifecycleEvents.SERVER_STARTING.register(server -> TerrainRegeneration.reset());
 		ServerLifecycleEvents.SERVER_STARTED.register(TerrainManager::onServerStarted);
 		ServerLifecycleEvents.SERVER_STARTED.register(LifeBridge::onServerStarted);  // after TerrainManager: needs isBridgeWorld()
@@ -71,6 +72,7 @@ public class ErBridgeMod implements ModInitializer {
 			LifeBridge.reset();
 			HostEffectsBridge.reset();
 		});
+		ServerTickEvents.END_SERVER_TICK.register(MountRuntime::beforeTerrainTick);
 		ServerTickEvents.END_SERVER_TICK.register(TerrainManager::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(EntityBridge::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(CombatBridge::onServerTick);

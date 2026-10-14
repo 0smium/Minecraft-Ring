@@ -91,6 +91,7 @@ public Vec3 position(){return pos;}public Vec3 getDeltaMovement(){return Vec3.ZE
 public boolean isDamageSourceBlocked(DamageSource s){return false;}public boolean hurt(DamageSource s,float n){hurtCalls++;health-=n;if(health<=0)alive=false;return true;}
 public void knockback(double a,double x,double z){knockbacks++;}public void teleportTo(ServerLevel l,double x,double y,double z,float yaw,float pitch){world=l;pos=new Vec3(x,y,z);teleports++;}
 }""",
+    "dev/ermc/bridge/MountRuntime.java": "package dev.ermc.bridge; public final class MountRuntime {public static void beforeRecall(net.minecraft.server.level.ServerPlayer player){}}",
     "dev/ermc/bridge/link/BridgePaths.java": "package dev.ermc.bridge.link; public final class BridgePaths {public static String file(String s){return s;}}",
     "dev/ermc/bridge/link/ErLink.java": """package dev.ermc.bridge.link;
 public final class ErLink {private static final ErLink INSTANCE=new ErLink();public static ErLink get(){return INSTANCE;}

@@ -70,6 +70,10 @@ public final class BridgeShm {
 		return HostProgressionSample.read(buf, HostProgressionSample.OFFSET);
 	}
 
+	public java.util.Optional<HostInventorySample> readHostInventory() {
+		return HostInventorySample.read(buf, Protocol.OFF_HOST_INVENTORY);
+	}
+
 	/** Incremented by the host game each time F8 is pressed in it. */
 	public int mcSwitchRequests() {
 		return (int) INT.getAcquire(buf, Protocol.H_MC_SWITCH_REQ);

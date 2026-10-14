@@ -1,6 +1,7 @@
 package dev.ermc.bridge.client;
 
 import dev.ermc.bridge.CoordMap;
+import dev.ermc.bridge.MountMotion;
 import dev.ermc.bridge.link.ControlState;
 import dev.ermc.bridge.link.GameState;
 import dev.ermc.bridge.link.ErLink;
@@ -155,9 +156,11 @@ public final class CameraSync {
 			| (standIn && mc.player != null ? Protocol.CTRL_MOVE_HUNTER | Protocol.CTRL_HIDE_HUNTER : 0)
 			| (passthrough ? Protocol.CTRL_COMPOSITE : 0) | (noDepthTest ? Protocol.CTRL_NO_DEPTH_TEST : 0)
 			| (debugDepth ? Protocol.CTRL_DEBUG_DEPTH : 0);
-		if (mc.player != null && mc.player.onGround() && !mc.player.getAbilities().flying)
+		var motionBody = mc.player == null ? null : MountMotion.body(mc.player);
+		boolean mounted = motionBody != null && motionBody != mc.player;
+		if (motionBody != null && motionBody.onGround() && (mounted || !mc.player.getAbilities().flying))
 			CONTROL.flags |= Protocol.CTRL_GROUNDED;
-		if (mc.player != null && mc.player.getAbilities().flying) CONTROL.flags |= Protocol.CTRL_FLYING;
+		if (mc.player != null && !mounted && mc.player.getAbilities().flying) CONTROL.flags |= Protocol.CTRL_FLYING;
 		CONTROL.poseLag = poseLag;
 		CONTROL.depthIndex = depthIndex;
 		CONTROL.mcFrame++;
@@ -169,10 +172,12 @@ public final class CameraSync {
 		CONTROL.fovYDeg = fov;
 		if (mc.player != null) {
 			float pt = camera.getPartialTickTime();
-			MovingPlatformClient.copyControl(CONTROL, pt);
-			double[] feet = map.toHost(net.minecraft.util.Mth.lerp(pt, mc.player.xo, mc.player.getX()),
-				net.minecraft.util.Mth.lerp(pt, mc.player.yo, mc.player.getY()),
-				net.minecraft.util.Mth.lerp(pt, mc.player.zo, mc.player.getZ()));
+			if (mounted) { CONTROL.supportEpoch = 0; CONTROL.supportTravelY = 0; }
+			else MovingPlatformClient.copyControl(CONTROL, pt);
+			// The camera stays at the rider's eyes; the hidden Tarnished follows the horse's feet.
+			double[] feet = map.toHost(net.minecraft.util.Mth.lerp(pt, motionBody.xo, motionBody.getX()),
+				net.minecraft.util.Mth.lerp(pt, motionBody.yo, motionBody.getY()),
+				net.minecraft.util.Mth.lerp(pt, motionBody.zo, motionBody.getZ()));
 			for (int i = 0; i < 3; i++) {
 				CONTROL.hunterPos[i] = (float) feet[i];
 			}
@@ -188,6 +193,7 @@ public final class CameraSync {
 	/** Release control even when a pause screen prevents Camera.setup from running. */
 	public static void suspend() {
 		driving = false;
+		if (Overlay.hostMode() || Overlay.hostBusy() || !Overlay.active()) MountClient.releaseControl();
 		releaseHostCamera();
 	}
 

@@ -64,6 +64,7 @@ typedef struct ErmcTerrainContacts {
 
 /* Actual simulation feet, independent of delayed/interpolated frame poses. */
 #define ERMC_OFF_COLLISION_CONTROL 0x350000u
+#define ERMC_OFF_HOST_INVENTORY 0x360000u /* Optional read-only native inventory snapshot */
 typedef struct ErmcCollisionControl {
     volatile uint32_t seq;
     uint32_t flags, zone;
@@ -148,6 +149,42 @@ typedef struct ErmcHostProgression {
     uint16_t nameUnits;           /* 0x52 excludes terminator; zero unless READY */
     uint32_t reserved;            /* 0x54 */
 } ErmcHostProgression;            /* 0x58 */
+
+/* Actual ER inventory observations, never Minecraft container items or write requests.
+ * ownerFingerprint has the same weak-name semantics as HPRG; no native pointer crosses ABI. */
+#define ERMC_HOST_INVENTORY_MAGIC 0x564E4948u /* bytes "HINV" */
+#define ERMC_HOST_INVENTORY_VERSION 1u
+#define ERMC_INVENTORY_UNAVAILABLE 0u
+#define ERMC_INVENTORY_LOADING 1u
+#define ERMC_INVENTORY_READY 2u
+#define ERMC_INVENTORY_MC_CONTROL 1u
+#define ERMC_INVENTORY_TRUNCATED 2u
+#define ERMC_INVENTORY_KEY_ITEM 1u
+#define ERMC_MAX_INVENTORY_ENTRIES 1024u
+typedef struct ErmcInventoryEntry {
+    uint32_t slot;                /* native index: key index, or keyCapacity + normal index */
+    uint32_t gaitemHandle;        /* session-local item handle, not a native pointer */
+    uint32_t rawItemId;           /* category in high nibble; actual param ID in low 28 bits */
+    uint32_t quantity;
+    uint32_t sortId;
+    uint32_t equipmentMask;       /* confirmed matching handle/index, native equipment slots 0..21 */
+    uint32_t flags;               /* ERMC_INVENTORY_KEY_ITEM */
+    uint32_t reserved;
+} ErmcInventoryEntry;             /* 0x20 */
+typedef struct ErmcHostInventory {
+    volatile uint32_t seq;        /* 0x00 seqlock */
+    uint32_t magic, version, state;
+    uint64_t sampleFrame;         /* 0x10 originating GameState.frame */
+    uint64_t sampleTimeMs;        /* 0x18 Unix epoch milliseconds from now_ms(), NOT uptime */
+    uint64_t ownerFingerprint;    /* 0x20 same canonical weak-name hash as HPRG */
+    uint32_t hostLife;            /* 0x28 lifecycle, not durable character identity */
+    uint32_t flags;               /* 0x2C MC_CONTROL / TRUNCATED */
+    uint32_t count;               /* 0x30 at most ERMC_MAX_INVENTORY_ENTRIES */
+    uint32_t totalEntries;        /* 0x34 valid observed entries including truncated rows */
+    uint32_t normalCapacity;      /* 0x38 validated native slot capacity */
+    uint32_t keyCapacity;         /* 0x3C native key index partition capacity */
+    ErmcInventoryEntry entries[ERMC_MAX_INVENTORY_ENTRIES]; /* 0x40 */
+} ErmcHostInventory;              /* 0x8040 */
 
 typedef struct ErmcHeader {
     uint32_t magic;               /* 0x00 */
@@ -496,6 +533,13 @@ static_assert(sizeof(ErmcHostEffects) == 0x38, "host effects size");
 static_assert(offsetof(ErmcHostEffects, rotEffectId) == 0x20 &&
               offsetof(ErmcHostEffects, frostProcs) == 0x30, "host effects v2 offsets");
 static_assert(sizeof(ErmcHostProgression) == 0x58, "host progression size");
+static_assert(sizeof(ErmcInventoryEntry) == 0x20 && sizeof(ErmcHostInventory) == 0x8040, "host inventory size");
+static_assert(offsetof(ErmcHostInventory, sampleFrame) == 0x10 &&
+              offsetof(ErmcHostInventory, sampleTimeMs) == 0x18 &&
+              offsetof(ErmcHostInventory, ownerFingerprint) == 0x20 &&
+              offsetof(ErmcHostInventory, entries) == 0x40, "host inventory offsets");
+static_assert(ERMC_OFF_COLLISION_CONTROL + sizeof(ErmcCollisionControl) <= ERMC_OFF_HOST_INVENTORY &&
+              ERMC_OFF_HOST_INVENTORY + sizeof(ErmcHostInventory) <= ERMC_SHM_SIZE, "inventory block fits");
 static_assert(offsetof(ErmcHostProgression, sampleFrame) == 0x10 &&
               offsetof(ErmcHostProgression, fingerprint) == 0x28 &&
               offsetof(ErmcHostProgression, name) == 0x30 &&

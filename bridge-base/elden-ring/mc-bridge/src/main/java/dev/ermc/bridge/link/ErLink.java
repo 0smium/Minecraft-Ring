@@ -76,6 +76,10 @@ public final class ErLink {
 		return shm != null && alive() ? shm.readHostProgression() : java.util.Optional.empty();
 	}
 
+	public synchronized java.util.Optional<HostInventorySample> readHostInventory() {
+		return shm != null && alive() ? shm.readHostInventory() : java.util.Optional.empty();
+	}
+
 	public synchronized boolean alive() {
 		return shm != null && lastHeartbeatChange > 0 && System.currentTimeMillis() - lastHeartbeatChange < ALIVE_TIMEOUT_MS;
 	}

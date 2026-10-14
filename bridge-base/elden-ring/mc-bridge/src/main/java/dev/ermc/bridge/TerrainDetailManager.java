@@ -90,9 +90,10 @@ public final class TerrainDetailManager {
 	 * This is bounded by the player's next 1.5 metres, not the whole loaded map. */
 	public static void discover(ServerLevel level, List<ServerPlayer> players) {
 		for (ServerPlayer player : players) {
-			Vec3 feet = player.position();
+			var motionBody = MountMotion.body(player);
+			Vec3 feet = motionBody.position();
 			Vec3 ahead = player.getViewVector(1).multiply(1, 0, 1).normalize().scale(1.5);
-			AABB body = player.getBoundingBox().expandTowards(ahead);
+			AABB body = motionBody.getBoundingBox().expandTowards(ahead);
 			AABB area = new AABB(body.minX - .1, feet.y + .02, body.minZ - .1,
 				body.maxX + .1, body.maxY + .65, body.maxZ + .1);
 			for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(area.minX, area.minY, area.minZ),
@@ -101,7 +102,7 @@ public final class TerrainDetailManager {
 				if (COLUMNS.containsKey(key) || TerrainManager.movingColumn(pos.getX(), pos.getZ())) continue;
 				BlockState state = level.getBlockState(pos);
 				if (!ErBridgeMod.isTerrain(state)) continue;
-				var shape = state.getCollisionShape(level, pos, CollisionContext.of(player));
+				var shape = state.getCollisionShape(level, pos, CollisionContext.of(motionBody));
 				if (shape.isEmpty() || !shape.bounds().move(pos).intersects(area)) continue;
 				COLUMNS.put(key, new Sample(pos.getX(), pos.getZ(), feet.y,
 					Mth.floor(area.maxY), Mth.floor(feet.y - 1), pos.getY(),
@@ -203,10 +204,11 @@ public final class TerrainDetailManager {
 		double distance = RANGE * RANGE;
 		boolean bestWaiting = false;
 		for (ServerPlayer player : players) {
+			var body = MountMotion.body(player);
 			// Local geometry can be prepared before the player stands on it.
 			for (Sample sample : COLUMNS.values()) {
-				if (sample.top < player.getY() - 1 || sample.bottom > player.getY() + CLEAR_HEIGHT) continue;
-				Vec3 p = player.position();
+				if (sample.top < body.getY() - 1 || sample.bottom > body.getY() + CLEAR_HEIGHT) continue;
+				Vec3 p = body.position();
 				boolean waiting = TerrainManager.detailPending(sample.x, sample.z);
 				if (sample.checkedFrom != null && Math.abs(sample.checkedFrom.y - p.y) < .25
 					&& System.currentTimeMillis() - sample.checkedAt < TerrainPrefetch.REFRESH_MS) continue;

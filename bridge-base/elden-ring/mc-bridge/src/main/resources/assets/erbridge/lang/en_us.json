@@ -1,6 +1,7 @@
 {
 	"block.erbridge.terrain": "ER Terrain",
 	"category.erbridge": "ER Bridge",
+	"key.erbridge.inventory": "Read Elden Ring inventory",
 	"key.erbridge.camera_mode": "Switch camera mode (drive Elden Ring / follow Elden Ring)",
 	"key.erbridge.overlay": "Switch control to Elden Ring (F8 in Elden Ring switches back)",
 	"key.erbridge.status": "Debug view (status, hitboxes)",

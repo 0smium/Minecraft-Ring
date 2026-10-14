@@ -25,6 +25,7 @@ public class ErBridgeClient implements ClientModInitializer {
 	private static KeyMapping hunterKey;
 	private static KeyMapping passthroughKey;
 	private static KeyMapping actionKey;
+	private static KeyMapping inventoryKey;
 	/** Last Elden Ring action request still waiting for its result (0 = none). */
 	private static int pendingAction;
 	private static long pendingActionSince;
@@ -33,6 +34,9 @@ public class ErBridgeClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		ProgressionClient.initialize();
+		MountClient.initialize();
+		inventoryKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.erbridge.inventory",
+			InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_I, "category.erbridge"));
 		cameraModeKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.erbridge.camera_mode",
 			InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F7, "category.erbridge"));
 		overlayKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.erbridge.overlay",
@@ -52,6 +56,12 @@ public class ErBridgeClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(MovingPlatformClient::afterTick);
 		ClientTickEvents.END_CLIENT_TICK.register(CombatBaselineTrace::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+			while (inventoryKey.consumeClick()) {
+				if (mc.screen == null && mc.player != null && mc.getSingleplayerServer() != null
+					&& dev.ermc.bridge.TerrainManager.isBridgeWorld() && Overlay.active() && !Overlay.hostBusy()) {
+					mc.setScreen(new HostInventoryScreen());
+				}
+			}
 			while (cameraModeKey.consumeClick()) {
 				CameraSync.toggleMode();
 				toast(mc, "Camera: " + CameraSync.mode());
