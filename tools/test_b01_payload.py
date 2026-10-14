@@ -18,6 +18,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 COMMON = ROOT / 'bridge-base/elden-ring/mc-bridge/src/main/java/dev/ermc/bridge'
+CHARACTER = ROOT / 'bridge-base/elden-ring/mc-bridge/character-bridge/src/main/java/dev/ermc/bridge'
 
 JAVA = r'''
 import dev.ermc.bridge.api.*;
@@ -141,7 +142,7 @@ def main():
     classpath = args.classpath_file.read_text(encoding='utf-8-sig').strip()
     java_home = args.java_home or next((ROOT / '.tools/java').glob('*/bin/java.exe')).parent.parent
     executable = '.exe' if os.name == 'nt' else ''
-    sources = [COMMON / 'api/CharacterBinding.java', COMMON / 'api/CapabilitySnapshot.java', COMMON / 'gameplay/runtime/B01Payload.java']
+    sources = [COMMON / 'api/CharacterBinding.java', COMMON / 'api/CapabilitySnapshot.java', CHARACTER / 'gameplay/runtime/B01Payload.java']
     with tempfile.TemporaryDirectory(prefix='ermc-b01-wire-') as directory:
         output = Path(directory)
         fixture = output / 'B01PayloadCheck.java'

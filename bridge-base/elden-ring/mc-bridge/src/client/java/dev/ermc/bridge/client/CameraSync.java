@@ -1,7 +1,8 @@
 package dev.ermc.bridge.client;
 
 import dev.ermc.bridge.CoordMap;
-import dev.ermc.bridge.MountMotion;
+import dev.ermc.bridge.api.MovementSubjects;
+import dev.ermc.bridge.api.BridgeLifecycle;
 import dev.ermc.bridge.link.ControlState;
 import dev.ermc.bridge.link.GameState;
 import dev.ermc.bridge.link.ErLink;
@@ -156,7 +157,7 @@ public final class CameraSync {
 			| (standIn && mc.player != null ? Protocol.CTRL_MOVE_HUNTER | Protocol.CTRL_HIDE_HUNTER : 0)
 			| (passthrough ? Protocol.CTRL_COMPOSITE : 0) | (noDepthTest ? Protocol.CTRL_NO_DEPTH_TEST : 0)
 			| (debugDepth ? Protocol.CTRL_DEBUG_DEPTH : 0);
-		var motionBody = mc.player == null ? null : MountMotion.body(mc.player);
+		var motionBody = mc.player == null ? null : MovementSubjects.body(mc.player);
 		boolean mounted = motionBody != null && motionBody != mc.player;
 		if (motionBody != null && motionBody.onGround() && (mounted || !mc.player.getAbilities().flying))
 			CONTROL.flags |= Protocol.CTRL_GROUNDED;
@@ -174,7 +175,7 @@ public final class CameraSync {
 			float pt = camera.getPartialTickTime();
 			if (mounted) { CONTROL.supportEpoch = 0; CONTROL.supportTravelY = 0; }
 			else MovingPlatformClient.copyControl(CONTROL, pt);
-			// The camera stays at the rider's eyes; the hidden Tarnished follows the horse's feet.
+			// Camera follows the player; the hidden host follows the registered movement body's feet.
 			double[] feet = map.toHost(net.minecraft.util.Mth.lerp(pt, motionBody.xo, motionBody.getX()),
 				net.minecraft.util.Mth.lerp(pt, motionBody.yo, motionBody.getY()),
 				net.minecraft.util.Mth.lerp(pt, motionBody.zo, motionBody.getZ()));
@@ -193,7 +194,7 @@ public final class CameraSync {
 	/** Release control even when a pause screen prevents Camera.setup from running. */
 	public static void suspend() {
 		driving = false;
-		if (Overlay.hostMode() || Overlay.hostBusy() || !Overlay.active()) MountClient.releaseControl();
+		if (Overlay.hostMode() || Overlay.hostBusy() || !Overlay.active()) BridgeLifecycle.CLIENT_CONTROL_RELEASED.invoker().released();
 		releaseHostCamera();
 	}
 

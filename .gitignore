@@ -64,6 +64,10 @@
 !/bridge-base/elden-ring/mc-bridge/build.gradle
 !/bridge-base/elden-ring/mc-bridge/settings.gradle
 !/bridge-base/elden-ring/mc-bridge/gradle.properties
+!/bridge-base/elden-ring/mc-bridge/character-bridge/
+/bridge-base/elden-ring/mc-bridge/character-bridge/*
+!/bridge-base/elden-ring/mc-bridge/character-bridge/build.gradle
+!/bridge-base/elden-ring/mc-bridge/character-bridge/src/
 # Generated files and private configuration, including inside source folders.
 **/.git/
 **/.gradle/

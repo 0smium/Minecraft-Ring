@@ -70,9 +70,9 @@ public static Mapping get(){return new Mapping(1);}}''',
 'dev/ermc/bridge/TerrainManager.java': '''package dev.ermc.bridge;
 public class TerrainManager {public static boolean movingColumn(int x,int z){return false;}
 public static boolean detailPending(int x,int z){return true;}public static void detailReady(int x,int z){}}''',
-'dev/ermc/bridge/MountMotion.java': '''package dev.ermc.bridge;
+'dev/ermc/bridge/api/MovementSubjects.java': '''package dev.ermc.bridge.api;
 // This existing passage test covers the unchanged walking path, not a simulated horse.
-public class MountMotion {public static net.minecraft.server.level.ServerPlayer body(net.minecraft.server.level.ServerPlayer p){return p;}}''',
+public class MovementSubjects {public static net.minecraft.server.level.ServerPlayer body(net.minecraft.server.level.ServerPlayer p){return p;}}''',
 'net/minecraft/server/level/ServerPlayer.java': '''package net.minecraft.server.level;
 import net.minecraft.world.phys.Vec3;
 public class ServerPlayer {public static double feet=100,x=.5,z=.5;public double getY(){return feet;}

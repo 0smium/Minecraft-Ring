@@ -25,11 +25,15 @@ def main():
                            if not any(s in p.name for s in ("-sources", "-javadoc")))
     dependencies += sorted(p for p in (cache / "modules-2/files-2.1").rglob("*.jar")
                            if not any(s in p.name for s in ("-sources", "-javadoc", "-natives-")))
-    cp = os.pathsep.join(map(str, [classes, PROJECT / "build/classes/java/main", PROJECT / "build/classes/java/client", *dependencies]))
+    cp = os.pathsep.join(map(str, [classes, PROJECT / "build/classes/java/main", PROJECT / "build/classes/java/client",
+        PROJECT / "character-bridge/build/classes/java/main", PROJECT / "character-bridge/build/classes/java/client", *dependencies]))
     sources = [PROJECT / "src/main/java/dev/ermc/bridge" / f"{name}.java" for name in (
-        "MountMotion", "MountPayload", "MountRuntime", "TerrainManager", "TerrainDetailManager", "TerrainTravelClearance", "ErBridgeMod")]
+        "TerrainManager", "TerrainDetailManager", "TerrainTravelClearance", "ErBridgeMod")]
+    sources += [PROJECT / "character-bridge/src/main/java/dev/ermc/bridge" / f"{name}.java" for name in (
+        "MountMotion", "MountPayload", "MountRuntime")]
     sources += [PROJECT / "src/client/java/dev/ermc/bridge/client" / f"{name}.java" for name in (
-        "MountClient", "CameraSync", "MovingPlatformClient")]
+        "CameraSync", "MovingPlatformClient")]
+    sources += [PROJECT / "character-bridge/src/client/java/dev/ermc/bridge/client/MountClient.java"]
     sources += [PROJECT / "src/testFixtures/mount/MountVanillaCheck.java"]
     java = ROOT / ".tools/java/jdk-25.0.4.1+1/bin/java.exe"
     invoke(java, ["-m", "jdk.compiler/com.sun.tools.javac.Main", "-proc:none", "-encoding", "UTF-8",

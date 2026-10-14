@@ -1,5 +1,8 @@
 package dev.ermc.bridge;
 
+import dev.ermc.bridge.api.MovementSubjects;
+import dev.ermc.bridge.api.BridgeLifecycle;
+
 import dev.ermc.bridge.link.GameState;
 import dev.ermc.bridge.link.ErLink;
 import dev.ermc.bridge.link.Protocol;
@@ -381,7 +384,7 @@ public final class TerrainManager {
 		TerrainDetailManager.discover(level, players);
 		List<Forecast> forecasts = new ArrayList<>();
 		for (ServerPlayer player : players) {
-			var body = MountMotion.body(player);
+			var body = MovementSubjects.body(player);
 			Vec3 previous = LAST_POSITIONS.put(player.getUUID(), body.position());
 			Vec3 velocity = previous == null ? Vec3.ZERO : body.position().subtract(previous).scale(20);
 			Vec3 look = player.getViewVector(1);
@@ -575,14 +578,14 @@ public final class TerrainManager {
 		BATCH_KEYS.clear();
 		int n = 0;
 		for (ServerPlayer player : players) {
-			var body = MountMotion.body(player);
+			var body = MovementSubjects.body(player);
 			n = sampleAround(map, body.getX(), body.getY(), body.getZ(), priority ? TerrainPrefetch.NEAR_RADIUS : SAMPLE_RADIUS,
 				n, priority, body.getX(), body.getZ());
 		}
 		if (priority) {
 			for (Forecast forecast : forecasts) {
 				ServerPlayer player = forecast.player();
-				var body = MountMotion.body(player);
+				var body = MovementSubjects.body(player);
 				n = sampleAround(map, forecast.aheadX(), body.getY(), forecast.aheadZ(), TerrainPrefetch.NEAR_RADIUS,
 					n, true, body.getX(), body.getZ());
 			}
@@ -607,7 +610,7 @@ public final class TerrainManager {
 		BATCH_KEYS.clear();
 		int n = 0;
 		for (ServerPlayer player : players) {
-			var body = MountMotion.body(player);
+			var body = MovementSubjects.body(player);
 			n = sampleAround(map, body.getX(), body.getY(), body.getZ(), 2, n,
 				true, body.getX(), body.getZ());
 		}
@@ -942,7 +945,7 @@ public final class TerrainManager {
 
 	private static void teleportToHunter(ServerLevel level, ServerPlayer player, CoordMap.Mapping map) {
 		if (!LocalHostOwner.isOwner(player)) return;
-		MountRuntime.beforeRecall(player);
+		BridgeLifecycle.BEFORE_RECALL.invoker().beforeRecall(player);
 		boolean known = STATE.has(Protocol.STATE_PLAYER_VALID);
 		Vec3 target = known
 			? map.toMc(STATE.playerPos[0], STATE.playerPos[1], STATE.playerPos[2])

@@ -1,6 +1,7 @@
 package dev.ermc.bridge.client;
 
 import dev.ermc.bridge.TerrainManager;
+import dev.ermc.bridge.api.BridgeLifecycle;
 import dev.ermc.bridge.api.CapabilitySnapshot.Ability;
 import dev.ermc.bridge.api.CharacterBinding;
 import dev.ermc.bridge.client.integrations.CapabilityPolicyClient;
@@ -28,7 +29,7 @@ public final class ProgressionClient {
                 awaiting = true; CapabilityPolicyClient.publish(true, null);
             }
         });
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> reset());
+        BridgeLifecycle.CLIENT_DISCONNECTED.register(ProgressionClient::reset);
         ClientPlayNetworking.registerGlobalReceiver(B01Payload.TYPE, (payload, context) -> {
             // Fabric dispatches this handler on the render thread; it never reads server statics.
             if (context.player() == null || !context.player().getUUID().equals(payload.owner())) return;

@@ -77,12 +77,13 @@ def invoke(binary, arguments, log):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.0.jar")
+    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.1.jar")
+    parser.add_argument("--character-jar", type=Path, default=PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.1.jar")
     parser.add_argument("--java-home", type=Path, default=ROOT / ".tools/java/jdk-25.0.4.1+1")
     parser.add_argument("--classpath-file", type=Path)
     args = parser.parse_args()
-    if not args.bridge_jar.is_file() or not LB.is_file():
-        parser.error("The built production bridge JAR and prepared fixed LB JAR are required")
+    if not args.bridge_jar.is_file() or not args.character_jar.is_file() or not LB.is_file():
+        parser.error("The built Core + Character production JARs and prepared fixed LB JAR are required")
     if hashlib.sha256(LB.read_bytes()).hexdigest() != LB_SHA256:
         parser.error("LB JAR differs from fixed official build #3530")
     OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -97,7 +98,7 @@ def main():
         (services / ("org.spongepowered.asm.service." + name)).write_text("OfflineMixinProbe$" + implementation + "\n")
     extra = (args.classpath_file.read_text(encoding="utf-8-sig").strip().split(os.pathsep)
              if args.classpath_file else dependencies())
-    classpath = os.pathsep.join(str(path) for path in [OUTPUT, args.bridge_jar.resolve(), LB, *extra])
+    classpath = os.pathsep.join(str(path) for path in [OUTPUT, args.bridge_jar.resolve(), args.character_jar.resolve(), LB, *extra])
     suffix = ".exe" if os.name == "nt" else ""
     invoke(args.java_home / f"bin/javac{suffix}", ["-encoding", "UTF-8", "-classpath", classpath, "-d", OUTPUT,
            FIXTURES / "OfflineMixinProbe.java", FIXTURES / "RuntimeValueProbe.java", FIXTURES / "KotlinRangeProbe.java"], OUTPUT / "compile.log")
@@ -106,6 +107,7 @@ def main():
         invoke(args.java_home / f"bin/java{suffix}", ["-classpath", classpath, probe], log)
         print(f"PASS {probe}: {log}")
     print("Bridge SHA-256: " + hashlib.sha256(args.bridge_jar.read_bytes()).hexdigest())
+    print("Character SHA-256: " + hashlib.sha256(args.character_jar.read_bytes()).hexdigest())
     print("LIMIT: no module singleton initialization, lifecycle cleanup, GUI, networking, movement/attack or game startup.")
 
 

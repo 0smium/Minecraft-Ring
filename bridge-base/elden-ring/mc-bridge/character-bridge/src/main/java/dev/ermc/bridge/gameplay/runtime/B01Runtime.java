@@ -12,7 +12,6 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -61,15 +60,16 @@ public final class B01Runtime {
     public static void initialize() {
         PayloadTypeRegistry.playS2C().register(B01Payload.TYPE, B01Payload.CODEC);
         SkillsBridge.initialize(player -> { if (active != null && player.getServer() == active.server) active.sent.remove(player.getUUID()); });
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+        BridgeLifecycle.HOST_WORLD_READY.register(server -> {
             if (TerrainManager.isBridgeWorld()) active = new B01Runtime(server);
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> { if (active != null && active.server == server) active = null; });
         ServerTickEvents.END_SERVER_TICK.register(server -> { if (active != null && active.server == server) active.tick(); });
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+        BridgeLifecycle.PLAYER_DISCONNECTED.register(player -> {
+            MinecraftServer server = player.getServer();
             if (active != null && active.server == server) {
-                active.sent.remove(handler.player.getUUID());
-                if (handler.player == active.owner) { active.closeSession(); active.owner = null; active.binding = null; active.bindingLoaded = false; }
+                active.sent.remove(player.getUUID());
+                if (player == active.owner) { active.closeSession(); active.owner = null; active.binding = null; active.bindingLoaded = false; }
             }
         });
         CommandRegistrationCallback.EVENT.register((dispatcher, registry, environment) -> dispatcher.register(

@@ -1,5 +1,7 @@
 package dev.ermc.bridge;
 
+import dev.ermc.bridge.api.MovementSubjects;
+
 import dev.ermc.bridge.link.ErLink;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -42,7 +44,7 @@ public final class TerrainTravelClearance {
     public static boolean submit(CoordMap.Mapping map, List<ServerPlayer> players) {
         if (busy() || players.isEmpty()) return false;
         ServerPlayer player = players.getFirst();
-        var body = MountMotion.body(player);
+        var body = MovementSubjects.body(player);
         maxStep = body.maxUpStep();
         half = body == player ? .375 : Math.max(.375, body.getBbWidth() * .5 + .075);
         Vec3 feet = body.position(), look = player.getViewVector(1).multiply(1, 0, 1).normalize();

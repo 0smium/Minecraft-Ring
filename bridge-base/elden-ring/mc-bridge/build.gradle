@@ -6,14 +6,7 @@ base {
 	archivesName = 'er-bridge'
 }
 
-def skillsJar = file('../../../runtime/downloads/puffish_skills-0.19.2-1.21-fabric.jar')
-if (!skillsJar.isFile()) {
-	throw new GradleException('Prepare the pinned compile dependency with: python tools/prepare_b01_skills.py (from repository root)')
-}
-def skillsHash = java.security.MessageDigest.getInstance('SHA-256').digest(skillsJar.bytes).encodeHex().toString()
-if (skillsHash != '276ce0b5f15bcfeafe632c8eabe0d2d3104b9b0362897e66fd049bcd217ba915') {
-	throw new GradleException('Pufferfish Skills JAR differs from verified 0.19.2 for Minecraft 1.21')
-}
+def characterEnabled = findProject(':character-bridge') != null
 def b01Enabled = providers.gradleProperty('b01').map { it.toBoolean() }.getOrElse(false)
 if (b01Enabled && providers.gradleProperty('meteorProduction').map { it.toBoolean() }.getOrElse(false)) {
 	throw new GradleException('B01 currently authorizes LiquidBounce abilities; use a separate Meteor profile')
@@ -45,11 +38,6 @@ dependencies {
 	mappings loom.officialMojangMappings()
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	// Optional at runtime; the verified artifact is prepared outside Git (see B01 notes).
-	modCompileOnly files(skillsJar)
-	if (b01Enabled && !providers.gradleProperty('lbProduction').map { it.toBoolean() }.getOrElse(false)) {
-		modLocalRuntime files(skillsJar)
-	}
 
 }
 
@@ -78,7 +66,8 @@ if (providers.gradleProperty('lbProduction').map { it.toBoolean() }.getOrElse(fa
 		group = 'fabric'
 		description = 'Run the bridge with fixed LiquidBounce in the production mapping environment'
 		mods.from tasks.named('remapJar'), file(lbJar), configurations.lbProductionMods
-		if (b01Enabled) mods.from skillsJar
+		if (characterEnabled) mods.from project(':character-bridge').tasks.named('remapJar')
+		if (b01Enabled) mods.from file('../../../runtime/downloads/puffish_skills-0.19.2-1.21-fabric.jar')
 		runDir = layout.projectDirectory.dir('run')
 		jvmArgs.addAll('-Xms512m', '-Xmx3g')
 		if (providers.gradleProperty('experimentalFrostBurst').map { it.toBoolean() }.getOrElse(false)) {
@@ -122,6 +111,7 @@ if (providers.gradleProperty('meteorProduction').map { it.toBoolean() }.getOrEls
 		group = 'fabric'
 		description = 'Run Core with the locally pinned Meteor 0.5.8 release in an isolated profile'
 		mods.from tasks.named('remapJar'), file(meteorJar), configurations.meteorProductionMods
+		if (characterEnabled) mods.from project(':character-bridge').tasks.named('remapJar')
 		runDir = layout.projectDirectory.dir('run-meteor')
 		jvmArgs.addAll('-Xms512m', '-Xmx3g')
 		if (providers.gradleProperty('experimentalFrostBurst').map { it.toBoolean() }.getOrElse(false)) {
@@ -146,23 +136,53 @@ tasks.withType(JavaCompile).configureEach {
 	it.options.release = 21
 }
 
-// These test sources are standalone assertion programs, not JUnit classes.
-// Gradle 9 otherwise fails discovery; check must run their real two-JVM harness.
-tasks.named('test') {
-	failOnNoDiscoveredTests = false
-}
-tasks.register('b01PreparationCheck', Exec) {
-	group = 'verification'
-	description = 'Run the production progression/policy checks and fresh-JVM persistence check'
-	workingDir file('../../..')
-	commandLine 'python', 'tools/test_b01_preparation.py'
-}
-tasks.named('check') {
-	dependsOn tasks.named('b01PreparationCheck')
-}
 
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(25)
 	}
+}
+
+// Fail before starting ER: compile the selected products and resolve their real dependencies.
+// This deliberately does not start a game or require any optional client for Core-only.
+tasks.register('verifyLaunchProfile') {
+    group = 'verification'
+    description = 'Build and resolve the selected launch profile without starting either game'
+    dependsOn tasks.named('remapJar')
+    if (characterEnabled) dependsOn ':character-bridge:verifyCharacterProfile'
+    doLast {
+        configurations.runtimeClasspath.resolve()
+        configurations.clientRuntimeClasspath.resolve()
+        ['lbProductionMods', 'meteorProductionMods'].each { name ->
+            def selected = configurations.findByName(name)
+            if (selected != null) selected.resolve()
+        }
+        if (characterEnabled) {
+            def runtimeFiles = tasks.named('runClient').get().classpath.files
+            def characterProject = project(':character-bridge')
+            def characterOutputs = characterProject.sourceSets.main.output.files + characterProject.sourceSets.client.output.files
+            if (!runtimeFiles.containsAll(characterOutputs)) {
+                throw new GradleException('Character source outputs are missing from the development launch classpath')
+            }
+        }
+        logger.lifecycle("Launch profile verified: Core${characterEnabled ? ' + Character' : ''}${b01Enabled ? ' + Skills' : ''}")
+    }
+}
+
+if (characterEnabled) {
+    // Dev runs discover both real mods; production runs above consume both remapped JARs.
+    evaluationDependsOn(':character-bridge')
+    loom.mods {
+        er_character_bridge {
+            sourceSet project(':character-bridge').sourceSets.main
+            sourceSet project(':character-bridge').sourceSets.client
+        }
+    }
+    tasks.named('runClient') {
+        classpath.from project(':character-bridge').sourceSets.main.output,
+            project(':character-bridge').sourceSets.client.output
+    }
+    if (b01Enabled) {
+        dependencies { modLocalRuntime files('../../../runtime/downloads/puffish_skills-0.19.2-1.21-fabric.jar') }
+    }
 }

@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "dev.ermc.bridge.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MobEffectInstanceAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

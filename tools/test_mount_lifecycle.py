@@ -17,7 +17,7 @@ def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
     classes = OUTPUT / "classes"
     classes.mkdir(exist_ok=True)
-    production = (PROJECT / "src/main/java/dev/ermc/bridge/MountRuntime.java").read_text(encoding="utf-8")
+    production = (PROJECT / "character-bridge/src/main/java/dev/ermc/bridge/MountRuntime.java").read_text(encoding="utf-8")
     methods = "\n".join(function(production, signature) for signature in (
         "private static void release(", "private static void collectRetired(",
         "private static boolean returnEquipment(", "static boolean fits("))

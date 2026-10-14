@@ -7,10 +7,11 @@ import argparse
 import os
 import subprocess
 import tempfile
-from test_b01_preparation import java_path
+from test_b01_preparation import java_path, DOMAIN_API
 
 ROOT=Path(__file__).resolve().parents[1]
 COMMON=ROOT/'bridge-base/elden-ring/mc-bridge/src/main/java/dev/ermc/bridge'
+CHARACTER=ROOT/'bridge-base/elden-ring/mc-bridge/character-bridge/src/main/java/dev/ermc/bridge'
 
 FIXTURE=r'''
 import dev.ermc.bridge.api.*;
@@ -134,8 +135,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='ermc-b01-files-') as directory:
         work=Path(directory);fixture=work/'B01FilesCheck.java';fixture.write_text(FIXTURE,encoding='utf8')
         classes=work/'classes';classes.mkdir()
-        sources=sorted((COMMON/'api').glob('*.java'))+sorted((COMMON/'gameplay/capability').glob('*.java'))
-        sources += [COMMON/'gameplay/runtime/B01Files.java',fixture]
+        sources=[COMMON/'api'/f'{name}.java' for name in DOMAIN_API]+sorted((CHARACTER/'gameplay/capability').glob('*.java'))
+        sources += [CHARACTER/'gameplay/runtime/B01Files.java',fixture]
         subprocess.run([java,'-m','jdk.compiler/com.sun.tools.javac.Main','--release','17','-encoding','UTF-8','-Xlint:all','-Werror','-d',str(classes),*map(str,sources)],check=True)
         command=[java,'-cp',str(classes),'B01FilesCheck',str(work/'data')]
         subprocess.run(command,check=True)

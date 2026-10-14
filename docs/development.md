@@ -13,10 +13,16 @@
 | `mc-bridge/src/main/java/dev/ermc/bridge/` | Server-side terrain, collision shapes, moving platforms and shared life |
 | `mc-bridge/src/main/java/dev/ermc/bridge/entity/` | Host enemy proxies and combat |
 | `mc-bridge/src/client/java/dev/ermc/bridge/client/` | Camera, capture, Windows overlay, input and automatic bridge-world opening |
-| `Launch.ps1` | Host startup, readiness check, window settings and Fabric development-client launch |
+| `mc-bridge/character-bridge/` | Independent character UI, Horse lifecycle, effects, progression and optional Skills/LB authorization |
+| `mc-bridge/src/main/java/dev/ermc/bridge/api/` | Public motion, ordered lifecycle and host/capability data contracts |
+| `Launch.ps1` | Profile build/dependency preflight, host startup and Minecraft launch |
 
 Paths abbreviated to `er-bridge/` and `mc-bridge/` above are relative to
 `bridge-base/elden-ring/`.
+
+Core can build without Character, Skills, LB or Meteor. Character is an opt-in
+Gradle subproject and a separate Fabric JAR; build/launch flags and compatibility
+are documented in [character modules](character-modules.md).
 
 ## Protocol and rendering
 
@@ -28,7 +34,7 @@ Java can also override the directory with `-Derbridge.dir=<path>`.
 
 Actual host effects use an optional, separately versioned `HEFX` block at
 `0xC00`. The native `HostEffectsReader` reads identified ER state;
-`HostEffectsBridge` applies vanilla Minecraft effects on the server thread.
+the optional Character mod's `HostEffectsBridge` applies vanilla Minecraft effects on the server thread.
 Unattributed HP loss is observation data rather than an effect identity or a
 second damage event. HEFX v2 adds rot, frost, sleep and madness; the Java reader also accepts
 poison-only v1. The mappings, experimental frost burst and rollout checks are in

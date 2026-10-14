@@ -1,0 +1,73 @@
+plugins {
+    id 'net.fabricmc.fabric-loom-remap'
+}
+
+version = rootProject.version
+group = rootProject.group
+base { archivesName = 'er-character-bridge' }
+
+def b01Enabled = providers.gradleProperty('b01').map { it.toBoolean() }.getOrElse(false)
+
+loom {
+    splitEnvironmentSourceSets()
+    mods {
+        er_character_bridge {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+        erbridge {
+            sourceSet rootProject.sourceSets.main
+            sourceSet rootProject.sourceSets.client
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
+    implementation project(path: ':', configuration: 'namedElements')
+    clientImplementation rootProject.sourceSets.client.output
+}
+
+// Only the B01 product contains the version-specific Skills implementation and data.
+// Ordinary Character and Core builds need no Skills artifact, even at configuration time.
+if (b01Enabled) {
+    def skillsJar = rootProject.file('../../../runtime/downloads/puffish_skills-0.19.2-1.21-fabric.jar')
+    if (!skillsJar.isFile()) {
+        throw new GradleException('B01 requires: python tools/prepare_b01_skills.py (from repository root)')
+    }
+    def hash = java.security.MessageDigest.getInstance('SHA-256').digest(skillsJar.bytes).encodeHex().toString()
+    if (hash != '276ce0b5f15bcfeafe632c8eabe0d2d3104b9b0362897e66fd049bcd217ba915') {
+        throw new GradleException('Skills artifact differs from pinned 0.19.2 for Minecraft 1.21')
+    }
+    sourceSets.main.java.srcDir 'src/skills/java'
+    sourceSets.main.resources.srcDir 'src/skills/resources'
+    dependencies { modCompileOnly files(skillsJar) }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
+tasks.withType(JavaCompile).configureEach { options.release = 21 }
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+
+tasks.named('test') { failOnNoDiscoveredTests = false }
+tasks.register('b01PreparationCheck', Exec) {
+    group = 'verification'
+    description = 'Run progression/policy checks and fresh-JVM persistence check'
+    workingDir rootProject.file('../../..')
+    commandLine 'python', 'tools/test_b01_preparation.py'
+}
+tasks.named('check') { dependsOn tasks.named('b01PreparationCheck') }
+
+tasks.register('verifyCharacterProfile') {
+    group = 'verification'
+    dependsOn tasks.named('remapJar')
+    doLast {
+        configurations.runtimeClasspath.resolve()
+        configurations.clientRuntimeClasspath.resolve()
+    }
+}

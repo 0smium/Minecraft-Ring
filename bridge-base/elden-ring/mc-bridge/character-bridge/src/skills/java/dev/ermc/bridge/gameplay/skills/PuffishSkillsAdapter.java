@@ -1,6 +1,7 @@
 package dev.ermc.bridge.gameplay.skills;
 
 import dev.ermc.bridge.api.CapabilitySnapshot.Ability;
+import dev.ermc.bridge.api.BridgeLifecycle;
 import dev.ermc.bridge.gameplay.progression.LevelProgress;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -18,12 +19,14 @@ import net.puffish.skillsmod.api.Skill;
 import net.puffish.skillsmod.api.SkillsAPI;
 
 /** Loaded only after the optional dependency/version check in SkillsBridge. */
-final class PuffishSkillsAdapter implements SkillsBridge.Backend {
+public final class PuffishSkillsAdapter implements SkillsBridge.Backend {
     private static final ResourceLocation CATEGORY = ResourceLocation.parse(SkillsBridge.CATEGORY_ID);
     private static final ResourceLocation POINT_SOURCE = ResourceLocation.parse(LevelProgress.POINT_SOURCE);
     private static final String[] SPEED_NODES = {"speed_1", "speed_2", "speed_3"};
     private static final String[] AURA_NODES = {"aura_1", "aura_2", "aura_3"};
     private final Set<UUID> pendingPlayers = new HashSet<>();
+
+    public PuffishSkillsAdapter() {}
 
     @Override
     public void register(Consumer<ServerPlayer> changed) {
@@ -36,7 +39,7 @@ final class PuffishSkillsAdapter implements SkillsBridge.Backend {
         // Run login/reload reconciliation after all framework lifecycle listeners,
         // independent of Fabric's optional-mod initialization order.
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> pendingPlayers.add(handler.player.getUUID()));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> pendingPlayers.remove(handler.player.getUUID()));
+        BridgeLifecycle.PLAYER_DISCONNECTED.register(player -> pendingPlayers.remove(player.getUUID()));
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> {
             if (success) server.getPlayerList().getPlayers().forEach(player -> pendingPlayers.add(player.getUUID()));
         });

@@ -23,7 +23,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 JAR = ROOT / "runtime/downloads/puffish_skills-0.19.2-1.21-fabric.jar"
 SHA256 = "276ce0b5f15bcfeafe632c8eabe0d2d3104b9b0362897e66fd049bcd217ba915"
-RESOURCES = ROOT / "bridge-base/elden-ring/mc-bridge/src/main/resources/data/erbridge/puffish_skills"
+RESOURCES = ROOT / "bridge-base/elden-ring/mc-bridge/character-bridge/src/skills/resources/data/erbridge/puffish_skills"
 
 
 def cached_classpath():

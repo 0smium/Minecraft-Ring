@@ -26,7 +26,7 @@ public final class SkillsBridge {
         public Status { learnedRanks = Map.copyOf(learnedRanks); }
     }
 
-    interface Backend {
+    public interface Backend {
         void register(Consumer<ServerPlayer> changed);
         Optional<Status> reconcile(ServerPlayer player, LevelProgress progress);
         Optional<Status> snapshot(ServerPlayer player);
@@ -48,12 +48,22 @@ public final class SkillsBridge {
             LOG.warn("Skills integration unavailable: unsupported Pufferfish's Skills {}", version);
             return false;
         }
-        // No Pufferfish types appear on this facade, so Core-only class loading stays safe.
-        Backend candidate = new PuffishSkillsAdapter();
-        candidate.register(changed);
-        backend = candidate;
-        LOG.info("Skills integration ready: Pufferfish's Skills {}", version);
-        return true;
+        // The optional build profile contributes this implementation; the default character
+        // JAR contains neither it nor any Pufferfish API references.
+        try {
+            Class<?> adapter = Class.forName("dev.ermc.bridge.gameplay.skills.PuffishSkillsAdapter",
+                    true, SkillsBridge.class.getClassLoader());
+            Backend candidate = adapter.asSubclass(Backend.class).getConstructor().newInstance();
+            candidate.register(changed);
+            backend = candidate;
+            LOG.info("Skills integration ready: Pufferfish's Skills {}", version);
+            return true;
+        } catch (ClassNotFoundException e) {
+            LOG.warn("Skills integration unavailable: use the B01 character artifact to enable the installed Skills dependency");
+        } catch (ReflectiveOperationException | LinkageError | ClassCastException e) {
+            LOG.error("Skills integration unavailable: optional adapter could not be loaded", e);
+        }
+        return false;
     }
 
     public static boolean available() { return backend != null; }

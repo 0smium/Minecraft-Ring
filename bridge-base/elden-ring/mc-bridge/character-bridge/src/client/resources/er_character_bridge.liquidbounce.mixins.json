@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "package": "dev.ermc.bridge.client.integrations.liquidbounce",
+  "plugin": "dev.ermc.bridge.client.integrations.liquidbounce.LiquidBounceMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "CapabilityValueMixin",
+    "CapabilityChoiceMixin",
+    "CapabilityModuleMixin",
+    "CapabilitySpeedMixin",
+    "CapabilityAuraMixin",
+    "CapabilityToggleableMixin",
+    "CapabilityBHopMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

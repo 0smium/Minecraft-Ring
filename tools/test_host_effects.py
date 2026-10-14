@@ -16,6 +16,7 @@ from test_b01_preparation import java_path
 ROOT = Path(__file__).resolve().parents[1]
 ER = ROOT / "bridge-base/elden-ring/er-bridge"
 MC = ER.parent / "mc-bridge/src"
+CHARACTER = ER.parent / "mc-bridge/character-bridge/src"
 
 NATIVE = r"""
 #include <cstdio>
@@ -228,8 +229,9 @@ def main():
             files.append(p)
         main = MC / "main/java/dev/ermc/bridge"
         files += [main / "link" / f"{name}.java" for name in
-                  ("BridgePaths", "Protocol", "HostEffectState", "HostEffectCodec", "HostEffectCursor", "HostEffectRules")]
-        files += [main / "HostEffectsBridge.java", main / "mixin/MobEffectInstanceAccessor.java",
+                  ("BridgePaths", "Protocol", "HostEffectState", "HostEffectCodec", "HostEffectCursor")]
+        character = CHARACTER / "main/java/dev/ermc/bridge"
+        files += [character / "link/HostEffectRules.java", character / "HostEffectsBridge.java", character / "mixin/MobEffectInstanceAccessor.java",
                   MC / "testFixtures/host-effects/HostEffectsCheck.java"]
         classes = out / "classes"
         classes.mkdir()

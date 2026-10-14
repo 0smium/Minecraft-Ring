@@ -13,6 +13,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "bridge-base/elden-ring/mc-bridge/src"
+CHARACTER = ROOT / "bridge-base/elden-ring/mc-bridge/character-bridge/src"
+DOMAIN_API = ("CapabilitySnapshot", "CharacterBinding", "HostBackend", "HostLevelSnapshot", "HostSession")
 
 
 def java_path(java_home):
@@ -37,10 +39,11 @@ def main():
     args = parser.parse_args()
     java = java_path(args.java_home)
     common = SOURCE / "main/java/dev/ermc/bridge"
-    sources = sorted((common / "api").glob("*.java"))
+    sources = [common / "api" / f"{name}.java" for name in DOMAIN_API]
+    common = CHARACTER / "main/java/dev/ermc/bridge"
     sources += sorted((common / "gameplay/progression").glob("*.java"))
     sources += sorted((common / "gameplay/capability").glob("*.java"))
-    sources += sorted((SOURCE / "test/java/dev/ermc/bridge/preparation").glob("*.java"))
+    sources += sorted((CHARACTER / "test/java/dev/ermc/bridge/preparation").glob("*.java"))
     with tempfile.TemporaryDirectory(prefix="ermc-b01-") as temporary:
         output = Path(temporary)
         classes = output / "classes"

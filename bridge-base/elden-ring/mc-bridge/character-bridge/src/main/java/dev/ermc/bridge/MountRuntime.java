@@ -1,5 +1,7 @@
 package dev.ermc.bridge;
 
+import dev.ermc.bridge.api.MovementSubjects;
+import dev.ermc.bridge.api.BridgeLifecycle;
 import dev.ermc.bridge.link.ErLink;
 import dev.ermc.bridge.link.GameState;
 import dev.ermc.bridge.link.Protocol;
@@ -9,7 +11,6 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.commands.CommandSourceStack;
@@ -41,6 +42,9 @@ public final class MountRuntime {
     private static int hostLife, zone;
 
     public static void initialize() {
+        MovementSubjects.register(MountMotion::body);
+        BridgeLifecycle.BEFORE_TERRAIN_TICK.register(MountRuntime::beforeTerrainTick);
+        BridgeLifecycle.BEFORE_RECALL.register(MountRuntime::beforeRecall);
         PayloadTypeRegistry.playS2C().register(MountPayload.TYPE, MountPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(MountPayload.Release.TYPE, MountPayload.Release.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(MountPayload.Release.TYPE, (payload, context) -> {
@@ -55,8 +59,8 @@ public final class MountRuntime {
         ServerLifecycleEvents.SERVER_STARTING.register(s -> { active = null; owner = null; RETIRED.clear(); });
         ServerLifecycleEvents.SERVER_STOPPING.register(s -> { release("server stopping"); collectRetired(s); });
         ServerLifecycleEvents.SERVER_STOPPED.register(s -> { active = null; owner = null; RETIRED.clear(); });
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, s) -> {
-            if (handler.player == owner) release("owner disconnected");
+        BridgeLifecycle.PLAYER_DISCONNECTED.register(player -> {
+            if (player == owner) release("owner disconnected");
         });
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
             if (entity == owner || entity == active) release("rider or horse died");

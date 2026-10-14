@@ -1,5 +1,7 @@
 package dev.ermc.bridge;
 
+import dev.ermc.bridge.api.MovementSubjects;
+
 import dev.ermc.bridge.link.ErLink;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
@@ -90,7 +92,7 @@ public final class TerrainDetailManager {
 	 * This is bounded by the player's next 1.5 metres, not the whole loaded map. */
 	public static void discover(ServerLevel level, List<ServerPlayer> players) {
 		for (ServerPlayer player : players) {
-			var motionBody = MountMotion.body(player);
+			var motionBody = MovementSubjects.body(player);
 			Vec3 feet = motionBody.position();
 			Vec3 ahead = player.getViewVector(1).multiply(1, 0, 1).normalize().scale(1.5);
 			AABB body = motionBody.getBoundingBox().expandTowards(ahead);
@@ -204,7 +206,7 @@ public final class TerrainDetailManager {
 		double distance = RANGE * RANGE;
 		boolean bestWaiting = false;
 		for (ServerPlayer player : players) {
-			var body = MountMotion.body(player);
+			var body = MovementSubjects.body(player);
 			// Local geometry can be prepared before the player stands on it.
 			for (Sample sample : COLUMNS.values()) {
 				if (sample.top < body.getY() - 1 || sample.bottom > body.getY() + CLEAR_HEIGHT) continue;
