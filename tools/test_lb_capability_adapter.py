@@ -6,8 +6,9 @@ Optional: --bridge-jar PATH, --java-home PATH, --classpath-file PATH.
 The default discovers existing production/intermediary dependencies and extracts
 LB's bundled JARs only into ignored runtime/experiments. No Gradle or downloads.
 This checks Kotlin's public float-range factory/access handles, 15 real Mixin injections, normal helper class loading, real Value
-set/get/inner/restore/Gson import, locking, downgrade and free-mode preservation.
-It does NOT initialize actual LB module singletons or execute lifecycle cleanup,
+set/get/inner/restore/Gson import, locking, downgrade and free-mode preservation,
+and real ChoiceConfigurable switches with explicit lifecycle-counter/module-enabled fixtures.
+It does NOT initialize actual LB module singletons or execute live module cleanup,
 GUI, networking, movement/attacks or game startup. Those still need human testing.
 """
 
@@ -78,8 +79,8 @@ def invoke(binary, arguments, log):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.3.jar")
-    parser.add_argument("--character-jar", type=Path, default=PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.3.jar")
+    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.4.jar")
+    parser.add_argument("--character-jar", type=Path, default=PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.4.jar")
     parser.add_argument("--java-home", type=Path, default=ROOT / ".tools/java/jdk-25.0.4.1+1")
     parser.add_argument("--classpath-file", type=Path)
     args = parser.parse_args()
@@ -91,7 +92,7 @@ def main():
     config = {"required": True, "package": "dev.ermc.bridge.client.integrations.liquidbounce",
               "compatibilityLevel": "JAVA_21", "client": MIXINS, "injectors": {"defaultRequire": 1}}
     (OUTPUT / "offline-mixins.json").write_text(json.dumps(config), encoding="utf-8")
-    config["client"] = ["CapabilityValueMixin"]
+    config["client"] = ["CapabilityValueMixin", "CapabilityChoiceMixin"]
     (OUTPUT / "value-runtime-mixins.json").write_text(json.dumps(config), encoding="utf-8")
     services = OUTPUT / "META-INF/services"
     services.mkdir(parents=True, exist_ok=True)
@@ -103,14 +104,14 @@ def main():
     suffix = ".exe" if os.name == "nt" else ""
     invoke(args.java_home / f"bin/javac{suffix}", ["-encoding", "UTF-8", "-classpath", classpath, "-d", OUTPUT,
            FIXTURES / "OfflineMixinProbe.java", FIXTURES / "RuntimeValueProbe.java", FIXTURES / "KotlinRangeProbe.java",
-           FIXTURES / "GuiPolicyProbe.java"], OUTPUT / "compile.log")
+           FIXTURES / "GuiPolicyProbe.java", FIXTURES / "RoutePolicyProbe.java", FIXTURES / "FixtureChoice.java"], OUTPUT / "compile.log")
     for probe in ("KotlinRangeProbe", "OfflineMixinProbe", "RuntimeValueProbe"):
         log = OUTPUT / (probe + ".log")
         invoke(args.java_home / f"bin/java{suffix}", ["-classpath", classpath, probe], log)
         print(f"PASS {probe}: {log}")
     print("Bridge SHA-256: " + hashlib.sha256(args.bridge_jar.read_bytes()).hexdigest())
     print("Character SHA-256: " + hashlib.sha256(args.character_jar.read_bytes()).hexdigest())
-    print("LIMIT: no module singleton initialization, lifecycle cleanup, GUI, networking, movement/attack or game startup.")
+    print("LIMIT: no module singleton initialization, live module cleanup, GUI, networking, movement/attack or game startup.")
 
 
 if __name__ == "__main__":

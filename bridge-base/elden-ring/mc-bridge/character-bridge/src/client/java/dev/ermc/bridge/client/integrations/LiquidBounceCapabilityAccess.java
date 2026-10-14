@@ -8,6 +8,7 @@ import dev.ermc.bridge.gameplay.capability.AbilityCatalog;
 import dev.ermc.bridge.gameplay.capability.AbilityCatalog.Entry;
 import dev.ermc.bridge.gameplay.capability.AbilityCatalog.Rank;
 import dev.ermc.bridge.gameplay.capability.AbilityCatalog.Setting;
+import dev.ermc.bridge.gameplay.capability.ModuleCapability;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
@@ -52,7 +53,8 @@ public final class LiquidBounceCapabilityAccess {
             Object enabled = binding.required("Enabled");
             next.put(enabled, new Rule(binding, "Enabled", true, false, null));
             if (entry != null) {
-                for (Rank rank : entry.ranks()) for (Setting setting : rank.settings().values()) {
+                for (Entry route : AbilityCatalog.instance().entriesForModule(name))
+                for (Rank rank : route.ranks()) for (Setting setting : rank.settings().values()) {
                     Object value = binding.required(setting.path());
                     if (!next.containsKey(value)) next.put(value, new Rule(binding, setting.path(), false,
                             access.raw.invoke(value), access.rangeType.isInstance(value) ? access.rangeField.get(value) : null));
@@ -76,16 +78,7 @@ public final class LiquidBounceCapabilityAccess {
     }
     private static Grant grant(Binding binding, CapabilitySnapshot snapshot) {
         if (binding == null || binding.failed || binding.entry == null || snapshot == null) return null;
-        Grant grant = snapshot.abilities().get(binding.entry.id());
-        if (grant == null || !grant.unlocked() || grant.rank() > binding.entry.ranks().size()) return null;
-        Rank expected = binding.entry.ranks().get(grant.rank() - 1);
-        // A mismatched content pack cannot silently grant a different mapping.
-        if (!expected.modes().equals(grant.allowedModes()) || !expected.limits().keySet().equals(grant.numericLimits().keySet())) return null;
-        for (var limit : grant.numericLimits().entrySet()) {
-            NumericRange maximum = expected.limits().get(limit.getKey());
-            if (limit.getValue().minimum() < maximum.minimum() || limit.getValue().maximum() > maximum.maximum()) return null;
-        }
-        return grant;
+        return ModuleCapability.validGrant(binding.entry,snapshot);
     }
     /** REST reads one immutable policy view, without changing module Hidden or the live registry. */
     public static Set<String> guiModules(CapabilityPolicyClient.View view) {
@@ -93,6 +86,11 @@ public final class LiquidBounceCapabilityAccess {
         for (Binding binding : bindings.values())
             if (binding.free || !binding.failed && grant(binding, view.snapshot()) != null) names.add(binding.name);
         return Set.copyOf(names);
+    }
+    public static ModuleCapability.Resolved guiCapability(String moduleName, CapabilityPolicyClient.View view) {
+        for (Binding binding:bindings.values()) if(binding.name.equals(moduleName) && grant(binding,view.snapshot())!=null)
+            return capability(binding,view);
+        return null;
     }
     /** Catalog enum constants and LB NamedChoice labels are different (DOUBLE_JUMP / DoubleJump). */
     public static Setting guiSetting(String moduleName, Setting setting) {
@@ -109,12 +107,20 @@ public final class LiquidBounceCapabilityAccess {
         }
         return null;
     }
-    private static Rank rank(Binding binding) {
-        Grant grant = grant(binding);
-        return binding.entry.ranks().get(grant == null ? 0 : grant.rank() - 1);
+    private static ModuleCapability.Resolved capability(Binding binding) {
+        return capability(binding,CapabilityPolicyClient.view());
+    }
+    private static ModuleCapability.Resolved capability(Binding binding,CapabilityPolicyClient.View view) {
+        synchronized(binding) {
+            if(binding.capabilityGeneration!=view.generation()) {
+                binding.capability=ModuleCapability.resolve(binding.entry,view.snapshot());
+                binding.capabilityGeneration=view.generation();
+            }
+            return binding.capability;
+        }
     }
     private static Setting setting(Rule rule) {
-        return rank(rule.binding).settings().values().stream().filter(s -> s.path().equals(rule.path)).findFirst().orElse(null);
+        return capability(rule.binding).settings().get(rule.path);
     }
     public static boolean allowModule(Object module) {
         if (!challenge()) return true;
@@ -184,8 +190,7 @@ public final class LiquidBounceCapabilityAccess {
         throw new IllegalArgumentException("Unsupported LB numeric value type");
     }
     private static NumericRange bounds(Rule rule, Setting setting) throws Throwable {
-        Grant authority = grant(rule.binding);
-        NumericRange policy = (authority == null ? rank(rule.binding).limits() : authority.numericLimits()).get(setting.limitKey());
+        NumericRange policy = capability(rule.binding).limits().get(setting.limitKey());
         if (rule.vanillaRange == null) throw new IllegalStateException("Numeric setting has no vanilla range: " + rule.path);
         Number originalStart = (Number) access.rangeStart.invoke(rule.vanillaRange);
         double policyLo = originalStart instanceof Float ? (double)(float)policy.minimum() : policy.minimum();
@@ -228,6 +233,18 @@ public final class LiquidBounceCapabilityAccess {
         Minecraft mc = Minecraft.getInstance();
         return !isActive("Speed") || mc.player == null || !mc.player.onGround()
                 || mc.player.isInWaterOrBubble() || mc.player.isInLava() || mc.player.isPassenger() || mc.player.getAbilities().flying;
+    }
+    /** Only the learned top-level LegitHop choice may use LB's automatic ordinary jump. */
+    public static boolean allowBHop(Object choice) {
+        if(!challenge())return true;
+        for(Binding binding:bindings.values()) if(binding.name.equals("Speed") && grant(binding)!=null
+                && capability(binding).branches().contains(new Ability("speed_hop"))) {
+            try {
+                Object mode=binding.required("Mode"), hop=binding.select(mode,"LegitHop");
+                return choice==hop && access.activeChoiceField.get(mode)==hop;
+            } catch(Throwable error) { return false; }
+        }
+        return false;
     }
     public static Object kotlinUnit() {
         if (unit == null) throw new IllegalStateException("LB policy access not initialized");
@@ -275,13 +292,16 @@ public final class LiquidBounceCapabilityAccess {
     private static void apply(Binding binding) {
         if (binding.entry == null || binding.failed) return;
         try {
-            for (Setting setting : rank(binding).settings().values()) {
+            for (Setting setting : capability(binding).settings().values()) {
                 Object value = binding.required(setting.path()); Rule rule = rules.get(value);
                 if (setting.type().startsWith("choice")) {
-                    Object current = access.choiceType.isInstance(value) ? access.activeChoice.invoke(value) : access.raw.invoke(value);
+                    Object current = access.choiceType.isInstance(value) ? access.activeChoiceField.get(value) : access.raw.invoke(value);
                     Object selected = effectiveChoice(binding,value,setting,current);
                     List<Object> allowed = allowedChoices(binding,value,setting);
                     if (access.choiceType.isInstance(value)) {
+                        // A refunded route may still be the raw active mode. Stop it through
+                        // the module lifecycle before selecting the safe base; never auto-enable.
+                        if(current!=selected && Boolean.TRUE.equals(access.raw.invoke(binding.required("Enabled")))) disable(binding);
                         access.choicesSet.invoke(value, new ArrayList<>((List<?>) binding.originalChoices.get(value)));
                         access.choiceSet.invoke(value, (String) access.name.invoke(selected));
                         access.choicesSet.invoke(value, new ArrayList<>(allowed));
@@ -327,6 +347,7 @@ public final class LiquidBounceCapabilityAccess {
 
     private static final class Binding {
         final Object module; final String name; final Entry entry; final boolean free;
+        long capabilityGeneration=-1; ModuleCapability.Resolved capability;
         final Map<String, Object> values = new LinkedHashMap<>();
         final Map<Object, Object> originalChoices = new IdentityHashMap<>(); boolean failed;
         Binding(Object module, String name, Entry entry, boolean free) throws Throwable {
@@ -376,7 +397,7 @@ public final class LiquidBounceCapabilityAccess {
     private static final class Access {
         final Class<?> valueType, choiceType, rangeType, closedRangeType, enumChoiceType;
         final MethodHandle raw, name, valueSet, choiceList, choiceSet, moduleEnabled, floatRange, rangeStart, rangeEnd, namedChoice, eventCall, choicesSet, activeChoice;
-        final Constructor<?> intRange, changedEvent; final Field rangeField, enumChoicesField;
+        final Constructor<?> intRange, changedEvent; final Field rangeField, enumChoicesField, activeChoiceField;
         Access() throws ReflectiveOperationException {
             ClassLoader loader = LiquidBounceCapabilityAccess.class.getClassLoader();
             valueType = Class.forName(TYPES + "Value", false, loader);
@@ -391,6 +412,7 @@ public final class LiquidBounceCapabilityAccess {
             valueSet = lookup.unreflect(valueType.getMethod("set",Object.class));
             choiceList = lookup.unreflect(choiceType.getMethod("getChoices"));
             activeChoice = lookup.unreflect(choiceType.getMethod("getActiveChoice"));
+            activeChoiceField = choiceType.getDeclaredField("activeChoice"); activeChoiceField.setAccessible(true);
             choicesSet = lookup.unreflect(choiceType.getMethod("setChoices", List.class));
             choiceSet = lookup.unreflect(choiceType.getMethod("setByString",String.class));
             moduleEnabled = lookup.unreflect(module.getMethod("setEnabled$liquidbounce",boolean.class));

@@ -212,11 +212,19 @@ static DWORD WINAPI loader_thread(LPVOID) {
 
     ErmcHeader* h = mb::shm_header();
     h->coreReloadAck = h->coreReloadReq;
+    char colliderMode[8] = {};
+    const bool nativeBlocks = GetEnvironmentVariableA("ERMC_NATIVE_BLOCKS", colliderMode, sizeof(colliderMode))
+        && !strcmp(colliderMode, "1");
     load_core();
     for (;;) {
         Sleep(50);
         uint32_t req = h->coreReloadReq;
         if (req != h->coreReloadAck) {
+            if (nativeBlocks) {
+                mb::log("loader: core hot reload refused while native block collision is enabled; restart Elden Ring");
+                h->coreReloadAck = req;
+                continue;
+            }
             mb::log("loader: hot reload requested");
             unload_core();
             load_core();

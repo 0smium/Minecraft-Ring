@@ -212,6 +212,41 @@ typedef struct ErmcHostInteraction {
     uint32_t restFlags, reserved;
 } ErmcHostInteraction; /* 0x40 */
 
+/* Opt-in Minecraft static block collision. Complete replacement snapshots only;
+ * no game pointers cross the wire. Coordinates are stable ER metres, NOT Havok. */
+#define ERMC_OFF_BLOCK_COLLIDERS 0x400000u
+#define ERMC_OFF_BLOCK_COLLIDER_STATUS 0x410000u
+#define ERMC_BLOCK_COLLIDER_MAGIC 0x4C43424Du /* MBCL */
+#define ERMC_BLOCK_COLLIDER_VERSION 1u
+#define ERMC_MAX_BLOCK_COLLIDERS 512u
+#define ERMC_BLOCK_COLLIDER_ENABLED 1u
+#define ERMC_BLOCK_COLLIDER_COMPLETE 2u
+#define ERMC_BLOCK_COLLIDER_CAPPED 4u /* nearest bounded subset, not an incomplete scan */
+#define ERMC_RAY_UNKNOWN 2u /* occluded by an owned block; neither native terrain nor proven air */
+typedef struct ErmcBlockColliderBox { float min[3], max[3]; } ErmcBlockColliderBox;
+typedef struct ErmcBlockColliders {
+    volatile uint32_t seq;
+    uint32_t magic, version, flags;
+    uint64_t revision, sampledAt, hostStartMs, mcStartMs;
+    uint32_t hostPid, coreGeneration, hostLife, zone;
+    uint32_t mcPid, count;
+    float center[3]; uint32_t reserved;
+    uint64_t worldEpoch;
+    ErmcBlockColliderBox boxes[ERMC_MAX_BLOCK_COLLIDERS];
+} ErmcBlockColliders; /* boxes at 0x60, total 0x3060 */
+typedef struct ErmcBlockColliderStatus {
+    volatile uint32_t seq;
+    uint32_t magic, version, state; /* 0 disabled, 1 waiting, 2 converging, 3 complete, 4 blocked */
+    uint64_t hostStartMs, sampleFrame;
+    uint32_t hostPid, coreGeneration, hostLife, zone;
+    uint64_t sampledAt, revision;
+    uint32_t owned, desired, pending, quarantined, created, removed, error, flags;
+    uint32_t mcPid, reserved;
+    uint64_t mcStartMs, worldEpoch;
+} ErmcBlockColliderStatus; /* 0x78 */
+static_assert(offsetof(ErmcBlockColliders, boxes) == 0x60 && sizeof(ErmcBlockColliders) == 0x3060, "MBCL ABI");
+static_assert(sizeof(ErmcBlockColliderStatus) == 0x78, "MBCL status ABI");
+
 /* Gameplay equipment intent mailbox, deliberately separate from the debug mailbox.
  * No native pointers cross this ABI. Only the game thread executes accepted intents. */
 #define ERMC_OFF_HOST_EQUIPMENT 0x370000u

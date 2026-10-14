@@ -707,6 +707,8 @@ public final class TerrainManager {
 		maxBatchMs = Math.max(maxBatchMs, lastBatchMs);
 		coarseBatches++;
 		for (int i = 0; i < n; i++) {
+			// An owned MC block can hide native ground. Keep this column until it is visible again.
+			if (!TerrainRayEvidence.known(HIT_FLAGS, i * RAYS_PER_COLUMN, RAYS_PER_COLUMN)) continue;
 			PendingColumn request = PENDING_COLUMNS.get(i);
 			long key = request.key();
 			// Never reinsert a closed door's old collision after an opening event,

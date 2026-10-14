@@ -69,6 +69,8 @@ public class ErBridgeMod implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STARTED.register(LifeBridge::onServerStarted);  // after TerrainManager: needs isBridgeWorld()
 		ServerLifecycleEvents.SERVER_STARTED.register(WorldEnvironmentBridge::onServerStarted);
 		ServerLifecycleEvents.SERVER_STOPPED.register(WorldEnvironmentBridge::reset);
+		ServerLifecycleEvents.SERVER_STOPPED.register(dev.ermc.bridge.collision.NativeBlockCollisionBridge::reset);
+		BridgeLifecycle.PLAYER_DISCONNECTED.register(dev.ermc.bridge.collision.NativeBlockCollisionBridge::disconnected);
 		ServerChunkEvents.CHUNK_LOAD.register(BridgeBiomes::onChunkLoad);
 		ServerChunkEvents.CHUNK_LOAD.register(TerrainRegeneration::onChunkLoad);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
@@ -86,6 +88,7 @@ public class ErBridgeMod implements ModInitializer {
 		ServerTickEvents.END_SERVER_TICK.register(server -> BridgeLifecycle.AFTER_COMBAT_TICK.invoker().tick(server));
 		ServerTickEvents.END_SERVER_TICK.register(LifeBridge::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(WorldEnvironmentBridge::onServerTick);
+		ServerTickEvents.END_SERVER_TICK.register(dev.ermc.bridge.collision.NativeBlockCollisionBridge::tick);
 		ServerLivingEntityEvents.AFTER_DEATH.register(LifeBridge::onDeath);
 		ServerPlayerEvents.AFTER_RESPAWN.register(LifeBridge::onRespawn);
 		// Networking JOIN runs before PlayerList registers the player; owner identity is ready here.

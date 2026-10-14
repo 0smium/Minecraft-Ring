@@ -1821,6 +1821,36 @@
           "requiredSpent": 0
         }
       ]
+    },
+    {
+      "id": "speed_hop",
+      "branchOf": "speed",
+      "category": "movement",
+      "name": "连跳步法",
+      "description": "另学原 LegitHop：移动且着地时自动普通跳跃；不叠加 Custom 地面速度，不提供急坠。",
+      "module": "Speed",
+      "icon": "minecraft:rabbit_foot",
+      "ranks": [
+        {
+          "node": "speed_hop_1",
+          "cost": 6,
+          "requiredSpent": 0,
+          "prerequisites": [
+            "speed_1"
+          ],
+          "modes": [
+            "legit_hop"
+          ],
+          "limits": {},
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "LegitHop"
+            }
+          }
+        }
+      ]
     }
   ],
   "presets": [
@@ -1902,6 +1932,32 @@
         "autotool": 1
       },
       "budget": 102
+    },
+    {
+      "id": "speed_ground",
+      "name": "地面步法对照",
+      "budget": 8,
+      "ranks": {
+        "speed": 2
+      }
+    },
+    {
+      "id": "speed_hop",
+      "name": "连跳步法对照",
+      "budget": 10,
+      "ranks": {
+        "speed": 1,
+        "speed_hop": 1
+      }
+    },
+    {
+      "id": "speed_routes",
+      "name": "两条步法切换",
+      "budget": 14,
+      "ranks": {
+        "speed": 2,
+        "speed_hop": 1
+      }
     }
   ]
 }

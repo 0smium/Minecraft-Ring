@@ -34,7 +34,10 @@ public final class AbilityCatalog {
         }
     }
     public record Entry(Ability id, String category, String name, String description, String module,
-                        String icon, List<Rank> ranks) {
+                        String icon, List<Rank> ranks, Ability branchOf) {
+        public Entry(Ability id, String category, String name, String description, String module, String icon, List<Rank> ranks) {
+            this(id, category, name, description, module, icon, ranks, null);
+        }
         public Entry {
             ranks = List.copyOf(ranks);
             if (category.isBlank() || name.isBlank() || description.isBlank() || module.isBlank() || ranks.isEmpty() || ranks.size() > 8)
@@ -63,7 +66,8 @@ public final class AbilityCatalog {
     public Entry entry(Ability id) {
         Entry found = byId.get(id); if (found == null) throw new IllegalArgumentException("Unknown ability: " + id); return found;
     }
-    public Optional<Entry> entryForModule(String module) { return entries.stream().filter(e -> e.module().equals(module)).findFirst(); }
+    public Optional<Entry> entryForModule(String module) { return entries.stream().filter(e -> e.branchOf() == null && e.module().equals(module)).findFirst(); }
+    public List<Entry> entriesForModule(String module) { return entries.stream().filter(e -> e.module().equals(module)).toList(); }
     public AbilityPolicy policy(long revision, boolean showLocked) {
         Map<Ability, List<AbilityPolicy.Tier>> result = new LinkedHashMap<>();
         entries.forEach(e -> result.put(e.id(), e.ranks().stream().map(r -> new AbilityPolicy.Tier(r.modes(), r.limits())).toList()));
@@ -134,7 +138,8 @@ public final class AbilityCatalog {
         Map<String, Rank> nodeMap = new LinkedHashMap<>(); Set<String> modules = new HashSet<>();
         for (JsonElement value : root.getAsJsonArray("abilities")) {
             JsonObject a = value.getAsJsonObject();
-            fields(a, Set.of("id", "category", "name", "description", "module", "icon", "ranks"));
+            fields(a, a.has("branchOf") ? Set.of("id", "category", "name", "description", "module", "icon", "ranks", "branchOf")
+                    : Set.of("id", "category", "name", "description", "module", "icon", "ranks"));
             Ability id = new Ability(a.get("id").getAsString()); List<Rank> ranks = new ArrayList<>();
             for (JsonElement tier : a.getAsJsonArray("ranks")) {
                 JsonObject r = tier.getAsJsonObject();
@@ -166,8 +171,9 @@ public final class AbilityCatalog {
                 ranks.add(rank);
             }
             Entry entry = new Entry(id, a.get("category").getAsString(), a.get("name").getAsString(), a.get("description").getAsString(),
-                    a.get("module").getAsString(), a.get("icon").getAsString(), ranks);
-            if (!categories.containsKey(entry.category()) || map.putIfAbsent(id, entry) != null || !modules.add(entry.module())
+                    a.get("module").getAsString(), a.get("icon").getAsString(), ranks,
+                    a.has("branchOf") ? new Ability(a.get("branchOf").getAsString()) : null);
+            if (!categories.containsKey(entry.category()) || map.putIfAbsent(id, entry) != null || entry.branchOf() == null && !modules.add(entry.module())
                     || freeModules.contains(entry.module())) throw new IllegalArgumentException("Duplicate/unknown/free paid ability");
             for (int i = 1; i < ranks.size(); i++) if (!ranks.get(i).prerequisites().contains(ranks.get(i-1).node()))
                 throw new IllegalArgumentException("Ranks must require their previous rank");
@@ -175,6 +181,26 @@ public final class AbilityCatalog {
         }
         if (list.isEmpty() || list.size() > 64 || nodeMap.size() > 256) throw new IllegalArgumentException("Oversized/empty catalog");
         entries = List.copyOf(list); byId = Map.copyOf(map); nodes = Collections.unmodifiableMap(nodeMap);
+        for (Entry branch : entries) if (branch.branchOf() != null) {
+            Entry parent = byId.get(branch.branchOf());
+            if (parent == null || parent.branchOf() != null || !parent.module().equals(branch.module())
+                    || !branch.ranks().get(0).prerequisites().contains(parent.ranks().get(0).node()))
+                throw new IllegalArgumentException("Branch must depend on its module's base entry");
+            // A branch only adds mode-specific settings. Shared fixed guards cannot be weakened.
+            for (Rank rank : branch.ranks()) {
+                Setting mode=rank.settings().values().stream().filter(s->s.path().equals("Mode")).findFirst().orElse(null);
+                if(mode==null || !mode.type().startsWith("choice")) throw new IllegalArgumentException("Branch must select a real module mode");
+                for (Setting setting : rank.settings().values()) {
+                if (!setting.path().equals("Mode") && !setting.path().startsWith("Mode/"))
+                    throw new IllegalArgumentException("Branch cannot override shared module guards");
+                for (Rank base : parent.ranks()) {
+                    if (!Collections.disjoint(rank.limits().keySet(), base.limits().keySet())) throw new IllegalArgumentException("Branch numeric keys must be distinct");
+                    if(!setting.path().equals("Mode") && base.settings().values().stream().anyMatch(s->s.path().equals(setting.path())))
+                        throw new IllegalArgumentException("Branch cannot replace base-mode settings");
+                }
+                }
+            }
+        }
         for (Rank rank : nodes.values()) if (!nodes.keySet().containsAll(rank.prerequisites())) throw new IllegalArgumentException("Unknown prerequisite");
         // A full rank selection also validates every prerequisite and graph reachability.
         Set<String> reached = new HashSet<>();

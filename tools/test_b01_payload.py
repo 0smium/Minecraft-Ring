@@ -80,7 +80,7 @@ public final class B01PayloadCheck {
         malformedCounters(-1,0,0,0,"ok");malformedCounters(714,0,0,0,"ok");
         for(int bad:new int[]{-1,100001}){malformedCounters(1,bad,0,0,"ok");malformedCounters(1,0,bad,0,"ok");malformedCounters(1,0,0,bad,"ok");}
         malformedCounters(1,0,0,0,"x".repeat(257));
-        System.out.println("PASS: production policy_v2 CODEC, all five 14-ability presets, locked/free/loading, UTF-8, "+rejected+" corrupt packet cases; real Minecraft buffer, no games");
+        System.out.println("PASS: production policy_v2 CODEC, all presets including independent Speed branch, locked/free/loading, UTF-8, "+rejected+" corrupt packet cases; real Minecraft buffer, no games");
     }
 }
 

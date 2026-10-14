@@ -26,6 +26,7 @@ loom {
 		client {
 			programArgs '--username', 'Steve'
 			vmArgs '-Xms512m', '-Xmx3g'
+			if (providers.gradleProperty('nativeBlockCollision').map { it.toBoolean() }.getOrElse(false)) vmArgs '-Derbridge.nativeBlockCollision=true'
 			if (providers.gradleProperty('experimentalFrostBurst').map { it.toBoolean() }.getOrElse(false)) {
 				vmArgs '-Derbridge.experimentalFrostBurst=true'
 			}
@@ -72,6 +73,7 @@ if (providers.gradleProperty('lbProduction').map { it.toBoolean() }.getOrElse(fa
 		if (b01Enabled) mods.from file('../../../runtime/downloads/puffish_skills-0.19.2-1.21-fabric.jar')
 		runDir = layout.projectDirectory.dir('run')
 		jvmArgs.addAll('-Xms512m', '-Xmx3g')
+		if (providers.gradleProperty('nativeBlockCollision').map { it.toBoolean() }.getOrElse(false)) jvmArgs.add('-Derbridge.nativeBlockCollision=true')
 		if (providers.gradleProperty('experimentalFrostBurst').map { it.toBoolean() }.getOrElse(false)) {
 			jvmArgs.add('-Derbridge.experimentalFrostBurst=true')
 		}
@@ -117,6 +119,7 @@ if (providers.gradleProperty('meteorProduction').map { it.toBoolean() }.getOrEls
 		if (characterEnabled) mods.from project(':character-bridge').tasks.named('remapJar')
 		runDir = layout.projectDirectory.dir('run-meteor')
 		jvmArgs.addAll('-Xms512m', '-Xmx3g')
+		if (providers.gradleProperty('nativeBlockCollision').map { it.toBoolean() }.getOrElse(false)) jvmArgs.add('-Derbridge.nativeBlockCollision=true')
 		if (providers.gradleProperty('experimentalFrostBurst').map { it.toBoolean() }.getOrElse(false)) {
 			jvmArgs.add('-Derbridge.experimentalFrostBurst=true')
 		}

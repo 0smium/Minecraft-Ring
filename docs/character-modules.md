@@ -1,12 +1,12 @@
 # Core 与独立角色模组
 
-2026-10-14，PR #6 集成候选。Fabric 配套版本为 0.3.3；初次拆分不改 native，本次修复使用完整库存 HINV v3 与只读菜单 HINT v1，装备 mailbox 保持；需同步更新候选 DLL。
+2026-10-14，PR #6 集成候选。Fabric配套版本为0.3.4；保留完整库存HINV v3与菜单HINT v1，新增默认关闭的方块碰撞MBCL v1；需同步更新候选DLL。
 实际拆成两个制品；0.3.2 B01+LB加载和重进已由用户实测，0.3.3本批仅完成构建与离线类解析。
 
 | 制品 | 保留内容 | 依赖 |
 | --- | --- | --- |
-| `er-bridge-0.3.3.jar` / `erbridge` | 合成、输入、地形、实体代理、生命/普通受击、HPRG/HEFX/HINV 传输与校验、公共 API | MC/Fabric；无角色或能力端依赖 |
-| `er-character-bridge-0.3.3.jar` / `er_character_bridge` | E→ER 装备附加页、原版 Horse 管理、状态规则、14 项成长与 LB 守卫 | 精确配套的 Core 0.3.3；默认无 Skills 依赖 |
+| `er-bridge-0.3.4.jar` / `erbridge` | 合成、输入、地形、实体代理、生命/普通受击、宿主传输校验、可选原生方块碰撞、公共API | MC/Fabric；无角色或能力端依赖 |
+| `er-character-bridge-0.3.4.jar` / `er_character_bridge` | E→ER装备页、原版Horse管理、状态规则、14模块/30节点含连跳分支、LB守卫 | 精确配套Core 0.3.4；默认无Skills依赖 |
 | 同一角色模组的 B01 构建 | 以上内容加 Skills 0.19.2 API 适配和技能树数据 | 编译时要求固定 Skills JAR；使用技能树时加载它 |
 
 角色工程是 `bridge-base/elden-ring/mc-bridge/character-bridge`，具有自己的 Gradle 构建、Fabric 元数据、main/client 入口及 Mixin 配置。默认 Core 构建不配置这个子工程；`-Pcharacter=true` 或 `-Pb01=true` 才加入。没有把角色 JAR 嵌入 Core。

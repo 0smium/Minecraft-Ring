@@ -30,7 +30,7 @@ public final class RuntimeValueProbe {
     var b=new CharacterBinding(new UUID(1,2),new UUID(3,4),new UUID(5,6));
     Map<CapabilitySnapshot.Ability,CapabilitySnapshot.Grant> grants=new HashMap<>();
     for(var entry:AbilityCatalog.instance().entries()){
-      int n=Math.min(rank,entry.ranks().size());var r=entry.ranks().get(Math.max(0,n-1));
+      int n=entry.branchOf()==null?Math.min(rank,entry.ranks().size()):0;var r=entry.ranks().get(Math.max(0,n-1));
       grants.put(entry.id(),new CapabilitySnapshot.Grant(n,true,n==0?Set.of():r.modes(),n==0?Map.of():r.limits()));
     }
     return new CapabilitySnapshot(b,revision,grants);
@@ -109,6 +109,7 @@ public final class RuntimeValueProbe {
     gateway.getMethod("clear").invoke(null);set.invoke(speed,9F);eq(9F,get.invoke(speed));
     System.out.println("PASS real LB set/get/inner/restore/Gson import; float and IntRange type preservation; vanilla intersection; unknown locked; nonfinite rejection; downgrade/stale revision; free mode; metadata access");
     GuiPolicyProbe.run(loader);
+    RoutePolicyProbe.run(loader);
     System.out.println("LIMIT: binding fixtures are explicit, not real module singleton initialization. No game, GUI, networking or movement executed.");
   }
 }

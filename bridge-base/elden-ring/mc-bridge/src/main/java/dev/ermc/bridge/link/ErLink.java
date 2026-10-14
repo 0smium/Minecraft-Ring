@@ -89,6 +89,16 @@ public final class ErLink {
 	public synchronized java.util.Optional<HostEquipmentResult> readEquipmentResult(long nonce) {
 		return shm != null && alive() ? shm.readEquipmentResult(nonce) : java.util.Optional.empty();
 	}
+	public synchronized BlockColliderChannel.Session blockColliderSession(int zone) {
+		return shm != null && alive() ? shm.blockColliderSession(zone) : null;
+	}
+	public synchronized boolean writeBlockColliders(BlockColliderChannel.Session session, long epoch, long revision,
+			float[] center, float[] boxes, boolean complete, boolean capped) {
+		return shm != null && shm.writeBlockColliders(session, epoch, revision, center, boxes, complete, capped);
+	}
+	public synchronized java.util.Optional<BlockColliderChannel.Status> readBlockColliderStatus(BlockColliderChannel.Session session) {
+		return shm != null && alive() ? shm.readBlockColliderStatus(session) : java.util.Optional.empty();
+	}
 
 	public synchronized boolean alive() {
 		return shm != null && lastHeartbeatChange > 0 && System.currentTimeMillis() - lastHeartbeatChange < ALIVE_TIMEOUT_MS;

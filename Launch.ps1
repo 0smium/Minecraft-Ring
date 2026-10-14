@@ -1,4 +1,4 @@
-param([switch]$Character, [switch]$LiquidBounce, [switch]$B01, [switch]$Meteor, [switch]$ExperimentalFrostBurst, [switch]$CheckOnly)
+param([switch]$Character, [switch]$LiquidBounce, [switch]$B01, [switch]$Meteor, [switch]$ExperimentalFrostBurst, [switch]$NativeBlockCollision, [switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
 if ($Meteor -and ($LiquidBounce -or $B01)) { throw 'Choose -Meteor or the -LiquidBounce/-B01 profile; simultaneous loading is not supported.' }
 $ProjectRoot = $PSScriptRoot
@@ -70,6 +70,10 @@ if ($ExperimentalFrostBurst) {
     $ClientGradleArgs += '-PexperimentalFrostBurst=true'
 }
 $RunDirectory = if ($Meteor) { 'run-meteor' } else { 'run' }
+if ($NativeBlockCollision) {
+    $ClientGradleArgs += '-PnativeBlockCollision=true'
+    Write-Output 'Native block collision experiment selected: bounded static bodies, requires the paired DLL and full ER restart.'
+}
 $env:JAVA_HOME = Join-Path $ProjectRoot '.tools\java\jdk-25.0.4.1+1'
 $env:GRADLE_USER_HOME = Join-Path $ProjectRoot '.tools\gradle-home'
 $Gradle = Join-Path $ProjectRoot '.tools\gradle\gradle-9.7.1\bin\gradle.bat'
@@ -89,6 +93,7 @@ if ($CheckOnly) {
 }
 $env:ERMC_DIR = Join-Path $ProjectRoot 'runtime'
 $env:ERBRIDGE = '1'
+$env:ERMC_NATIVE_BLOCKS = if ($NativeBlockCollision) { '1' } else { '0' }
 New-Item -ItemType Directory -Path $env:ERMC_DIR -Force | Out-Null
 $SharedFile = Join-Path $env:ERMC_DIR 'bridge.shm'
 function Read-BridgeHeader {
@@ -107,6 +112,9 @@ function Read-BridgeHeader {
     } catch { return $null }
 }
 $HostProcess = Get-Process eldenring -ErrorAction SilentlyContinue | Where-Object Path -eq $GameExe | Select-Object -First 1
+if ($NativeBlockCollision -and $HostProcess) {
+    throw 'Native block collision needs a complete Elden Ring restart with -NativeBlockCollision; close ER before launching this experiment.'
+}
 if (!$HostProcess) {
     Write-Output 'Starting Elden Ring...'
     $HostProcess = Start-Process -FilePath $GameExe -WorkingDirectory $Install.game_dir -PassThru

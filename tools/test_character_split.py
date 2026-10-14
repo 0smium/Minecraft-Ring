@@ -114,8 +114,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--core-only", action="store_true")
     parser.add_argument("--b01", action="store_true")
-    parser.add_argument("--core-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.3.jar")
-    parser.add_argument("--character-jar", type=Path, default=PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.3.jar")
+    parser.add_argument("--core-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.4.jar")
+    parser.add_argument("--character-jar", type=Path, default=PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.4.jar")
     args = parser.parse_args()
     if args.core_only and args.b01:
         parser.error("--core-only and --b01 are mutually exclusive")

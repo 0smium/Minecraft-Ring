@@ -92,6 +92,7 @@ public final class TerrainTravelClearance {
         if (!busy() || !link.raysDone(pending)) return;
         if (!map.equals(requestedMap) || version != requestedVersion) { pending = -1; return; }
         link.readHits(count, HITS, FLAGS, ATTRS);
+        if (!TerrainRayEvidence.known(FLAGS, 0, count)) { pending = -1; return; }
         if (floors) {
             int ray = 0;
             Arrays.fill(OFFSETS, -1);

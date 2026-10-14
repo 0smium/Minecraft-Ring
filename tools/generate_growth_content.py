@@ -18,6 +18,7 @@ def effect_text(ability, rank, index):
     limits, key = rank['limits'], ability['id']
     upper = lambda field: f"{limits[field][1]:g}"
     if key == 'speed': return f"地面速度上限 {upper('speed')} 格/tick。可自由调低；不会自动跳跃。"
+    if key == 'speed_hop': return '新增 LegitHop 连跳模式：移动且着地时自动普通跳跃。不叠加地面 Custom 加速；低顶和窄路需切回地面。'
     if key == 'aura': return f"自动近战距离上限 {upper('range')} 格。单目标、不穿墙，保留武器冷却。"
     if key == 'scaffold': return f"搭桥速度上限 {upper('speed')}，最短放置间隔 {limits['placement_delay'][0]:g} tick。消耗背包中的真实方块。"
     if key == 'fly': return f"创造式飞行，速度上限 {upper('speed')}。本版可悬停；没有时长或高度限制。"
@@ -37,7 +38,7 @@ def content(data):
     definitions, skills, connections = {}, {}, []
     groups = list(data['categories'])
     for group_index, group in enumerate(groups):
-        members = [a for a in data['abilities'] if a['category'] == group]
+        members = [a for a in data['abilities'] if a['category'] == group and not a.get('branchOf')]
         # Six radial regions, with base abilities inward and mastery outward.
         # Connections still mean real prerequisites; visual grouping grants no new skill.
         bearing = -90 + group_index * 60
@@ -62,11 +63,24 @@ def content(data):
                                         'y': round(math.sin(math.radians(angle)) * radius),
                                         'definition': rank['node'], 'root': not rank['prerequisites']}
                 connections.extend([[previous, rank['node']] for previous in rank['prerequisites']])
+            for branch in (a for a in data['abilities'] if a.get('branchOf') == ability['id']):
+                for index, rank in enumerate(branch['ranks']):
+                    definitions[rank['node']] = {
+                        'title': {'text': branch['name'], 'color': COLORS[group_index]},
+                        'description': f"{data['categories'][group]}分支 · 消耗 {rank['cost']} 点\n{effect_text(branch,rank,index)}\n可同时学习两路；模块一次只使用选中的模式。",
+                        'icon': {'type':'item','data':{'item':branch['icon']}},'frame':'goal','size':1.17,
+                        'cost':rank['cost'],'required_skills':len(rank['prerequisites']),
+                        'required_spent_points':rank['requiredSpent'],
+                    }
+                    branch_angle=angle-12;radius=214+index*64
+                    skills[rank['node']]={'x':round(math.cos(math.radians(branch_angle))*radius),
+                        'y':round(math.sin(math.radians(branch_angle))*radius),'definition':rank['node'],'root':False}
+                    connections.extend([[previous,rank['node']] for previous in rank['prerequisites']])
     return {'definitions.json': definitions, 'skills.json': skills,
             'connections.json': {'normal': {'unidirectional': connections}},
             'category.json': {
                 'title': 'ER Bridge · 交界地成长',
-                'description': '机动 / 战斗 / 建造 / 生存 / 情报 / 工具。真实升级每级一点；所有栏目共用同一余额。76 点广修，116 点广修加两项精通，满配 232 点。',
+                'description': '机动 / 战斗 / 建造 / 生存 / 情报 / 工具。真实升级每级一点；所有栏目共用同一余额。76 点广修，116 点广修加两项精通；另用6点学习连跳分支，全部238点。',
                 'icon': {'type': 'item', 'data': {'item': 'minecraft:nether_star'}},
                 'background': 'minecraft:textures/block/black_concrete.png',
                 'unlocked_by_default': False, 'starting_points': 0, 'exclusive_root': False, 'erase_on_death': False,
@@ -79,7 +93,7 @@ def preview(data, tree):
              '<rect x="-390" y="-410" width="780" height="800" fill="#111a21"/>',
              '<g font-family="Microsoft YaHei, sans-serif" fill="#e8ece9" text-anchor="middle">',
              '<text y="-375" font-size="23">交界地成长 · 六类布局</text>',
-             '<text y="-349" font-size="12" fill="#a8b8bd">当前 29 节点布局预览 · 非游戏截图 · 连线表示真实前置</text>']
+             f'<text y="-349" font-size="12" fill="#a8b8bd">当前 {len(tree["skills.json"])} 节点布局预览 · 非游戏截图 · 连线表示真实前置</text>']
     for left, right in tree['connections.json']['normal']['unidirectional']:
         a, b = tree['skills.json'][left], tree['skills.json'][right]
         parts.append(f'<path d="M{a["x"]},{a["y"]} L{b["x"]},{b["y"]}" stroke="#65767e" stroke-width="2"/>')
@@ -98,7 +112,7 @@ def preview(data, tree):
                 parts.append(f'<text x="{x}" y="{y+4}" font-size="11">{rank["cost"]}</text>')
                 parts.append(f'<text x="{x}" y="{y+32+n*2}" font-size="10" fill="{COLORS[i]}">{escape(short)} {n+1}</text></g>')
     parts += ['<text y="2" font-size="14">76 点基础</text>', '<text y="22" font-size="12" fill="#a8b8bd">116 点广修双专精</text>',
-              '<text y="354" font-size="12" fill="#a8b8bd">本批保留既有节点、价格与前置；玩法分支候选另见 growth-directions.md</text>', '</g></svg>']
+              '<text y="354" font-size="12" fill="#a8b8bd">保留既有29节点；迅捷入门后可另学连跳，不改真实点数账本</text>', '</g></svg>']
     return '\n'.join(parts) + '\n'
 
 
@@ -123,7 +137,7 @@ def main():
     else:
         PREVIEW.parent.mkdir(parents=True, exist_ok=True)
         PREVIEW.write_text(svg, encoding='utf8')
-    basic = sum(a['ranks'][0]['cost'] for a in data['abilities'])
+    basic = sum(a['ranks'][0]['cost'] for a in data['abilities'] if not a.get('branchOf'))
     all_points = sum(r['cost'] for a in data['abilities'] for r in a['ranks'])
     print(f"Catalog: {len(data['abilities'])} abilities / {sum(len(a['ranks']) for a in data['abilities'])} nodes; basic={basic}, full={all_points}")
     for preset in data['presets']:

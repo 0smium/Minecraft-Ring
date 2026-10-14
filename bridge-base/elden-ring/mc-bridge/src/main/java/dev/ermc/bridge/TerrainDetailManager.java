@@ -156,6 +156,10 @@ public final class TerrainDetailManager {
 				return;
 			}
 			link.readHits(pendingCount, HITS, FLAGS, ATTRS);
+			if (!TerrainRayEvidence.known(FLAGS, 0, pendingCount)) {
+				pending = -1; requested = null;
+				return; // Retain measured shapes; no unknown hit becomes floor or air.
+			}
 			boolean current = map.equals(pendingMap) && System.currentTimeMillis() - pendingAt < 3000
 				&& COLUMNS.get(ChunkPos.asLong(requested.x, requested.z)) == requested;
 			if (current && samplingFloors) {

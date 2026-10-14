@@ -19,7 +19,7 @@
 
 | 能力 | 原 LB 模式 / 关键路径 | 约束 |
 |---|---|---|
-| Speed | `Mode=Custom`；`Mode/Custom/Strafe/Speed` | 原范围 0.1..10 与服务端授权相交；地面 Strafe，禁额外 Timer/水平/垂直修改 |
+| Speed | 基础 `Mode=Custom`；另学 `speed_hop_1` 后可选 `LegitHop` | Custom速度原范围0.1..10与地面授权相交，禁额外Timer/水平/垂直修改；LegitHop只做原普通连跳，不继承Custom速度，不开放YPort |
 | KillAura | `Range`；`ClickScheduler/Cooldown/Minimum` | 攻击前再次测距离和满冷却；WallRange/ScanExtraRange=0；不改原攻击算法 |
 | Scaffold | `Technique=Normal`、`Tower=None`、`Delay`、`SpeedLimiter/SpeedLimit` | 4→2→0 ticks 最低间隔，SpeedLimit 原范围0.01..0.4内；禁止Blink/Telly/HeadHitter |
 | Fly | `Mode=Creative`；`Mode/Creative/Speed` | 原范围0.1..5内；SprintSpeed关闭、ForceFlight=true、BypassVanillaCheck=false；服务端原版mayfly授权 |
@@ -153,7 +153,7 @@
 | ReverseStep | 未适配 · 挑战模式锁定 |
 | SafeWalk | 成长 · 建造 · 谨慎行走 |
 | Sneak | 未适配 · 挑战模式锁定 |
-| Speed | 成长 · 机动 · 迅捷 |
+| Speed | 成长 · 机动 · 迅捷；可另学6点连跳分支 |
 | Spider | 未适配 · 挑战模式锁定 |
 | Sprint | 未适配 · 挑战模式锁定 |
 | Step | 成长 · 机动 · 越障 |

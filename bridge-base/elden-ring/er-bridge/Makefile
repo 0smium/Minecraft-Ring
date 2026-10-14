@@ -36,7 +36,7 @@ build/dinput8.dll: $(LOADER_OBJS) src/dinput8.def
 	$(CXX) -o $@ $(LOADER_OBJS) $(LDFLAGS) -Wl,--kill-at src/dinput8.def $(LIBS)
 
 build/erbridge_core.dll: $(CORE_OBJS)
-	$(CXX) -o $@ $(CORE_OBJS) $(LDFLAGS) $(LIBS)
+	$(CXX) -o $@ $(CORE_OBJS) $(LDFLAGS) $(LIBS) -lbcrypt
 
 clean:
 	rm -rf build

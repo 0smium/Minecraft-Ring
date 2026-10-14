@@ -55,9 +55,15 @@
 !/bridge-base/elden-ring/er-bridge/Makefile
 !/bridge-base/elden-ring/er-bridge/include/
 !/bridge-base/elden-ring/er-bridge/src/
+!/bridge-base/elden-ring/er-bridge/tests/
+/bridge-base/elden-ring/er-bridge/tests/*
+!/bridge-base/elden-ring/er-bridge/tests/native_colliders.cpp
 !/bridge-base/elden-ring/er-bridge/third_party/
 /bridge-base/elden-ring/er-bridge/third_party/*
 !/bridge-base/elden-ring/er-bridge/third_party/minhook/
+!/bridge-base/elden-ring/er-bridge/third_party/eldencraft/
+/bridge-base/elden-ring/er-bridge/third_party/eldencraft/*
+!/bridge-base/elden-ring/er-bridge/third_party/eldencraft/LICENSE
 !/bridge-base/elden-ring/mc-bridge/
 /bridge-base/elden-ring/mc-bridge/*
 !/bridge-base/elden-ring/mc-bridge/src/

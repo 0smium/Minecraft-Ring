@@ -39,6 +39,12 @@ are not bundled. Menu field semantics and short signature metadata were
 independently checked against the user's local executable; the read-only
 inspection helper does not distribute game bytes or call those functions.
 
+The opt-in native block-collision implementation and the Java box merge/window/cache
+are adapted from that pinned EldenCraft version. Copyright (c) 2026 Adam Grzegorzewski.
+The MIT license is retained in
+`bridge-base/elden-ring/er-bridge/third_party/eldencraft/LICENSE` and in the adapted Java files.
+These are integrated bridge implementations, not a bundled EldenCraft binary.
+
 Game installations, save files, downloaded toolchains and executable dumps are
 not included. Game names and assets belong to their respective owners. The MIT
 license covers the bridge code; it does not grant rights to either game.

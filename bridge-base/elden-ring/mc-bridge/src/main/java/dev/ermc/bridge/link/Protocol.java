@@ -20,6 +20,9 @@ public final class Protocol {
 	public static final int CMD_TEST_RUNES = 11;
 	public static final int OFF_ENVIRONMENT = 0x000B00;
 	public static final int OFF_HOST_INVENTORY = 0x380000; // HINV v3; old 0x360000 block is retired
+	public static final int OFF_BLOCK_COLLIDERS = 0x400000;
+	public static final int OFF_BLOCK_COLLIDER_STATUS = 0x410000;
+	public static final int RAY_UNKNOWN = 2;
 	public static final int ENV_TIME = 1;
 	public static final int ENV_WEATHER = 2;
 

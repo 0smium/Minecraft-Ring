@@ -53,6 +53,24 @@
     "required_skills": 1,
     "required_spent_points": 20
   },
+  "speed_hop_1": {
+    "title": {
+      "text": "连跳步法",
+      "color": "#81cdb2"
+    },
+    "description": "机动分支 · 消耗 6 点\n新增 LegitHop 连跳模式：移动且着地时自动普通跳跃。不叠加地面 Custom 加速；低顶和窄路需切回地面。\n可同时学习两路；模块一次只使用选中的模式。",
+    "icon": {
+      "type": "item",
+      "data": {
+        "item": "minecraft:rabbit_foot"
+      }
+    },
+    "frame": "goal",
+    "size": 1.17,
+    "cost": 6,
+    "required_skills": 1,
+    "required_spent_points": 0
+  },
   "fly_1": {
     "title": {
       "text": "空中行走 · 入门",

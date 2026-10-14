@@ -101,12 +101,13 @@ public void info(String s,Object... args){}}''',
 'dev/ermc/bridge/link/ErLink.java': '''package dev.ermc.bridge.link;
 public class ErLink {
 static final ErLink INSTANCE=new ErLink();public static ErLink get(){return INSTANCE;}
-public float[] rays;public int count,seq,submitted;public boolean missing,wall,occluded,low,narrow,flatRoom,raisedRoom;
+public float[] rays;public int count,seq,submitted;public boolean missing,wall,occluded,low,narrow,flatRoom,raisedRoom,unknown;
 public int submitRays(float[] r,int n,int flags,Object filter){
 if(n>2048)throw new AssertionError("ray budget exceeded");rays=r.clone();count=n;submitted++;return ++seq;}
 public boolean raysDone(int seq){return true;}
 public void readHits(int n,float[] hits,int[] flags,int[] attrs){
 if(n!=count)throw new AssertionError("wrong batch length");java.util.Arrays.fill(flags,0);
+if(unknown){java.util.Arrays.fill(flags,0,n,2);return;}
 for(int i=0;i<n;i++){
  int a=i*6;double x=rays[a],y=rays[a+1],z=rays[a+2],ex=rays[a+3],ey=rays[a+4],ez=rays[a+5];
  boolean vertical=Math.abs(x-ex)<1e-6&&Math.abs(z-ez)<1e-6;
@@ -238,6 +239,20 @@ public class PassageTest {
   for(int part=0;part<5;part++){TerrainDetailManager.collectResults(uphill,CoordMap.get());TerrainDetailManager.submit(CoordMap.get(),List.of(p));}
   check(uphill.mask(101,8,8)==0,"higher surface body space is ready before player height changes");
   check(uphill.mask(100,8,8)==0xFFF,"retain actual higher surface");
+  TerrainDetailManager.reset();ErLink.get().unknown=true;
+  var hidden=new ServerLevel();
+  for(int y=99;y<=104;y++)hidden.setBlock(new BlockPos(1,y,0),ErBridgeMod.TERRAIN.defaultBlockState(),0);
+  TerrainDetailManager.noteColumn(1,0,100,true,104,99,100,12,true);
+  check(TerrainDetailManager.submit(CoordMap.get(),List.of(p)),"request occluded refinement");
+  TerrainDetailManager.collectResults(hidden,CoordMap.get());
+  check(hidden.getBlockState(new BlockPos(1,101,0)).kind().equals("terrain"),"unknown floor keeps old native geometry");
+  TerrainTravelClearance.reset();ErLink.get().unknown=false;ErLink.get().raisedRoom=false;ErLink.get().flatRoom=true;
+  var hiddenTravel=new ServerLevel();hiddenTravel.setBlock(new BlockPos(1,100,0),ErBridgeMod.TERRAIN.defaultBlockState(),0);
+  TerrainTravelClearance.submit(CoordMap.get(),List.of(p));TerrainTravelClearance.collect(hiddenTravel,CoordMap.get());
+  ErLink.get().unknown=true;TerrainTravelClearance.collect(hiddenTravel,CoordMap.get());
+  check(hiddenTravel.getBlockState(new BlockPos(1,100,0)).kind().equals("terrain"),"unknown body rays never carve old native geometry");
+  ErLink.get().unknown=false;
+  System.out.println("PASS: owned-block unknown floor/body rays retain native collision in production refinement/clearance");
   System.out.println("PASS: cold continuous travel prefetch, real walls, door invalidation, bounded rays and higher-ground lookahead");
   System.out.println("PASS: real two-stage refinement, descending doorway, low vault, walls, occlusion, missing support and door invalidation");
  }
@@ -251,5 +266,5 @@ main = root / 'bridge-base/elden-ring/mc-bridge/src/main/java/dev/ermc/bridge'
 jdk = next((root / '.tools/java').iterdir())
 subprocess.run([str(jdk / 'bin/javac.exe'), '-d', str(out),
                 *[str(out / name) for name in sources],
-                *[str(main / name) for name in ['TerrainDetailManager.java', 'TerrainTravelClearance.java', 'TerrainClearance.java', 'TerrainPrefetch.java']]], check=True)
+                *[str(main / name) for name in ['TerrainDetailManager.java', 'TerrainTravelClearance.java', 'TerrainClearance.java', 'TerrainPrefetch.java', 'TerrainRayEvidence.java']]], check=True)
 subprocess.run([str(jdk / 'bin/java.exe'), '-cp', str(out), 'PassageTest'], check=True)

@@ -22,6 +22,8 @@ public final class BridgeShm {
 
 	private final MappedByteBuffer buf;
 	private final HostEquipmentChannel equipment;
+	private final int registeredMcPid = (int) ProcessHandle.current().pid();
+	private final long registeredMcStart = System.currentTimeMillis();
 
 	private BridgeShm(MappedByteBuffer buf) {
 		this.buf = buf;
@@ -52,8 +54,8 @@ public final class BridgeShm {
 			buf.putInt(Protocol.H_SIZE, Protocol.SHM_SIZE);
 			INT.setRelease(buf, Protocol.H_MAGIC, Protocol.MAGIC);
 		}
-		buf.putInt(Protocol.H_MC_PID, (int) ProcessHandle.current().pid());
-		buf.putLong(Protocol.H_MC_START, System.currentTimeMillis());
+		buf.putInt(Protocol.H_MC_PID, registeredMcPid);
+		buf.putLong(Protocol.H_MC_START, registeredMcStart);
 	}
 
 	public long hostHeartbeat() {
@@ -83,6 +85,15 @@ public final class BridgeShm {
 		return equipment.submit(sample,slot,item,hostProcessId(),buf.getInt(0x40),hostLife(),hostStartMs(),System.currentTimeMillis());
 	}
 	public java.util.Optional<HostEquipmentResult> readEquipmentResult(long nonce) { return equipment.result(nonce); }
+	private boolean ownsBlockColliderStream() { return BlockColliderChannel.registeredTo(buf, registeredMcPid, registeredMcStart); }
+	public BlockColliderChannel.Session blockColliderSession(int zone) { return ownsBlockColliderStream() ? BlockColliderChannel.session(buf, zone) : null; }
+	public boolean writeBlockColliders(BlockColliderChannel.Session session, long epoch, long revision,
+			float[] center, float[] boxes, boolean complete, boolean capped) {
+		return ownsBlockColliderStream() && BlockColliderChannel.write(buf, session, epoch, revision, System.currentTimeMillis(), center, boxes, complete, capped);
+	}
+	public java.util.Optional<BlockColliderChannel.Status> readBlockColliderStatus(BlockColliderChannel.Session session) {
+		return BlockColliderChannel.status(buf, session, System.currentTimeMillis());
+	}
 
 	/** Incremented by the host game each time F8 is pressed in it. */
 	public int mcSwitchRequests() {

@@ -3,7 +3,7 @@
 [Back to Minecraft Ring](../README.md)
 
 This guide describes the current source-build workflow for Minecraft Ring
-0.3.3 (split Fabric candidate). It targets Windows x64, Elden Ring App Ver. 1.17.1 (`eldenring.exe`
+0.3.4 (split Fabric candidate). It targets Windows x64, Elden Ring App Ver. 1.17.1 (`eldenring.exe`
 2.7.1.0), and Minecraft Java Edition 1.21.1.
 
 ## Toolchains
@@ -52,9 +52,9 @@ $env:GRADLE_USER_HOME = Join-Path (Get-Location) '.tools\gradle-home'
 ```
 
 The remapped mod is written to
-`bridge-base/elden-ring/mc-bridge/build/libs/er-bridge-0.3.3.jar`.
+`bridge-base/elden-ring/mc-bridge/build/libs/er-bridge-0.3.4.jar`.
 Add `-Pcharacter=true` to build the independent
-`character-bridge/build/libs/er-character-bridge-0.3.3.jar` alongside Core.
+`character-bridge/build/libs/er-character-bridge-0.3.4.jar` alongside Core.
 `-Pb01=true` includes Character plus its pinned Skills adapter/data. Both character
 variants use the same mod ID; install only the selected one with the matching Core.
 After dependencies are cached, add `--offline` for an offline build.
@@ -87,6 +87,14 @@ Keep the launcher console open while Minecraft is running. A second launch
 recognizes an already running bridge client instead of deliberately starting
 another one. The bridge is for offline play and will not activate with Easy
 Anti-Cheat present.
+
+## Optional native block collision candidate
+
+The 0.3.4 native-block collision experiment is opt-in through `-NativeBlockCollision`,
+including with `-B01 -CheckOnly`. It requires the paired DLLs and a full ER restart;
+it is not enabled by ordinary launches. See [native block collision](native-block-collision.md)
+for limits and pending manual checks. Experimental native bodies prevent Core hot reload
+until ER exits.
 
 ## Optional Meteor candidate
 

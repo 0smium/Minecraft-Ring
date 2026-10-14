@@ -34,8 +34,10 @@ public final class LiquidBounceGuiPolicy {
         var entry = AbilityCatalog.instance().entryForModule(module).orElse(null);
         Grant grant = entry == null ? null : view.snapshot().abilities().get(entry.id());
         if (grant == null || !grant.unlocked() || grant.rank() > entry.ranks().size()) return output;
+        var capability=LiquidBounceCapabilityAccess.guiCapability(module,view);
+        if(capability==null)return output;
         Map<String, Setting> rules = new HashMap<>();
-        entry.ranks().get(grant.rank() - 1).settings().values().forEach(s -> {
+        capability.settings().values().forEach(s -> {
             Setting projected = LiquidBounceCapabilityAccess.guiSetting(module, s);
             if (projected != null) rules.put(projected.path(), projected);
         });
@@ -43,13 +45,13 @@ public final class LiquidBounceGuiPolicy {
         for (JsonElement child : root.getAsJsonArray("value")) {
             String name = child.getAsJsonObject().get("name").getAsString();
             JsonObject projected = Set.of("Enabled", "Bind").contains(name) ? child.getAsJsonObject().deepCopy()
-                    : project(child.getAsJsonObject(), name, rules, grant);
+                    : project(child.getAsJsonObject(), name, rules, capability.limits());
             if (projected != null) visible.add(projected);
         }
         return output;
     }
 
-    private static JsonObject project(JsonObject source, String path, Map<String, Setting> rules, Grant grant) {
+    private static JsonObject project(JsonObject source, String path, Map<String, Setting> rules, Map<String,NumericRange> limits) {
         Setting rule = rules.get(path);
         JsonObject output = source.deepCopy();
         String type = source.has("valueType") ? source.get("valueType").getAsString() : "";
@@ -61,7 +63,7 @@ public final class LiquidBounceGuiPolicy {
             for (var choice : source.getAsJsonObject("choices").entrySet()) {
                 if (!permitted.contains(choice.getKey())) continue;
                 JsonObject branch = choice.getValue().getAsJsonObject().deepCopy();
-                JsonArray children = children(branch, path + "/" + choice.getKey(), rules, grant);
+                JsonArray children = children(branch, path + "/" + choice.getKey(), rules, limits);
                 branch.add("value", children); choices.add(choice.getKey(), branch);
                 hasChildren |= !children.isEmpty();
             }
@@ -70,7 +72,7 @@ public final class LiquidBounceGuiPolicy {
             if (!choices.has(active)) active = choices.has(rule.stringValue()) ? rule.stringValue() : choices.keySet().iterator().next();
             output.addProperty("active", active);
             output.add("choices", choices);
-            output.add("value", children(source, path, rules, grant));
+            output.add("value", children(source, path, rules, limits));
             return output;
         }
         if (type.equals("CHOOSE")) {
@@ -86,7 +88,7 @@ public final class LiquidBounceGuiPolicy {
         if (source.has("value") && source.get("value").isJsonArray()) {
             Setting enabled = rules.get(path + "/Enabled");
             if (type.equals("TOGGLEABLE") && enabled != null && Boolean.FALSE.equals(enabled.booleanValue())) return null;
-            JsonArray children = children(source, path, rules, grant);
+            JsonArray children = children(source, path, rules, limits);
             if (children.isEmpty()) return null;
             output.add("value", children);
             // A fixed toggle is a group in this view. Same name/value nesting still round-trips
@@ -95,7 +97,7 @@ public final class LiquidBounceGuiPolicy {
             return output;
         }
         if (rule == null || !(rule.type().equals("number") || rule.type().equals("range"))) return null;
-        NumericRange permitted = grant.numericLimits().get(rule.limitKey());
+        NumericRange permitted = limits.get(rule.limitKey());
         if (permitted == null || !source.has("range")) return null;
         JsonObject originalRange = source.getAsJsonObject("range");
         double lo = Math.max(permitted.minimum(), originalRange.get("from").getAsDouble());
@@ -112,11 +114,11 @@ public final class LiquidBounceGuiPolicy {
         return output;
     }
 
-    private static JsonArray children(JsonObject parent, String path, Map<String, Setting> rules, Grant grant) {
+    private static JsonArray children(JsonObject parent, String path, Map<String, Setting> rules, Map<String,NumericRange> limits) {
         JsonArray result = new JsonArray();
         for (JsonElement child : parent.getAsJsonArray("value")) {
             JsonObject value = child.getAsJsonObject();
-            JsonObject projected = project(value, path + "/" + value.get("name").getAsString(), rules, grant);
+            JsonObject projected = project(value, path + "/" + value.get("name").getAsString(), rules, limits);
             if (projected != null) result.add(projected);
         }
         return result;

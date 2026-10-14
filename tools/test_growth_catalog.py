@@ -25,10 +25,10 @@ public class GrowthCatalogCheck {
     static void reject(Action action) throws Exception { try { action.run(); } catch (Exception e) {checks++;return;} throw new AssertionError("Accepted invalid data"); }
     public static void main(String[] args) throws Exception {
         AbilityCatalog c=AbilityCatalog.instance();
-        check(c.entries().size()==14 && c.nodes().size()==29 && c.categories().size()==6,"catalog counts");
+        check(c.entries().size()==15 && c.nodes().size()==30 && c.categories().size()==6,"catalog counts");
         Map<Ability,Integer> basic=new HashMap<>(),full=new HashMap<>();
-        c.entries().forEach(e->{basic.put(e.id(),1);full.put(e.id(),e.ranks().size());});
-        check(c.cost(basic)==76,"all foundations budget");check(c.cost(full)==232,"full budget");
+        c.entries().forEach(e->{if(e.branchOf()==null)basic.put(e.id(),1);full.put(e.id(),e.ranks().size());});
+        check(c.cost(basic)==76,"all foundations budget");check(c.cost(full)==238,"full budget includes optional hop route");
         check(c.cost(c.presets().get("journey").ranks())==116,"all foundations plus two masteries");
         var air=c.entry(new Ability("airjump"));
         check(air.ranks().get(0).settings().get("Mode").stringValue().equals("DOUBLE_JUMP"),"initial safe jump mode");
@@ -52,6 +52,18 @@ public class GrowthCatalogCheck {
         check(locked.abilities().values().stream().noneMatch(Grant::unlocked),"everything explicitly locked");
         var learned=c.policy(3,true).snapshot(binding,c.presets().get("journey").ranks());
         check(learned.abilities().get(Ability.SPEED).rank()==3,"preset policy");
+        var speed=c.entry(Ability.SPEED);
+        var oldBuild=c.policy(3,true).snapshot(binding,Map.of(Ability.SPEED,2));
+        check(c.cost(Map.of(Ability.SPEED,2))==8 && c.ranks(Set.of("speed_1","speed_2")).get(Ability.SPEED)==2,"existing Speed II unchanged: nine earned leaves one point");
+        var baseOnly=ModuleCapability.resolve(speed,oldBuild);
+        check(baseOnly.settings().get("Mode").stringValue().equals("Custom")&&baseOnly.branches().isEmpty(),"existing learning does not grant hop");
+        var dual=c.policy(3,true).snapshot(binding,c.presets().get("speed_routes").ranks());
+        var routes=ModuleCapability.resolve(speed,dual);
+        check(routes.settings().get("Mode").allowedChoices().equals(Set.of("Custom","LegitHop")),"independently learned mode union");
+        check(routes.limits().get("speed").maximum()==.33,"hop cannot increase ground cap");
+        check(ModuleCapability.resolve(speed,c.policy(3,true).snapshot(binding,Map.of(new Ability("speed_hop"),1))).branches().isEmpty(),"branch cannot grant without base");
+        reject(()->c.selectedNodes(Map.of(new Ability("speed_hop"),1)));
+        check(ModuleCapability.resolve(speed,oldBuild).settings().get("Mode").type().equals("choice"),"refund projects single safe mode");
         reject(()->learned.authorize(new Ability("timer"),3,"default",Map.of()));
         reject(()->c.entries().clear());reject(()->c.nodes().clear());
         String json=Files.readString(Path.of(args[0]));
@@ -68,7 +80,7 @@ public class GrowthCatalogCheck {
         reject(()->store.load(new CharacterBinding(binding.playerId(),binding.campaignId(),UUID.randomUUID())));
         Files.writeString(store.path(binding),Files.readString(store.path(binding))+"unknown=x\n");reject(()->store.load(binding));
         check(Files.readString(store.path(binding)).contains("unknown=x"),"corrupt journal not silently reset");
-        System.out.println("PASS: "+checks+" actual catalog/policy/journal checks; 76 foundations, 116 broad+two masteries, 232 full; no games launched");
+        System.out.println("PASS: "+checks+" actual catalog/policy/journal checks; 76 foundations, 116 broad+two masteries, 238 including hop; no games launched");
     }
 }
 '''

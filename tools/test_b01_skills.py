@@ -125,7 +125,7 @@ public class B01SkillsCheck {
         var parsed=reader.readCategory("erbridge","abilities",0,context);
         if(parsed.getSuccess().isEmpty())throw new AssertionError(parsed.getFailure().orElseThrow().toString());
         CategoryConfig category=parsed.getSuccess().orElseThrow();
-        check(category.skills().getAll().size()==29,"Fourteen abilities with 29 meaningful ranks");
+        check(category.skills().getAll().size()==30,"Existing 29 nodes plus one independent hop branch");
         check(category.experience().isEmpty() && category.exchange().isEmpty(),"No extra XP or exchange source");
         check(category.definitions().getAll().stream().allMatch(d -> d.rewards().isEmpty()),"No duplicate attribute rewards");
         var catalog=dev.ermc.bridge.gameplay.capability.AbilityCatalog.instance();
@@ -140,6 +140,16 @@ public class B01SkillsCheck {
         check(b.getSpentPoints(category)==8 && b.getPointsLeft(category)==0,"Separate owner cost");
         check(!a.canUnlockSkill(category,category.skills().getById("autotool_1").orElseThrow(),false),"No zero-point purchase");
         check(!a.canUnlockSkill(category,category.skills().getById("speed_1").orElseThrow(),false),"No duplicate purchase");
+        CategoryData routes=CategoryData.create(category.general());routes.unlock();routes.setPoints(source,9);
+        check(!routes.canUnlockSkill(category,category.skills().getById("speed_hop_1").orElseThrow(),false),"Hop requires actual base purchase");
+        purchase(routes,category,"speed_1");
+        check(!routes.canUnlockSkill(category,category.skills().getById("speed_hop_1").orElseThrow(),false),"Nine real points cannot pay four plus six");
+        purchase(routes,category,"speed_2");
+        check(routes.getSpentPoints(category)==8 && routes.getPointsLeft(category)==1,"Existing nine-point Speed II save keeps eight spent and one remaining");
+        routes.setPoints(source,14);purchase(routes,category,"speed_hop_1");
+        check(routes.getPointsLeft(category)==0 && routes.getUnlockedSkillIds().containsAll(List.of("speed_1","speed_2","speed_hop_1")),"Both routes can coexist with exact independent cost");
+        routes.lockSkill("speed_hop_1");
+        check(routes.getSpentPoints(category)==8 && routes.getPointsLeft(category)==6,"Refund branch preserves original ground nodes/cost");
         a.setPoints(source,100);
         check(!a.canUnlockSkill(category,category.skills().getById("fly_1").orElseThrow(),false),"Flight requires 24 points invested, not merely a large balance");
         check(!a.canUnlockSkill(category,category.skills().getById("speed_3").orElseThrow(),false),"Mastery stage threshold is real Skills behavior");
@@ -162,7 +172,7 @@ public class B01SkillsCheck {
         for(String node:List.of("speed_1","speed_2","speed_3","aura_1","aura_2","aura_3"))legacy.unlockSkill(node);
         check(legacy.getPointsLeft(category)<0,"Changed legacy prices cannot silently authorize");
         legacy.resetSkills();check(legacy.getPointsLeft(category)==6 && legacy.getSpentPoints(category)==0,"Explicit migration uses real refund, retains level entitlement");
-        System.out.println("PASS: actual Skills 0.19.2 parser, 29 nodes, normal affordability/prerequisites/stages, separate owners, all five preset purchases, NBT persistence, refund/clear and retained real upgrade");
+        System.out.println("PASS: actual Skills 0.19.2 parser, 30 nodes, branch affordability/prerequisites/refund, preserved nine-point Speed II, all presets, NBT persistence and clear");
         System.out.println("LIMIT: offline parser/data validation; player callbacks, GUI, config reload and ER/LB co-load remain untested");
     }
 }

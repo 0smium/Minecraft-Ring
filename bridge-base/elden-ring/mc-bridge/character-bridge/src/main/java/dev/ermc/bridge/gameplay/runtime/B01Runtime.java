@@ -212,7 +212,7 @@ public final class B01Runtime {
                 reply(source, group.getValue() + "：" + String.join("；", AbilityCatalog.instance().entries().stream().filter(e -> e.category().equals(group.getKey()))
                         .map(e -> e.name() + " " + e.ranks().stream().map(r -> Integer.toString(r.cost())).toList() + " 点").toList()));
             }
-            reply(source, "76 点可学全部基础；116 点广修并精通 Speed/Aura；满配 232 点。HUD/装饰免费，其余未适配行为模块在挑战模式关闭。"); return 1;
+            reply(source, "76 点可学全部基础；116 点广修并精通 Speed/Aura；另用6点学习连跳分支，满配238点。HUD/装饰免费，其余未适配行为模块在挑战模式关闭。"); return 1;
         }
         if (operation.equals("preset_preview")) {
             for (var preset : AbilityCatalog.instance().presets().values()) reply(source, preset.id() + " · " + preset.name() + " | 测试额度/实际消费 " + preset.budget() + "/"

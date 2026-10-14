@@ -17,6 +17,12 @@
     "definition": "speed_3",
     "root": false
   },
+  "speed_hop_1": {
+    "x": -117,
+    "y": -179,
+    "definition": "speed_hop_1",
+    "root": false
+  },
   "fly_1": {
     "x": -18,
     "y": -149,
