@@ -56,6 +56,7 @@ public class ErBridgeMod implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		ErBridgeEntities.init();
+		dev.ermc.bridge.world.SurfaceResources.initialize();
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			// Fabric can report channelInactive from Netty, before server-side disconnection.
 			var player = handler.player;
@@ -83,6 +84,7 @@ public class ErBridgeMod implements ModInitializer {
 		});
 		ServerTickEvents.END_SERVER_TICK.register(server -> BridgeLifecycle.BEFORE_TERRAIN_TICK.invoker().tick(server));
 		ServerTickEvents.END_SERVER_TICK.register(TerrainManager::onServerTick);
+		ServerTickEvents.END_SERVER_TICK.register(dev.ermc.bridge.world.SurfaceResources::tick);
 		ServerTickEvents.END_SERVER_TICK.register(EntityBridge::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(CombatBridge::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(server -> BridgeLifecycle.AFTER_COMBAT_TICK.invoker().tick(server));

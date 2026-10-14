@@ -125,12 +125,14 @@ public final class TerrainManager {
 	private static final List<ServerPlayer> PLATFORM_TRACE_PLAYERS = new ArrayList<>();
 	private static long platformTraceUntil;
 	private static final LongOpenHashSet MOVING_COLUMNS = new LongOpenHashSet();
+	private static final it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet RESOURCE_REFRESH = new it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet();
 	private static final MovingPlatformBoarding PLATFORM_BOARDING = new MovingPlatformBoarding();
 
 	// Ray batch in flight
 	private static int pendingSeq = -1;
 	private static long pendingSince;
 	private static CoordMap.Mapping pendingMap;
+	private static boolean pendingResourceEvidence;
 	private static boolean pendingStallReported;
 	private static final List<PendingColumn> PENDING_COLUMNS = new ArrayList<>();
 	/** A door/prop changed after these columns' rays were submitted. */
@@ -147,6 +149,7 @@ public final class TerrainManager {
 	}
 
 	public static void reset() {
+		dev.ermc.bridge.world.SurfaceResources.reset();
 		TerrainDetailManager.reset();
 		TerrainTravelClearance.reset();
 		preferTravel = true;
@@ -157,6 +160,7 @@ public final class TerrainManager {
 		PLATFORM_TRACE_PLAYERS.clear();
 		platformTraceUntil = 0;
 		MOVING_COLUMNS.clear();
+		RESOURCE_REFRESH.clear();
 		preferBackground = false;
 		coarseBatches = lastBatchMs = maxBatchMs = 0;
 		FLOORED_CHUNKS.clear();
@@ -238,6 +242,20 @@ public final class TerrainManager {
 		wallIgnoreMask = mask;
 	}
 
+	public static boolean defaultRaySettings() { return rayFilter == null && wallIgnoreMask == 0; }
+	public static void clearResourceSurfaceRequests() { RESOURCE_REFRESH.clear(); }
+
+	/** Reuse the ordinary bounded ray scheduler; do not erase collision or stable observations. */
+	public static void refreshResourceSurface(int x, int z, int radius) {
+		if (radius < 0 || radius > 2) return;
+		for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) {
+			long key = ChunkPos.asLong(x + dx, z + dz);
+			if (RESOURCE_REFRESH.contains(key)) continue;
+			if (RESOURCE_REFRESH.size() >= 128) RESOURCE_REFRESH.removeFirstLong();
+			RESOURCE_REFRESH.add(key);
+		}
+	}
+
 	/** Dev: remove all sampled terrain and sample again. */
 	public static void requestReset() {
 		resetRequested = true;
@@ -250,6 +268,7 @@ public final class TerrainManager {
 	}
 
 	private static void invalidate(long key) {
+		dev.ermc.bridge.world.SurfaceResources.forget(ChunkPos.getX(key), ChunkPos.getZ(key));
 		TerrainTravelClearance.invalidate();
 		if (pendingSeq >= 0 && BATCH_KEYS.contains(key)) INVALIDATED_PENDING.add(key);
 		COLUMNS.remove(key);
@@ -353,6 +372,8 @@ public final class TerrainManager {
 		}
 		if (resetRequested) {
 			resetRequested = false;
+			dev.ermc.bridge.world.SurfaceResources.reset();
+			RESOURCE_REFRESH.clear();
 			for (it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry<Column> en : COLUMNS.long2ObjectEntrySet()) {
 				Column c = en.getValue();
 				// Around the players the old blocks stay until the new sample replaces them (a
@@ -546,10 +567,11 @@ public final class TerrainManager {
 					long key = ChunkPos.asLong(x, z);
 					if (MOVING_COLUMNS.contains(key)) continue;
 					Column c = COLUMNS.get(key);
-					if (!TerrainPrefetch.needsSample(c == null ? null : c.sample(), x, z, fromX, py, fromZ,
-						System.currentTimeMillis(), priority) || !BATCH_KEYS.add(key)) {
+					if ((!RESOURCE_REFRESH.contains(key) && !TerrainPrefetch.needsSample(c == null ? null : c.sample(), x, z, fromX, py, fromZ,
+						System.currentTimeMillis(), priority)) || !BATCH_KEYS.add(key)) {
 						continue;
 					}
+					RESOURCE_REFRESH.remove(key);
 					putRay(map, n++, x + 0.5, py + RAY_ABOVE, z + 0.5, x + 0.5, py - RAY_BELOW, z + 0.5);
 					putRay(map, n++, x + 0.5, py + RAY_HIGH, z + 0.5, x + 0.5, py + RAY_ABOVE, z + 0.5);
 					for (double height : PROBE_HEIGHTS) {
@@ -623,6 +645,7 @@ public final class TerrainManager {
 		if (seq >= 0) {
 			pendingSeq = seq;
 			pendingMap = map;
+			pendingResourceEvidence = filter == null && wallIgnoreMask == 0;
 			pendingSince = System.currentTimeMillis();
 			pendingStallReported = false;
 		} else {
@@ -708,9 +731,12 @@ public final class TerrainManager {
 		coarseBatches++;
 		for (int i = 0; i < n; i++) {
 			// An owned MC block can hide native ground. Keep this column until it is visible again.
-			if (!TerrainRayEvidence.known(HIT_FLAGS, i * RAYS_PER_COLUMN, RAYS_PER_COLUMN)) continue;
 			PendingColumn request = PENDING_COLUMNS.get(i);
 			long key = request.key();
+			if (!TerrainRayEvidence.known(HIT_FLAGS, i * RAYS_PER_COLUMN, RAYS_PER_COLUMN)) {
+				dev.ermc.bridge.world.SurfaceResources.forget(ChunkPos.getX(key), ChunkPos.getZ(key));
+				continue;
+			}
 			// Never reinsert a closed door's old collision after an opening event,
 			// or carve a newly closed door using pre-event clearance. Sample again.
 			if (INVALIDATED_PENDING.contains(key)) continue;
@@ -719,7 +745,10 @@ public final class TerrainManager {
 			int z = ChunkPos.getZ(key);
 			// These rays were submitted before the latest lift position. The live
 			// support cells own this column until motion stops or the player steps off.
-			if (MOVING_COLUMNS.contains(key)) continue;
+			if (MOVING_COLUMNS.contains(key)) {
+				dev.ermc.bridge.world.SurfaceResources.forget(x, z);
+				continue;
+			}
 			Column old = COLUMNS.get(key);
 			if (old == null) {
 				// First sample of this column since the world opened (or since a terrain reset):
@@ -809,6 +838,12 @@ public final class TerrainManager {
 			}
 			TerrainPrefetch.Sample sample = new TerrainPrefetch.Sample(sampleY, request.fromX(), request.fromZ(), now);
 			COLUMNS.put(key, new Column(sample, top, bottom, topBlock, height, obstacle));
+			// This is geometric evidence, not a grass/roof material classification. A missing high
+			// hit only verifies the sampled 40 m overhead band; MC heightmaps cannot provide it.
+			dev.ermc.bridge.world.SurfaceResources.observe(map, x, z, groundY,
+				pendingResourceEvidence && defaultRaySettings()
+					&& lowHit && !obstacle && HIT_FLAGS[high] == 0 && HITS[down * 6 + 4] >= .9F
+					&& Math.abs(groundY - sampleY) <= .75, now);
 		}
 		PENDING_COLUMNS.clear();
 		pendingSeq = -1;

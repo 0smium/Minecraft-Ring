@@ -402,6 +402,10 @@ public final class TerrainDetailManager {
 	}
 
 	private static void store(ServerLevel level, BlockPos pos, int[] cells) {
+		// Cached native air/geometry may outlive a player placement or resource generation.
+		// Only the proxy layer belongs to this refiner; never replay it over real MC blocks.
+		BlockState current = level.getBlockState(pos);
+		if (!current.isAir() && !ErBridgeMod.isTerrain(current)) return;
 		boolean empty = true, full = true;
 		for (int cell : cells) { empty &= cell == 0; full &= cell == 0xFFFF; }
 		remember(pos, cells);

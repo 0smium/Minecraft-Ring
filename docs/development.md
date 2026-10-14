@@ -140,6 +140,9 @@ exercise collision, movement and capture behavior without launching the games:
 
 | Command | Coverage |
 | --- | --- |
+| `python tools/test_surface_resource_plan.py` | Coordinate-stable tree/plant/rock layouts, bounds and leaf connectivity; no world startup |
+| `python tools/test_surface_resource_state.py` | Actual SavedData/NBT receipts, sampling freshness and stable-ground selection; no world startup |
+| `python tools/test_surface_resource_blocks.py` | Real MC block/plant/leaf states and loaded-only placement planning; memory-backed blocks, no live world mutation |
 | `python tools/test_host_effects.py` | Native-to-Java HEFX v1/v2, owned vanilla-effect leases, cadence, overlap, cleanup and optional frost events; platform stubs, not a game build |
 | `python tools/test_host_effects.py --vanilla` | Also tests actual MC 1.21.1 weaker/longer hidden-effect merging, ticking, nested and infinite chains; no game startup |
 | `python tools/test_host_effects_mixin.py` | Built production accessor applied to the actual intermediary MC effect class; run after Fabric build |
