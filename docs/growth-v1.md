@@ -1,6 +1,6 @@
 # 交界地成长第一版
 
-本版复用固定 LiquidBounce #3530 原模块与 Pufferfish's Skills 0.19.2 的购买、前置、扣点、退款和存档。角色 Bridge 提供统一授权，不复制一套 Speed、Aura 或 Scaffold 算法。实机加载、购买与执行仍需本批集中验证；下面是已实现的数据和规则。
+本版复用固定 LiquidBounce #3530 原模块与 Pufferfish's Skills 0.19.2 的购买、前置、扣点、退款和存档。角色 Bridge 提供统一授权，不复制一套 Speed、Aura 或 Scaffold 算法。2026-10-14 集中实测已验证 B01/LB 共载、真实等级发点、Speed 学习/退款/执行、预设恢复及生存 Fly 许可授予/撤销；其余能力未因此全部通过。技能图标、菜单久留后误停模块、按解锁过滤 ClickGUI 等问题见[本轮记录](experiments/2026-10-14-growth-equipment-live.md)。下面是当前数据和规则。
 
 ## 从开荒到通关
 
