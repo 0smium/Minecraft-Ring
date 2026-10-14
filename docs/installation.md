@@ -3,7 +3,7 @@
 [Back to Minecraft Ring](../README.md)
 
 This guide describes the current source-build workflow for Minecraft Ring
-0.3.2 (split Fabric candidate). It targets Windows x64, Elden Ring App Ver. 1.17.1 (`eldenring.exe`
+0.3.3 (split Fabric candidate). It targets Windows x64, Elden Ring App Ver. 1.17.1 (`eldenring.exe`
 2.7.1.0), and Minecraft Java Edition 1.21.1.
 
 ## Toolchains
@@ -52,9 +52,9 @@ $env:GRADLE_USER_HOME = Join-Path (Get-Location) '.tools\gradle-home'
 ```
 
 The remapped mod is written to
-`bridge-base/elden-ring/mc-bridge/build/libs/er-bridge-0.3.2.jar`.
+`bridge-base/elden-ring/mc-bridge/build/libs/er-bridge-0.3.3.jar`.
 Add `-Pcharacter=true` to build the independent
-`character-bridge/build/libs/er-character-bridge-0.3.2.jar` alongside Core.
+`character-bridge/build/libs/er-character-bridge-0.3.3.jar` alongside Core.
 `-Pb01=true` includes Character plus its pinned Skills adapter/data. Both character
 variants use the same mod ID; install only the selected one with the matching Core.
 After dependencies are cached, add `--offline` for an offline build.

@@ -65,6 +65,8 @@ if (providers.gradleProperty('lbProduction').map { it.toBoolean() }.getOrElse(fa
 	tasks.register('productionLbClient', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
 		group = 'fabric'
 		description = 'Run the bridge with fixed LiquidBounce in the production mapping environment'
+		// A successful previous client exit must not make the next launch a no-op.
+		outputs.upToDateWhen { false }
 		mods.from tasks.named('remapJar'), file(lbJar), configurations.lbProductionMods
 		if (characterEnabled) mods.from project(':character-bridge').tasks.named('remapJar')
 		if (b01Enabled) mods.from file('../../../runtime/downloads/puffish_skills-0.19.2-1.21-fabric.jar')
@@ -110,6 +112,7 @@ if (providers.gradleProperty('meteorProduction').map { it.toBoolean() }.getOrEls
 	tasks.register('productionMeteorClient', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
 		group = 'fabric'
 		description = 'Run Core with the locally pinned Meteor 0.5.8 release in an isolated profile'
+		outputs.upToDateWhen { false }
 		mods.from tasks.named('remapJar'), file(meteorJar), configurations.meteorProductionMods
 		if (characterEnabled) mods.from project(':character-bridge').tasks.named('remapJar')
 		runDir = layout.projectDirectory.dir('run-meteor')

@@ -10,7 +10,9 @@
     "CapabilityAuraMixin",
     "CapabilityToggleableMixin",
     "CapabilityBHopMixin",
-    "CapabilityManagerMixin"
+    "CapabilityManagerMixin",
+    "CapabilityModuleListMixin",
+    "CapabilitySettingsViewMixin"
   ],
   "injectors": {
     "defaultRequire": 1

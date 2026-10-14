@@ -19,7 +19,7 @@ public final class Protocol {
 	/** Developer mailbox only; no gameplay or client module invokes this command. */
 	public static final int CMD_TEST_RUNES = 11;
 	public static final int OFF_ENVIRONMENT = 0x000B00;
-	public static final int OFF_HOST_INVENTORY = 0x360000;
+	public static final int OFF_HOST_INVENTORY = 0x380000; // HINV v3; old 0x360000 block is retired
 	public static final int ENV_TIME = 1;
 	public static final int ENV_WEATHER = 2;
 

@@ -108,6 +108,7 @@ public final class RuntimeValueProbe {
     if(!speed.getClass().getMethod("getRange").invoke(speed).equals(floatRange.invoke(.1F,.3F)))throw new AssertionError("range metadata write");
     gateway.getMethod("clear").invoke(null);set.invoke(speed,9F);eq(9F,get.invoke(speed));
     System.out.println("PASS real LB set/get/inner/restore/Gson import; float and IntRange type preservation; vanilla intersection; unknown locked; nonfinite rejection; downgrade/stale revision; free mode; metadata access");
+    GuiPolicyProbe.run(loader);
     System.out.println("LIMIT: binding fixtures are explicit, not real module singleton initialization. No game, GUI, networking or movement executed.");
   }
 }

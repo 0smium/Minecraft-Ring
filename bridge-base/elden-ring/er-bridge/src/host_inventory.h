@@ -13,6 +13,11 @@ struct HostInventorySnapshot {
     uint64_t fingerprint = 0;
     uint32_t count = 0, totalEntries = 0, normalCapacity = 0, keyCapacity = 0;
     ErmcInventoryEntry entries[ERMC_MAX_INVENTORY_ENTRIES] = {};
+    void clear() {
+        valid = false; fingerprint = 0;
+        count = totalEntries = normalCapacity = keyCapacity = 0;
+        memset(entries, 0, sizeof(entries));
+    }
     uint64_t token() const {
         if (!valid) return 0;
         uint64_t hash = 14695981039346656037ull;
@@ -39,6 +44,9 @@ class HostInventoryReader {
     bool enabled_ = false;
     HostProgressionReader identity_;
     NativeEntry key_[kMaxSlots], normal_[kMaxSlots], repeated_[kMaxSlots];
+    // Game-thread owned, reused on every read. Never put the 256 KiB snapshot on
+    // the game's stack or retain an entry/reference across the next read.
+    HostInventorySnapshot snapshot_;
 
     static bool bytes(uintptr_t address, const void* expected, size_t size) {
         uint8_t value[64];
@@ -113,8 +121,9 @@ public:
         return enabled_;
     }
 
-    HostInventorySnapshot read(const void* player) {
-        HostInventorySnapshot result;
+    const HostInventorySnapshot& read(const void* player) {
+        auto& result = snapshot_;
+        result.clear();
         if (!enabled_) return result;
         const auto identity = identity_.read(player);
         if (!identity.valid) return result;
@@ -161,41 +170,58 @@ public:
         result.normalCapacity = normalCapacity;
         result.keyCapacity = keyCapacity;
         if (!append(result,key_,keyLength,0,true,equipped,handles) ||
-            !append(result,normal_,normalLength,keyCapacity,false,equipped,handles)) return {};
+            !append(result,normal_,normalLength,keyCapacity,false,equipped,handles)) {
+            result.clear(); return result;
+        }
         result.fingerprint = identity.fingerprint;
         result.valid = true;
         return result;
     }
 };
 
-inline void publish_host_inventory(const HostInventorySnapshot& value, bool loading, bool mcControl,
+inline void publish_host_inventory(const HostInventorySnapshot* value, bool loading, bool mcControl,
                                    uint64_t frame, uint32_t life, uint64_t sampleTimeMs,
                                    uint32_t zone = 0, uint32_t writableSlots = 0, uint32_t talismanSlots = 0) {
     auto* out = (ErmcHostInventory*)((uint8_t*)shm_header()+ERMC_OFF_HOST_INVENTORY);
     const uint32_t writing = out->seq | 1u;
     out->seq = writing;
     __asm__ __volatile__("" ::: "memory");
-    const bool ready = value.valid && !loading;
+    const bool ready = value && value->valid && !loading;
     out->magic = ERMC_HOST_INVENTORY_MAGIC;
     out->version = ERMC_HOST_INVENTORY_VERSION;
     out->state = loading ? ERMC_INVENTORY_LOADING : ready ? ERMC_INVENTORY_READY : ERMC_INVENTORY_UNAVAILABLE;
     out->sampleFrame = frame;
     out->sampleTimeMs = sampleTimeMs;
-    out->ownerFingerprint = ready ? value.fingerprint : 0;
+    out->ownerFingerprint = ready ? value->fingerprint : 0;
     out->hostLife = life;
     out->flags = ready ? ((mcControl ? ERMC_INVENTORY_MC_CONTROL : 0) |
-        (value.totalEntries > value.count ? ERMC_INVENTORY_TRUNCATED : 0)) : 0;
-    out->count = ready ? value.count : 0;
-    out->totalEntries = ready ? value.totalEntries : 0;
-    out->normalCapacity = ready ? value.normalCapacity : 0;
-    out->keyCapacity = ready ? value.keyCapacity : 0;
-    if (ready) memcpy(out->entries,value.entries,sizeof(out->entries));
+        (value->totalEntries > value->count ? ERMC_INVENTORY_TRUNCATED : 0)) : 0;
+    out->count = ready ? value->count : 0;
+    out->totalEntries = ready ? value->totalEntries : 0;
+    out->normalCapacity = ready ? value->normalCapacity : 0;
+    out->keyCapacity = ready ? value->keyCapacity : 0;
+    if (ready) memcpy(out->entries,value->entries,sizeof(out->entries));
     else memset(out->entries,0,sizeof(out->entries));
-    out->snapshotToken = ready ? value.token() : 0;
+    out->snapshotToken = ready ? value->token() : 0;
     out->zone = ready ? zone : 0;
-    out->writableSlots = ready && mcControl && value.count == value.totalEntries ? writableSlots : 0;
+    out->writableSlots = ready && mcControl && value->count == value->totalEntries ? writableSlots : 0;
     out->talismanSlots = ready && talismanSlots <= 4 ? talismanSlots : 0;
     memset(out->reserved, 0, sizeof(out->reserved));
+    __asm__ __volatile__("" ::: "memory");
+    out->seq = writing+1u;
+}
+
+// The old location must not retain a writable v2 observation after a Core reload.
+// Its 64-byte prefix is unchanged; clear only the old block, never the mailbox.
+inline void invalidate_legacy_host_inventory() {
+    auto* bytes = (uint8_t*)shm_header()+ERMC_OFF_HOST_INVENTORY_LEGACY;
+    auto* out = (ErmcHostInventory*)bytes;
+    const uint32_t writing = out->seq | 1u;
+    out->seq = writing;
+    __asm__ __volatile__("" ::: "memory");
+    memset(bytes+4, 0, ERMC_HOST_INVENTORY_LEGACY_SIZE-4);
+    out->magic = ERMC_HOST_INVENTORY_MAGIC;
+    out->version = 2;
     __asm__ __volatile__("" ::: "memory");
     out->seq = writing+1u;
 }
@@ -213,7 +239,8 @@ public:
     void refresh() { lastAttempt_ = 0; }
     void reset(uint64_t frame, uint32_t life, uint64_t now) {
         player_ = 0; fingerprint_ = 0; lastAttempt_ = 0; life_ = UINT32_MAX; state_ = UINT32_MAX;
-        publish_host_inventory({}, false, false, frame, life, now);
+        invalidate_legacy_host_inventory();
+        publish_host_inventory(nullptr, false, false, frame, life, now);
     }
     void tick(const void* player, const HostProgressionSnapshot& identity, bool loading, bool mcControl,
               uint64_t frame, uint32_t life, uint64_t now,
@@ -224,14 +251,14 @@ public:
         const uintptr_t address = ready ? (uintptr_t)player : 0;
         if (address != player_ || fingerprint != fingerprint_ || life != life_ || (!ready && state_ != unavailable)) {
             player_ = address; fingerprint_ = fingerprint; life_ = life; state_ = unavailable;
-            publish_host_inventory({}, unavailable == ERMC_INVENTORY_LOADING, false, frame, life, now);
+            publish_host_inventory(nullptr, unavailable == ERMC_INVENTORY_LOADING, false, frame, life, now);
         }
         if (!ready || (lastAttempt_ && now >= lastAttempt_ && now - lastAttempt_ < 500)) return;
         lastAttempt_ = now;
-        auto value = reader_.read(player);
-        if (value.valid && value.fingerprint != fingerprint) value = {};
-        state_ = value.valid ? ERMC_INVENTORY_READY : ERMC_INVENTORY_UNAVAILABLE;
-        publish_host_inventory(value, false, mcControl, frame, life, now, zone, writableSlots, talismanSlots);
+        const auto& value = reader_.read(player);
+        const bool valid = value.valid && value.fingerprint == fingerprint;
+        state_ = valid ? ERMC_INVENTORY_READY : ERMC_INVENTORY_UNAVAILABLE;
+        publish_host_inventory(valid ? &value : nullptr, false, mcControl, frame, life, now, zone, writableSlots, talismanSlots);
     }
 };
 

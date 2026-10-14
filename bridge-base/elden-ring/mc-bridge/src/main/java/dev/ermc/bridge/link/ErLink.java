@@ -79,6 +79,9 @@ public final class ErLink {
 	public synchronized java.util.Optional<HostInventorySample> readHostInventory() {
 		return shm != null && alive() ? shm.readHostInventory() : java.util.Optional.empty();
 	}
+	public synchronized java.util.Optional<HostInteractionSample> readHostInteraction() {
+		return shm != null && alive() ? shm.readHostInteraction() : java.util.Optional.empty();
+	}
 	/** Character module validates local owner/menu intent; host independently validates all native fields. */
 	public synchronized long submitEquipment(HostInventorySample sample,int slot,HostInventorySample.Entry item) {
 		return shm != null && alive() ? shm.submitEquipment(sample,slot,item) : 0;

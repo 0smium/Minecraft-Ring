@@ -28,6 +28,7 @@
 #include "host_effects.h"
 #include "host_progression.h"
 #include "host_inventory.h"
+#include "host_interaction.h"
 #include "host_test_runes.h"
 #include "host_equipment.h"
 #include "debug_test_enemy.h"
@@ -131,6 +132,7 @@ static bool g_fallTraceOk = false;
 static HostEffectsReader g_hostEffects;
 static HostProgressionReader g_hostProgression;
 static HostInventoryFeed g_hostInventory;
+static HostInteractionReader g_hostInteraction;
 static host_equipment::Access g_hostEquipment;
 static host_equipment::Mailbox g_equipmentMailbox;
 static ErmcEquipmentMailbox* equipment_mailbox() {
@@ -2709,6 +2711,9 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
     publish_host_progression(progression, progressionLoading,
                              alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER) && g_standing,
                              shm_state()->frame, shm_header()->hostLife);
+    publish_host_interaction(g_hostInteraction.read(alive && g_frame.valid &&
+        !(shm_state()->flags & (ERMC_STATE_PLAYER_DEAD|ERMC_STATE_HOST_BUSY))),
+        shm_state()->frame,g_frame.zone,now_ms());
     g_hostInventory.tick(alive ? p.ins : nullptr, progression, progressionLoading,
                          alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER) && g_standing,
                          shm_state()->frame, shm_header()->hostLife, now_ms(),g_frame.zone,
@@ -2794,6 +2799,7 @@ static void unlock_fps() {
 bool game_init() {
     g_base = main_module_base();
     g_hostInventory.reset(shm_state()->frame, shm_header()->hostLife, now_ms());
+    publish_host_interaction({},shm_state()->frame,0,now_ms());
     g_equipmentMailbox.reset(equipment_mailbox());
     publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
     publish_host_progression({}, false, false, shm_state()->frame, shm_header()->hostLife);
@@ -2819,6 +2825,7 @@ bool game_init() {
     log("game: read-only host inventory %s (HINV v2, at most 2 Hz)",
         g_hostInventory.init(g_base) ? "enabled" : "disabled (signature mismatch)");
     log("game: native armor equipment intents %s",g_hostEquipment.init(g_base) ? "available (explicit UI intent only)" : "disabled (signature mismatch)");
+    log("game: native menu handoff observation %s",g_hostInteraction.init(g_base) ? "available (read-only, conservative resume)" : "disabled (signature mismatch)");
     log("game: explicit test-rune command %s", g_testRunes.init(g_base) ? "available (never automatic)" : "disabled (signature mismatch)");
     log("game: read-only host progression %s (level/name; explicit character binding required)",
         g_hostProgressionOk ? "enabled" : "disabled (signature mismatch)");
@@ -2880,6 +2887,7 @@ void game_detach() {
 
 void game_shutdown() {
     g_hostInventory.reset(shm_state()->frame, shm_header()->hostLife, now_ms());
+    publish_host_interaction({},shm_state()->frame,0,now_ms());
     g_equipmentMailbox.reset(equipment_mailbox());
     publish_host_effects({}, false, shm_state()->frame, shm_header()->hostLife);
     publish_host_progression({}, false, false, shm_state()->frame, shm_header()->hostLife);

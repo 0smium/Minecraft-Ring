@@ -9,12 +9,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-/** Read-only HINV v1/v2; raw host item/slot identifiers are observations, not Minecraft items. */
+/** HINV observations; live transport requires v3, legacy v1/v2 codecs remain explicit. */
 public record HostInventorySample(long frame, long sampledAt, long fingerprint, int hostLife,
                                   int state, int flags, int totalEntries, int normalCapacity,
                                   int keyCapacity, List<Entry> entries, long snapshotToken,
                                   int zone, int writableSlots, int talismanSlots) {
-    public static final int MAGIC = 0x564E4948, MAX_ENTRIES = 1024, V1_SIZE = 64 + MAX_ENTRIES * 32, SIZE = V1_SIZE + 32;
+    public static final int MAGIC = 0x564E4948, MAX_ENTRIES = 8192;
+    public static final int LEGACY_MAX_ENTRIES = 1024, V1_SIZE = 64 + LEGACY_MAX_ENTRIES * 32, V2_SIZE = V1_SIZE + 32;
+    public static final int FOOTER_OFFSET = 64 + MAX_ENTRIES * 32, SIZE = FOOTER_OFFSET + 32;
     public static final int UNAVAILABLE = 0, LOADING = 1, READY = 2, MC_CONTROL = 1, TRUNCATED = 2;
     private static final VarHandle INT = MethodHandles.byteBufferViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
     private static final int EQUIPMENT_BITS = (1 << 22) - 1;
@@ -66,22 +68,35 @@ public record HostInventorySample(long frame, long sampledAt, long fingerprint, 
     }
 
     public static Optional<HostInventorySample> read(ByteBuffer source, int base) {
-        if (!source.isDirect() || base < 0 || (base & 7) != 0 || source.limit() - base < V1_SIZE) return Optional.empty();
+        return read(source, base, false);
+    }
+
+    /** Never interpret a stale legacy block as the current full-inventory capability. */
+    public static Optional<HostInventorySample> readCurrent(ByteBuffer source, int base) {
+        return read(source, base, true);
+    }
+
+    private static Optional<HostInventorySample> read(ByteBuffer source, int base, boolean currentOnly) {
+        if (!source.isDirect() || base < 0 || (base & 7) != 0 || source.limit() - base < 64) return Optional.empty();
         ByteBuffer b = source.duplicate().order(ByteOrder.LITTLE_ENDIAN);
         for (int attempt = 0; attempt < 4; attempt++) {
             int sequence = (int) INT.getAcquire(b, base);
             if (sequence == 0) return Optional.empty();
             if ((sequence & 1) != 0) { Thread.onSpinWait(); continue; }
             int magic = b.getInt(base + 4), version = b.getInt(base + 8), state = b.getInt(base + 12);
+            if (version < 1 || version > 3 || (currentOnly && version != 3)) return Optional.empty();
+            int maxEntries = version == 3 ? MAX_ENTRIES : LEGACY_MAX_ENTRIES;
+            int footer = version == 3 ? FOOTER_OFFSET : V1_SIZE;
+            int size = footer + (version == 1 ? 0 : 32);
+            if (source.limit()-base < size) return Optional.empty();
             long frame = b.getLong(base + 16), time = b.getLong(base + 24), fingerprint = b.getLong(base + 32);
             int life = b.getInt(base + 40), flags = b.getInt(base + 44), count = b.getInt(base + 48);
             int total = b.getInt(base + 52), normal = b.getInt(base + 56), key = b.getInt(base + 60);
-            if (version == 2 && source.limit()-base < SIZE) return Optional.empty();
-            long token = version == 2 ? b.getLong(base+V1_SIZE) : 0;
-            int zone = version == 2 ? b.getInt(base+V1_SIZE+8) : 0;
-            int writable = version == 2 ? b.getInt(base+V1_SIZE+12) : 0;
-            int talismans = version == 2 ? b.getInt(base+V1_SIZE+16) : 0;
-            boolean valid = count >= 0 && count <= MAX_ENTRIES;
+            long token = version >= 2 ? b.getLong(base+footer) : 0;
+            int zone = version >= 2 ? b.getInt(base+footer+8) : 0;
+            int writable = version >= 2 ? b.getInt(base+footer+12) : 0;
+            int talismans = version >= 2 ? b.getInt(base+footer+16) : 0;
+            boolean valid = count >= 0 && count <= maxEntries;
             List<Entry> entries = new ArrayList<>(valid ? count : 0);
             int previousSlot = -1, equipment = 0;
             if (valid) for (int i = 0; i < count; i++) {
@@ -99,18 +114,18 @@ public record HostInventorySample(long frame, long sampledAt, long fingerprint, 
             }
             VarHandle.acquireFence();
             if ((int) INT.getAcquire(b, base) != sequence) continue;
-            if (!valid || magic != MAGIC || (version != 1 && version != 2) || state < UNAVAILABLE || state > READY
+            if (!valid || magic != MAGIC || state < UNAVAILABLE || state > READY
                     || frame < 0 || time < 0 || (flags & ~3) != 0 || normal < 0 || normal > 4096
                     || key < 0 || key > 4096 || total < 0 || total > normal + key
-                    || count != Math.min(total, MAX_ENTRIES) || ((flags & TRUNCATED) != 0) != (total > count)) return Optional.empty();
+                    || count != Math.min(total, maxEntries) || ((flags & TRUNCATED) != 0) != (total > count)) return Optional.empty();
             if (state != READY && (fingerprint != 0 || count != 0 || total != 0 || normal != 0 || key != 0 || flags != 0))
                 return Optional.empty();
             if (state == READY && (fingerprint == 0 || frame <= 0 || time <= 0)) return Optional.empty();
-            if (version == 2 && (talismans < 0 || talismans > 4 || (writable & ~0xF000) != 0 ||
+            if (version >= 2 && (talismans < 0 || talismans > 4 || (writable & ~0xF000) != 0 ||
                 (state != READY && (token != 0 || writable != 0 || talismans != 0 || zone != 0)) ||
                 (state == READY && token == 0) || ((flags & MC_CONTROL) == 0 && writable != 0) ||
-                ((flags & TRUNCATED) != 0 && writable != 0) || b.getInt(base+V1_SIZE+20) != 0 ||
-                b.getLong(base+V1_SIZE+24) != 0)) return Optional.empty();
+                ((flags & TRUNCATED) != 0 && writable != 0) || b.getInt(base+footer+20) != 0 ||
+                b.getLong(base+footer+24) != 0)) return Optional.empty();
             return Optional.of(new HostInventorySample(frame, time, fingerprint, life, state, flags, total, normal, key, entries,token,zone,writable,talismans));
         }
         return Optional.empty();

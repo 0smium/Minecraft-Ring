@@ -12,7 +12,7 @@ SRC = ROOT / "bridge-base/elden-ring/mc-bridge/src"
 
 
 def main():
-    wire = ROOT / "runtime/experiments/native-inventory-wire-v1.bin"
+    wire = ROOT / "runtime/experiments/native-inventory-wire-v3.bin"
     if not wire.is_file():
         raise SystemExit("Run python tools/test_host_inventory.py first")
     java = java_path(None)

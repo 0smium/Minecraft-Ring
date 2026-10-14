@@ -25,6 +25,9 @@
 !/docs/images/
 /docs/images/*
 !/docs/images/minecraft-ring.jpg
+!/docs/diagrams/
+/docs/diagrams/*
+!/docs/diagrams/growth-tree-layout.svg
 !/LICENSE
 !/THIRD_PARTY_NOTICES.md
 !/Install.ps1

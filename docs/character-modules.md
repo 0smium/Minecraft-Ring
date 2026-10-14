@@ -1,12 +1,12 @@
 # Core 与独立角色模组
 
-2026-10-14，PR #6 集成候选。Fabric 配套版本为 0.3.2；初次拆分不改 native，本次装备扩展追加 HINV v2 与独立 mailbox，需同步更新候选 DLL。
-这次实际拆成两个制品；构建和离线类解析不替代首次游戏加载验证。
+2026-10-14，PR #6 集成候选。Fabric 配套版本为 0.3.3；初次拆分不改 native，本次修复使用完整库存 HINV v3 与只读菜单 HINT v1，装备 mailbox 保持；需同步更新候选 DLL。
+实际拆成两个制品；0.3.2 B01+LB加载和重进已由用户实测，0.3.3本批仅完成构建与离线类解析。
 
 | 制品 | 保留内容 | 依赖 |
 | --- | --- | --- |
-| `er-bridge-0.3.2.jar` / `erbridge` | 合成、输入、地形、实体代理、生命/普通受击、HPRG/HEFX/HINV 传输与校验、公共 API | MC/Fabric；无角色或能力端依赖 |
-| `er-character-bridge-0.3.2.jar` / `er_character_bridge` | I 键装备附加页、原版 Horse 管理、状态规则、14 项成长与 LB 守卫 | 精确配套的 Core 0.3.2；默认无 Skills 依赖 |
+| `er-bridge-0.3.3.jar` / `erbridge` | 合成、输入、地形、实体代理、生命/普通受击、HPRG/HEFX/HINV 传输与校验、公共 API | MC/Fabric；无角色或能力端依赖 |
+| `er-character-bridge-0.3.3.jar` / `er_character_bridge` | E→ER 装备附加页、原版 Horse 管理、状态规则、14 项成长与 LB 守卫 | 精确配套的 Core 0.3.3；默认无 Skills 依赖 |
 | 同一角色模组的 B01 构建 | 以上内容加 Skills 0.19.2 API 适配和技能树数据 | 编译时要求固定 Skills JAR；使用技能树时加载它 |
 
 角色工程是 `bridge-base/elden-ring/mc-bridge/character-bridge`，具有自己的 Gradle 构建、Fabric 元数据、main/client 入口及 Mixin 配置。默认 Core 构建不配置这个子工程；`-Pcharacter=true` 或 `-Pb01=true` 才加入。没有把角色 JAR 嵌入 Core。
@@ -55,4 +55,4 @@ Gradle 项目依赖采用 Fabric 推荐的 `namedElements` 和客户端源集输
 
 离线检查覆盖实际制品的类归属/重复类/元数据、排除可选模组后的入口类型解析、已有成长/状态/坐骑回归及公共事件顺序。详细命令、摘要与日志见 [本轮记录](experiments/2026-10-14-character-module-split.md)。
 
-首次 Core-only、Core+Character、B01、Meteor 游戏加载留待集中验证。当前已追加[14 项成长与预设](growth-v1.md)、[四防具原生装卸及图片](equipment-v1.md)；这些功能的游戏验收仍未通过。睡眠禁行动与 ER 骑乘准入继续待开发。
+0.3.2 B01+LB加载、真实等级点数、Speed购买/退款/执行、预设恢复和生存Fly许可已[实测通过](experiments/2026-10-14-growth-equipment-live.md)。0.3.3三个构建组合与离线边界检查通过，详见[本批记录](experiments/2026-10-14-post-validation-fixes.md)；Core-only、普通Character和Meteor的首次实机仍待验。四防具真实装卸/保存以及本批界面和菜单交接尚未实测；睡眠禁行动与ER骑乘准入继续待开发。

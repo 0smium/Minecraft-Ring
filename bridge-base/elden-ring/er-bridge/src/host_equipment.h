@@ -78,9 +78,10 @@ public:
         if (req.equipmentSlot < 12 || req.equipmentSlot > 15) { out.status=SLOT; return out; }
         if (!ready || !player) { out.status=NOT_READY; return out; }
         if (!session(req,host) || req.zone != zone) { out.status=SESSION; return out; }
-        auto before = reader_.read(player);
+        const auto& before = reader_.read(player);
         if (!before.valid || before.fingerprint != req.fingerprint) { out.status=OWNER; return out; }
-        if (before.totalEntries != before.count || before.token() != req.snapshotToken) { out.status=STALE; return out; }
+        const uint64_t fingerprint = before.fingerprint, token = before.token();
+        if (before.totalEntries != before.count || token != req.snapshotToken) { out.status=STALE; return out; }
         if (req.operation == 1) {
             bool found = false;
             for (uint32_t i=0;i<before.count;++i) {
@@ -95,8 +96,10 @@ public:
 
         uintptr_t data = 0, repeatedData = 0;
         if (!mem_read((const uint8_t*)player+0x580,&data,8) || !data) { out.status=OWNER; return out; }
-        auto again=reader_.read(player);
-        if (!again.valid || again.fingerprint != before.fingerprint || again.token() != before.token() ||
+        // read() reuses one owned buffer. Carry only the validated scalar identity
+        // and full-content token across reads, never a stale snapshot reference.
+        const auto& again=reader_.read(player);
+        if (!again.valid || again.totalEntries != again.count || again.fingerprint != fingerprint || again.token() != token ||
             !mem_read((const uint8_t*)player+0x580,&repeatedData,8) || data != repeatedData) {
             out.status=STALE; return out;
         }
@@ -105,8 +108,8 @@ public:
         // Invocation happened exactly once. Any missing/different observation means
         // UNKNOWN, never a retry suggestion; UI waits for a fresh native snapshot.
         out.status=READBACK_UNKNOWN; out.sampledAt=clock();
-        auto after=reader_.read(player);
-        if (!after.valid || after.fingerprint != before.fingerprint || !session(req,host) ||
+        const auto& after=reader_.read(player);
+        if (!after.valid || after.totalEntries != after.count || after.fingerprint != fingerprint || !session(req,host) ||
             !mem_read((const uint8_t*)player+0x580,&repeatedData,8) || data != repeatedData) return out;
         out.snapshotToken=after.token();
         for (uint32_t i=0;i<after.count;++i) {

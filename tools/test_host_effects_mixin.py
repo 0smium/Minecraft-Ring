@@ -31,8 +31,8 @@ def main():
     for service, implementation in [("IMixinService", "Service"), ("IGlobalPropertyService", "PropertiesService")]:
         (services / ("org.spongepowered.asm.service." + service)).write_text("OfflineMixinProbe$" + implementation + "\n", encoding="utf-8")
     classpath = os.pathsep.join(str(p) for p in dict.fromkeys([
-        OUTPUT, PROJECT / "build/libs/er-bridge-0.3.2.jar",
-        PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.2.jar", *dependencies]))
+        OUTPUT, PROJECT / "build/libs/er-bridge-0.3.3.jar",
+        PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.3.jar", *dependencies]))
     jdk = single((ROOT / ".tools/java").glob("*/bin/javac.exe"), "JDK").parent
     invoke(jdk / "javac.exe", ["-encoding", "UTF-8", "-classpath", classpath, "-d", OUTPUT,
            PROJECT / "src/testFixtures/lb-capability/OfflineMixinProbe.java",

@@ -17,7 +17,8 @@ import net.minecraft.client.gui.GuiGraphics;
 /** Authenticated S2C policy + a small status/limit display, independent of LB's fixed slider ranges. */
 public final class ProgressionClient {
     private static B01Payload latest;
-    private static long receivedAt, revision;
+    private static long revision;
+    private static final PolicyHeartbeatLease lease = new PolicyHeartbeatLease();
     private static CharacterBinding binding;
     private static boolean awaiting;
     private ProgressionClient() {}
@@ -37,12 +38,13 @@ public final class ProgressionClient {
                 if (binding != null && binding.equals(payload.snapshot().binding()) && payload.snapshot().policyRevision() < revision) return;
                 binding = payload.snapshot().binding(); revision = payload.snapshot().policyRevision();
             }
-            latest = payload; receivedAt = System.nanoTime(); awaiting = false;
+            latest = payload; lease.receive(System.nanoTime()); awaiting = false;
             CapabilityPolicyClient.publish(payload.challenge(), payload.snapshot());
         });
         ClientTickEvents.START_CLIENT_TICK.register(mc -> {
-            if (latest != null && latest.challenge() && System.nanoTime() - receivedAt > 3_000_000_000L
-                    && !mc.isPaused() && !awaiting) {
+            boolean localPause = mc.getSingleplayerServer() != null && mc.isPaused();
+            boolean expired = lease.expired(System.nanoTime(), localPause);
+            if (latest != null && latest.challenge() && expired && !awaiting) {
                 awaiting = true; CapabilityPolicyClient.publish(true, null);
             }
             LiquidBounceCapabilityAccess.tick(mc);
@@ -50,7 +52,7 @@ public final class ProgressionClient {
         HudRenderCallback.EVENT.register((graphics, delta) -> render(graphics));
     }
     private static void reset() {
-        CapabilityPolicyClient.clear(); latest = null; binding = null; receivedAt = 0; revision = 0; awaiting = false;
+        CapabilityPolicyClient.clear(); latest = null; binding = null; lease.reset(); revision = 0; awaiting = false;
     }
     private static void render(GuiGraphics g) {
         Minecraft mc = Minecraft.getInstance();

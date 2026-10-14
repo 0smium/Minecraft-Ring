@@ -35,7 +35,7 @@ public final class HostEquipmentMenus {
                     || !ErLink.get().alive() || player.containerMenu != player.inventoryMenu
                     || !player.containerMenu.getCarried().isEmpty()) return;
             player.openMenu(new SimpleMenuProvider((id, inventory, owner) -> new HostEquipmentMenu(id, inventory, player),
-                Component.literal("法环装备")));
+                Component.literal("法环装备与物品")));
         });
     }
     /** Only the observed identity is carried. The server owns the native snapshot and request token. */

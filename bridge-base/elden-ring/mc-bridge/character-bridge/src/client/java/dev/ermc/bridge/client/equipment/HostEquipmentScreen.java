@@ -11,70 +11,174 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
+import java.util.ArrayList;
+import java.util.List;
 
-/** Standard inventory widgets/tooltips over a server-authoritative ER projection. */
+/** Vanilla container/slots/tooltips; dragging expresses an intent, never a carried MC item. */
 public final class HostEquipmentScreen extends AbstractContainerScreen<HostEquipmentMenu> {
     private Button previous,next;
+    private final List<Button> filters=new ArrayList<>();
     private int armorIndex;
-    private static final String[] LABELS={"头","身","手","腿","符1","符2","符3","符4"};
+    private double viewScale=1,pressX,pressY;
+    private Gesture gesture;
+    private boolean dragged;
+    private String hint;
+    private static final String[] LABELS={"头部","上身","手部","腿部","护符1","护符2","护符3","护符4"};
+    private static final String[] FILTERS={"全部","防具","护符","武器","道具"};
+    private record Gesture(int slotIndex, ItemStack observed, int epoch) {}
+
     public HostEquipmentScreen(HostEquipmentMenu menu,Inventory inventory,Component title){
-        super(menu,inventory,title);imageWidth=234;imageHeight=224;inventoryLabelX=12;inventoryLabelY=130;titleLabelX=12;titleLabelY=6;
+        super(menu,inventory,title);imageWidth=308;imageHeight=278;titleLabelX=14;titleLabelY=8;
     }
     @Override protected void init(){
-        super.init();HostItemIcons.reload();
-        previous=addRenderableWidget(Button.builder(Component.literal("上一页"),b->page(0)).bounds(leftPos+182,topPos+67,44,18).build());
-        next=addRenderableWidget(Button.builder(Component.literal("下一页"),b->page(1)).bounds(leftPos+182,topPos+92,44,18).build());
-    }
-    private void page(int direction){if(minecraft!=null&&minecraft.gameMode!=null)minecraft.gameMode.handleInventoryButtonClick(menu.containerId,direction);}
-    @Override protected void slotClicked(Slot slot,int slotId,int button,ClickType type){
-        if(slotId>=0&&slotId<HostEquipmentMenu.GHOST_COUNT){
-            if(type!=ClickType.PICKUP||menu.pending()||!menu.getCarried().isEmpty())return;
-            if(slotId<4){
-                armorIndex=slotId;
-                if(button==1)ClientPlayNetworking.send(new HostEquipmentMenus.Intent(menu.containerId,menu.epoch(),armorIndex,true,0,0,0));
-            }else if(slotId>=8&&button==0&&slot!=null&&slot.hasItem()){
-                var custom=slot.getItem().get(DataComponents.CUSTOM_DATA);
-                if(custom==null)return;var tag=custom.copyTag();
-                if(!tag.contains("erbridge_view_epoch",3)||!tag.contains("erbridge_inventory_slot",3)||!tag.contains("erbridge_item_handle",3)||!tag.contains("erbridge_item_id",3))return;
-                ClientPlayNetworking.send(new HostEquipmentMenus.Intent(menu.containerId,tag.getInt("erbridge_view_epoch"),armorIndex,false,
-                    tag.getInt("erbridge_inventory_slot"),tag.getInt("erbridge_item_handle"),tag.getInt("erbridge_item_id")));
-            }
-            return;
+        super.init();HostItemIcons.reload();gesture=null;filters.clear();
+        // Keep the same server slot coordinates while fitting smaller GUI-scale viewports.
+        viewScale=Math.min(1,Math.min((width-12.0)/imageWidth,(height-12.0)/imageHeight));
+        leftPos=(int)((width/viewScale-imageWidth)/2);topPos=(int)((height/viewScale-imageHeight)/2);
+        for(int i=0;i<FILTERS.length;i++){
+            final int filter=i;
+            filters.add(addRenderableWidget(Button.builder(Component.literal(FILTERS[i]),b->page(10+filter))
+                .bounds(leftPos+14+i*56,topPos+72,52,18).build()));
         }
-        super.slotClicked(slot,slotId,button,type);
+        previous=addRenderableWidget(Button.builder(Component.literal("<"),b->page(0)).bounds(leftPos+210,topPos+238,22,18).build());
+        next=addRenderableWidget(Button.builder(Component.literal(">"),b->page(1)).bounds(leftPos+272,topPos+238,22,18).build());
     }
-    @Override protected void containerTick(){super.containerTick();previous.active=menu.page()>0&&!menu.pending();next.active=menu.page()+1<menu.pages()&&!menu.pending();}
-    @Override public void renderBackground(GuiGraphics g,int x,int y,float delta){} // Keep the composed host scene visible.
+    private void page(int action){
+        gesture=null;hint=null;
+        if(minecraft!=null&&minecraft.gameMode!=null)minecraft.gameMode.handleInventoryButtonClick(menu.containerId,action);
+    }
+    private Slot slotAt(double x,double y){
+        for(Slot slot:menu.slots)if(super.isHovering(slot.x,slot.y,HostEquipmentMenu.ICON_SIZE,HostEquipmentMenu.ICON_SIZE,x,y))return slot;
+        return null;
+    }
+    private boolean inList(double x,double y){
+        return super.isHovering(HostEquipmentMenu.GRID_X,HostEquipmentMenu.GRID_Y,
+            HostEquipmentMenu.COLUMNS*HostEquipmentMenu.CELL_SIZE,HostEquipmentMenu.ROWS*HostEquipmentMenu.CELL_SIZE,x,y);
+    }
+    @Override protected boolean isHovering(int x,int y,int w,int h,double mouseX,double mouseY){
+        if(w==16&&h==16){w=HostEquipmentMenu.ICON_SIZE;h=HostEquipmentMenu.ICON_SIZE;}
+        return super.isHovering(x,y,w,h,mouseX,mouseY);
+    }
+    @Override public boolean mouseClicked(double screenX,double screenY,int button){
+        double x=screenX/viewScale,y=screenY/viewScale;Slot slot=slotAt(x,y);
+        hint=null;
+        if(slot!=null){
+            if(menu.pending()||!menu.getCarried().isEmpty())return true;
+            if(slot.index<4)armorIndex=slot.index;
+            if(button==1){
+                if(slot.index<4&&slot.hasItem())send(slot.getItem(),menu.epoch(),slot.index,true);
+                else hint="本类物品暂只读；丢弃尚未接入法环原生流程";
+            }else if(button==0&&slot.hasItem()){
+                gesture=new Gesture(slot.index,slot.getItem().copy(),menu.epoch());pressX=x;pressY=y;dragged=false;
+            }
+            return true;
+        }
+        return super.mouseClicked(x,y,button);
+    }
+    @Override public boolean mouseDragged(double screenX,double screenY,int button,double dx,double dy){
+        double x=screenX/viewScale,y=screenY/viewScale;
+        if(gesture!=null){dragged|=Math.hypot(x-pressX,y-pressY)>=4;return true;}
+        return super.mouseDragged(x,y,button,dx/viewScale,dy/viewScale);
+    }
+    @Override public boolean mouseReleased(double screenX,double screenY,int button){
+        double x=screenX/viewScale,y=screenY/viewScale;
+        if(gesture!=null){
+            Gesture captured=gesture;gesture=null;
+            if(button!=0||menu.pending())return true;
+            if(captured.epoch()!=menu.epoch()){hint="背包已刷新，请按新画面重新拖动";return true;}
+            Slot target=slotAt(x,y);
+            if(dragged){
+                if(captured.slotIndex()>=8&&target!=null&&target.index<4){
+                    armorIndex=target.index;send(captured.observed(),captured.epoch(),armorIndex,false);
+                }else if(captured.slotIndex()<4&&inList(x,y)){
+                    send(captured.observed(),captured.epoch(),captured.slotIndex(),true);
+                }else hint="拖至对应防具槽装配；拖回列表卸下。移出页面不会丢弃物品";
+            }else if(captured.slotIndex()>=8)send(captured.observed(),captured.epoch(),armorIndex,false);
+            else if(captured.slotIndex()>=4)hint="护符槽容量按实际皮袋显示；护符装卸暂未开放";
+            return true;
+        }
+        return super.mouseReleased(x,y,button);
+    }
+    @Override public void mouseMoved(double x,double y){super.mouseMoved(x/viewScale,y/viewScale);}
+    @Override public boolean mouseScrolled(double x,double y,double horizontal,double vertical){
+        return super.mouseScrolled(x/viewScale,y/viewScale,horizontal,vertical);
+    }
+    private void send(ItemStack observed,int epoch,int armor,boolean remove){
+        var custom=observed.get(DataComponents.CUSTOM_DATA);
+        if(custom==null)return;var tag=custom.copyTag();
+        if(!tag.contains("erbridge_view_epoch",3)||!tag.contains("erbridge_inventory_slot",3)
+                ||!tag.contains("erbridge_item_handle",3)||!tag.contains("erbridge_item_id",3))return;
+        if(tag.getInt("erbridge_view_epoch")!=epoch||epoch!=menu.epoch()){hint="背包已刷新，请重新选择";return;}
+        int itemId=tag.getInt("erbridge_item_id");
+        if(itemId>>>28!=1){hint="当前只开放四件防具装卸；其他物品暂只读";return;}
+        ClientPlayNetworking.send(new HostEquipmentMenus.Intent(menu.containerId,epoch,armor,remove,
+            tag.getInt("erbridge_inventory_slot"),tag.getInt("erbridge_item_handle"),itemId));
+    }
+    @Override protected void slotClicked(Slot slot,int slotId,int button,ClickType type){
+        // Number keys, Q, double-click collection and vanilla quick-craft never touch projection stacks.
+        if(type==ClickType.THROW)hint="丢弃尚未接入法环原生流程，未丢出任何物品";
+    }
+    @Override protected void containerTick(){
+        super.containerTick();
+        previous.active=menu.page()>0&&!menu.pending();next.active=menu.page()+1<menu.pages()&&!menu.pending();
+        for(int i=0;i<filters.size();i++)filters.get(i).active=i!=menu.filter()&&!menu.pending();
+        if(gesture!=null&&gesture.epoch()!=menu.epoch()){gesture=null;hint="背包已刷新，拖动已取消";}
+    }
+    @Override public void renderBackground(GuiGraphics g,int x,int y,float delta){} // No full-screen blur over ER.
     @Override protected void renderBg(GuiGraphics g,float delta,int mouseX,int mouseY){
-        g.fill(leftPos,topPos,leftPos+imageWidth,topPos+imageHeight,0xF0C6C6C6);
-        g.fill(leftPos+2,topPos+2,leftPos+imageWidth-2,topPos+imageHeight-2,0xE0202930);
+        g.fill(leftPos,topPos,leftPos+imageWidth,topPos+imageHeight,0xFF998563);
+        g.fill(leftPos+1,topPos+1,leftPos+imageWidth-1,topPos+imageHeight-1,0xF51B242B);
+        Slot hovered=slotAt(mouseX,mouseY);
         for(int i=0;i<menu.slots.size();i++){
             Slot slot=menu.slots.get(i);int x=leftPos+slot.x,y=topPos+slot.y;
-            int color=i==armorIndex?0xFF9B814B:0xFF53606A;
-            g.fill(x-1,y-1,x+17,y+17,color);g.fill(x,y,x+16,y+16,0xFF172027);
-            if(i>=4&&i<8&&(menu.talismans()==0||i-4>=menu.talismans()))g.drawCenteredString(font,"×",x+8,y+4,0xFFB06767);
+            int color=i==armorIndex?0xFFD4B36B:hovered==slot?0xFF94A7B4:0xFF52606C;
+            g.fill(x-1,y-1,x+HostEquipmentMenu.ICON_SIZE+1,y+HostEquipmentMenu.ICON_SIZE+1,color);
+            g.fill(x,y,x+HostEquipmentMenu.ICON_SIZE,y+HostEquipmentMenu.ICON_SIZE,0xFF0F171E);
+            if(i>=4&&i<8&&(menu.talismans()==0||i-4>=menu.talismans()))
+                g.drawCenteredString(font,"×",x+HostEquipmentMenu.ICON_SIZE/2,y+8,0xFFB06767);
+        }
+    }
+    @Override protected void renderSlot(GuiGraphics g,Slot slot){
+        // Replace vanilla item rendering entirely. MC leather/gold placeholders never cover native alpha pixels.
+        if(!slot.hasItem())return;
+        g.pose().pushPose();g.pose().translate(0,0,100);
+        renderIcon(g,slot.getItem(),slot.x,slot.y,HostEquipmentMenu.ICON_SIZE);
+        g.pose().popPose();
+    }
+    private void renderIcon(GuiGraphics g,ItemStack stack,int x,int y,int size){
+        if(!HostItemIcons.render(g,stack,x,y,size)){
+            g.fill(x+2,y+2,x+size-2,y+size-2,0xFF394853);
+            g.drawCenteredString(font,"?",x+size/2,y+(size-8)/2,0xFFDAC28C);
         }
     }
     @Override protected void renderLabels(GuiGraphics g,int mouseX,int mouseY){
         g.drawString(font,title,titleLabelX,titleLabelY,0xFFF0D99E,false);
-        g.drawString(font,"法环携带装备",12,54,0xFFD0D8DE,false);
-        for(int i=0;i<LABELS.length;i++)g.drawString(font,LABELS[i],12+i*22,44,0xFFE8E4D6,false);
-        g.drawString(font,"MC 背包",12,130,0xFFD0D8DE,false);g.drawString(font,"MC防具",194,130,0xFFD0D8DE,false);
-        g.drawString(font,(menu.page()+1)+"/"+menu.pages(),187,113,0xFFD0D8DE,false);
-        g.drawString(font,font.plainSubstrByWidth(menu.statusText(),170),12,118,menu.status()==2?0xFF8CDE96:0xFFF0D99E,false);
+        g.drawString(font,"护符 "+menu.talismans()+" / 4",224,8,0xFFD0D8DE,false);
+        for(int i=0;i<LABELS.length;i++){
+            Slot slot=menu.slots.get(i);g.drawCenteredString(font,LABELS[i],slot.x+13,56,0xFFE8E4D6);
+        }
+        g.drawString(font,menu.itemCount()+" 件 · 每页 "+HostEquipmentMenu.PAGE_SIZE+" 格",14,243,0xFFD0D8DE,false);
+        g.drawCenteredString(font,(menu.page()+1)+"/"+menu.pages(),252,243,0xFFD0D8DE);
+        g.drawString(font,font.plainSubstrByWidth(hint==null?menu.statusText():hint,imageWidth-28),14,263,
+            menu.status()==2&&hint==null?0xFF8CDE96:0xFFF0D99E,false);
     }
-    @Override public void render(GuiGraphics g,int mouseX,int mouseY,float delta){
-        super.render(g,mouseX,mouseY,delta);
-        for(int i=0;i<HostEquipmentMenu.GHOST_COUNT;i++){
-            Slot slot=menu.slots.get(i);if(slot.hasItem())HostItemIcons.render(g,slot.getItem(),leftPos+slot.x,topPos+slot.y);
+    @Override public void render(GuiGraphics g,int screenX,int screenY,float delta){
+        int x=(int)(screenX/viewScale),y=(int)(screenY/viewScale);
+        g.pose().pushPose();g.pose().scale((float)viewScale,(float)viewScale,1);
+        super.render(g,x,y,delta);
+        hoveredSlot=slotAt(x,y);
+        if(gesture!=null&&dragged){
+            g.pose().pushPose();g.pose().translate(0,0,300);
+            renderIcon(g,gesture.observed(),x-13,y-13,HostEquipmentMenu.ICON_SIZE);g.pose().popPose();
         }
-        renderTooltip(g,mouseX,mouseY);
-        if(mouseX>=leftPos+12&&mouseX<leftPos+180&&mouseY>=topPos+116&&mouseY<topPos+129)
-            g.renderTooltip(font,Component.literal(menu.statusText()),mouseX,mouseY);
-        for(int i=4;i<8;i++){
-            Slot slot=menu.slots.get(i);
-            if(!slot.hasItem()&&mouseX>=leftPos+slot.x&&mouseX<leftPos+slot.x+16&&mouseY>=topPos+slot.y&&mouseY<topPos+slot.y+16)
-                g.renderTooltip(font,Component.literal(menu.talismans()==0?"尚未读取护符皮袋容量；本版护符只读":i-4>=menu.talismans()?"需要护符皮袋解锁；本版护符只读":"护符槽已解锁；本版护符只读"),mouseX,mouseY);
-        }
+        g.pose().popPose();
+        // Tooltip positioners use the actual GUI viewport, unlike the scaled container coordinates.
+        if(gesture==null||!dragged)renderTooltip(g,screenX,screenY);
+        if(x>=leftPos+14&&x<leftPos+imageWidth-14&&y>=topPos+261&&y<topPos+276)
+            g.renderTooltip(font,Component.literal(hint==null?menu.statusText():hint),screenX,screenY);
+        if(hoveredSlot!=null&&hoveredSlot.index>=4&&hoveredSlot.index<8&&!hoveredSlot.hasItem())
+            g.renderTooltip(font,Component.literal(menu.talismans()==0?"尚未读取护符皮袋容量":
+                hoveredSlot.index-4>=menu.talismans()?"需要护符皮袋解锁":"护符槽已解锁；护符装卸暂只读"),screenX,screenY);
     }
 }

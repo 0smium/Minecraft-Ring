@@ -21,11 +21,15 @@ public final class HostItemIcons {
     private HostItemIcons() {}
 
     public static boolean render(GuiGraphics graphics, ItemStack stack, int x, int y) {
+        return render(graphics, stack, x, y, 16);
+    }
+
+    public static boolean render(GuiGraphics graphics, ItemStack stack, int x, int y, int size) {
         var data = stack.get(DataComponents.CUSTOM_DATA);
         if (data == null) return false;
         var tag = data.copyTag();
         if (!tag.contains("erbridge_item_id", 3)) return false;
-        return render(graphics, tag.getInt("erbridge_item_id"), x, y, 16);
+        return render(graphics, tag.getInt("erbridge_item_id"), x, y, size);
     }
 
     public static boolean render(GuiGraphics graphics, int rawItemId, int x, int y, int size) {
@@ -51,8 +55,7 @@ public final class HostItemIcons {
             } catch (Exception error) { missing.add(icon); return false; }
         }
         if (texture == null) return false;
-        // This page projects a vanilla fallback stack. Cover its icon before drawing the local original.
-        graphics.fill(x, y, x + size, y + size, 0xFF8B8B8B);
+        // The screen replaces the vanilla slot renderer, so preserve the original icon's transparent background.
         graphics.blit(texture, x, y, size, size, 0, 0, 64, 64, 64, 64);
         return true;
     }

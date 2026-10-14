@@ -26,7 +26,7 @@
       "name": "迅捷",
       "description": "LB 原 Custom.Strafe；逐阶放宽水平速度，保留合法偏好。",
       "module": "Speed",
-      "icon": "minecraft:textures/item/sugar.png",
+      "icon": "minecraft:sugar",
       "ranks": [
         {
           "node": "speed_1",
@@ -337,7 +337,7 @@
       "name": "近战辅助",
       "description": "LB 原 KillAura 单目标；距离逐阶提升，不穿墙、不自动格挡。",
       "module": "KillAura",
-      "icon": "minecraft:textures/item/iron_sword.png",
+      "icon": "minecraft:iron_sword",
       "ranks": [
         {
           "node": "aura_1",
@@ -633,7 +633,7 @@
       "name": "自动搭桥",
       "description": "消耗 MC 实际方块；逐阶放宽搭桥速度。关闭塔升、Blink 和 Timer 加速。",
       "module": "Scaffold",
-      "icon": "minecraft:textures/item/bricks.png",
+      "icon": "minecraft:bricks",
       "ranks": [
         {
           "node": "scaffold_1",
@@ -917,7 +917,7 @@
       "name": "空中行走",
       "description": "高门槛自由飞行；使用服务端授权与 LB Creative。首版不声称限时、限高或免坠落。",
       "module": "Fly",
-      "icon": "minecraft:textures/item/elytra.png",
+      "icon": "minecraft:elytra",
       "ranks": [
         {
           "node": "fly_1",
@@ -1099,7 +1099,7 @@
       "name": "空中跳跃",
       "description": "第一阶使用原 DoubleJump；精通增加 JumpFreely 无限空跳选项，保留原模式，不自动切换。",
       "module": "AirJump",
-      "icon": "minecraft:textures/item/rabbit_foot.png",
+      "icon": "minecraft:rabbit_foot",
       "ranks": [
         {
           "node": "airjump_1",
@@ -1149,7 +1149,7 @@
       "name": "越障",
       "description": "原 Step Instant；逐阶提高步高，保留原碰撞与重力。",
       "module": "Step",
-      "icon": "minecraft:textures/item/leather_boots.png",
+      "icon": "minecraft:leather_boots",
       "ranks": [
         {
           "node": "step_1",
@@ -1286,7 +1286,7 @@
       "name": "谨慎行走",
       "description": "原 SafeWalk Safe；只限制 MC 方块边缘，不保证法环所有采样边缘可靠。",
       "module": "SafeWalk",
-      "icon": "minecraft:textures/item/leather.png",
+      "icon": "minecraft:leather",
       "ranks": [
         {
           "node": "safewalk_1",
@@ -1313,7 +1313,7 @@
       "name": "落地保护",
       "description": "原 NoFall SpoofGround。只作用于 MC 坠落路径，不阻止法环必死线或未桥接伤害。",
       "module": "NoFall",
-      "icon": "minecraft:textures/item/feather.png",
+      "icon": "minecraft:feather",
       "ranks": [
         {
           "node": "nofall_1",
@@ -1350,7 +1350,7 @@
       "name": "稳固架势",
       "description": "逐阶减弱 MC 受击速度；最高阶仍保留至少 40% 垂直击退，不免伤。",
       "module": "Velocity",
-      "icon": "minecraft:textures/item/shield.png",
+      "icon": "minecraft:shield",
       "ranks": [
         {
           "node": "velocity_1",
@@ -1652,7 +1652,7 @@
       "name": "工具选择",
       "description": "自动选择当前 MC 背包中的合适工具；不生成工具。",
       "module": "AutoTool",
-      "icon": "minecraft:textures/item/iron_pickaxe.png",
+      "icon": "minecraft:iron_pickaxe",
       "ranks": [
         {
           "node": "autotool_1",
@@ -1679,7 +1679,7 @@
       "name": "护甲整理",
       "description": "整理已有 MC 护甲；不代替法环装备，不生成装备。",
       "module": "AutoArmor",
-      "icon": "minecraft:textures/item/iron_chestplate.png",
+      "icon": "minecraft:iron_chestplate",
       "ranks": [
         {
           "node": "autoarmor_1",
@@ -1700,7 +1700,7 @@
       "name": "敌情轮廓",
       "description": "固定 Box 显示已桥接实体；不改变敌人判定。",
       "module": "ESP",
-      "icon": "minecraft:textures/item/glow_ink_sac.png",
+      "icon": "minecraft:glow_ink_sac",
       "ranks": [
         {
           "node": "esp_1",
@@ -1727,7 +1727,7 @@
       "name": "敌情标记",
       "description": "真实 ER HP 和名称视图；逐阶放宽标签距离。",
       "module": "Nametags",
-      "icon": "minecraft:textures/item/name_tag.png",
+      "icon": "minecraft:name_tag",
       "ranks": [
         {
           "node": "nametags_1",
@@ -1807,7 +1807,7 @@
       "name": "方向指示",
       "description": "原 Tracers；仅显示当前已桥接实体，不承诺原生未加载敌人可见。",
       "module": "Tracers",
-      "icon": "minecraft:textures/item/compass.png",
+      "icon": "minecraft:compass",
       "ranks": [
         {
           "node": "tracers_1",

@@ -73,7 +73,11 @@ public final class BridgeShm {
 	}
 
 	public java.util.Optional<HostInventorySample> readHostInventory() {
-		return HostInventorySample.read(buf, Protocol.OFF_HOST_INVENTORY);
+		return HostInventorySample.readCurrent(buf, Protocol.OFF_HOST_INVENTORY);
+	}
+	public java.util.Optional<HostInteractionSample> readHostInteraction() {
+		return HostInteractionSample.read(buf,HostInteractionSample.OFFSET).filter(sample ->
+			sample.currentFor(hostProcessId(),hostStartMs(),buf.getInt(0x40),hostLife(),hostHeartbeat(),System.currentTimeMillis()));
 	}
 	public long submitEquipment(HostInventorySample sample,int slot,HostInventorySample.Entry item) {
 		return equipment.submit(sample,slot,item,hostProcessId(),buf.getInt(0x40),hostLife(),hostStartMs(),System.currentTimeMillis());

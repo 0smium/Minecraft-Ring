@@ -34,6 +34,7 @@ public class ErBridgeClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		BridgeLifecycle.CLIENT_DISCONNECTED.register(HostInteractionClient::cancel);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> mc.execute(() -> {
 			// Netty may report an old connection after a replacement has already initialized.
 			if (mc.getConnection() == null || mc.getConnection() == handler)
@@ -63,6 +64,7 @@ public class ErBridgeClient implements ClientModInitializer {
 				toast(mc, "Camera: " + CameraSync.mode());
 			}
 			while (overlayKey.consumeClick()) {
+				HostInteractionClient.cancel();
 				// Hand control to the host game (menus, quest board, travelling...). F8 there comes back.
 				Overlay.switchToHost(mc);
 			}
@@ -78,7 +80,9 @@ public class ErBridgeClient implements ClientModInitializer {
 			}
 			while (actionKey.consumeClick()) {
 				if (Overlay.active() && !Overlay.hostBusy() && ErLink.get().alive()) {
+					var beforeAction = ErLink.get().readHostInteraction().orElse(null);
 					pendingAction = ErLink.get().requestAction();
+					HostInteractionClient.requested(pendingAction, beforeAction);
 					pendingActionSince = System.currentTimeMillis();
 				}
 			}
@@ -86,6 +90,7 @@ public class ErBridgeClient implements ClientModInitializer {
 				ErLink link = ErLink.get();
 				if (link.actionAck() == pendingAction) {
 					int r = link.actionResult();
+					HostInteractionClient.acknowledged(pendingAction, r);
 					if (r == 0) {
 						toast(mc, "Nothing to do here in Elden Ring");
 					} else if (r == -2) {
@@ -98,6 +103,7 @@ public class ErBridgeClient implements ClientModInitializer {
 					}
 					pendingAction = 0;
 				} else if (System.currentTimeMillis() - pendingActionSince > 2000) {
+					HostInteractionClient.cancel();
 					pendingAction = 0;
 				}
 			}

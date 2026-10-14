@@ -30,6 +30,8 @@ public final class LiquidBounceCapabilityAccess {
     private static Access access;
     private static Object unit;
     private static long reconciledGeneration = -1;
+    private static boolean guiRefreshPending;
+    private static long guiRefreshAfter;
     private static final ThreadLocal<Boolean> routingEnabled = ThreadLocal.withInitial(() -> false);
     private LiquidBounceCapabilityAccess() {}
 
@@ -70,7 +72,9 @@ public final class LiquidBounceCapabilityAccess {
 
     public static boolean challenge() { return CapabilityPolicyClient.view().challengeActive(); }
     private static Grant grant(Binding binding) {
-        CapabilitySnapshot snapshot = CapabilityPolicyClient.view().snapshot();
+        return grant(binding, CapabilityPolicyClient.view().snapshot());
+    }
+    private static Grant grant(Binding binding, CapabilitySnapshot snapshot) {
         if (binding == null || binding.failed || binding.entry == null || snapshot == null) return null;
         Grant grant = snapshot.abilities().get(binding.entry.id());
         if (grant == null || !grant.unlocked() || grant.rank() > binding.entry.ranks().size()) return null;
@@ -82,6 +86,28 @@ public final class LiquidBounceCapabilityAccess {
             if (limit.getValue().minimum() < maximum.minimum() || limit.getValue().maximum() > maximum.maximum()) return null;
         }
         return grant;
+    }
+    /** REST reads one immutable policy view, without changing module Hidden or the live registry. */
+    public static Set<String> guiModules(CapabilityPolicyClient.View view) {
+        Set<String> names = new HashSet<>();
+        for (Binding binding : bindings.values())
+            if (binding.free || !binding.failed && grant(binding, view.snapshot()) != null) names.add(binding.name);
+        return Set.copyOf(names);
+    }
+    /** Catalog enum constants and LB NamedChoice labels are different (DOUBLE_JUMP / DoubleJump). */
+    public static Setting guiSetting(String moduleName, Setting setting) {
+        if (!setting.type().startsWith("choice")) return setting;
+        for (Binding binding : bindings.values()) if (binding.name.equals(moduleName)) {
+            Object value = binding.values.get(setting.path());
+            if (value == null || access.choiceType.isInstance(value)) return setting;
+            try {
+                String fallback = (String) access.namedChoice.invoke(binding.select(value, setting.stringValue()));
+                Set<String> allowed = new HashSet<>();
+                for (String choice : setting.allowedChoices()) allowed.add((String) access.namedChoice.invoke(binding.select(value, choice)));
+                return new Setting(setting.type(), setting.path(), setting.limitKey(), fallback, setting.booleanValue(), allowed);
+            } catch (Throwable error) { LOG.warn("Growth could not project LB choices for {}/{}", moduleName, setting.path(), error); return null; }
+        }
+        return null;
     }
     private static Rank rank(Binding binding) {
         Grant grant = grant(binding);
@@ -227,8 +253,17 @@ public final class LiquidBounceCapabilityAccess {
                 else if (!binding.free) { if (!allowModule(binding.module)) disable(binding); if (binding.entry != null && !binding.failed) apply(binding); }
             }
             reconciledGeneration = view.generation();
+            // LB #3530's bundled theme fetches lists/settings only when mounted; it does
+            // not listen to valueChanged. Coalesce metadata changes before reloading it.
+            guiRefreshPending = true;
+            guiRefreshAfter = System.nanoTime() + 250_000_000L;
         }
         if (challenge()) for (Binding binding : bindings.values()) if (!allowModule(binding.module)) disable(binding);
+        if (guiRefreshPending && access != null && mc.player != null && System.nanoTime() >= guiRefreshAfter) {
+            guiRefreshPending = false;
+            try { access.reloadClickGui(); }
+            catch (Throwable error) { LOG.warn("Growth could not refresh LB ClickGUI", error); }
+        }
     }
     public static void stopManagedModules() {
         for (Binding binding : bindings.values()) if (!binding.free) disable(binding);
@@ -379,5 +414,10 @@ public final class LiquidBounceCapabilityAccess {
             throw new IllegalArgumentException("Unsupported LB range type");
         }
         void notifyValue(Object value) throws Throwable { eventCall.invoke(changedEvent.newInstance(value)); }
+        void reloadClickGui() throws ReflectiveOperationException {
+            Class<?> clickGui = Class.forName("net.ccbluex.liquidbounce.features.module.modules.render.ModuleClickGui", false,
+                    LiquidBounceCapabilityAccess.class.getClassLoader());
+            clickGui.getMethod("reloadView").invoke(clickGui.getField("INSTANCE").get(null));
+        }
     }
 }

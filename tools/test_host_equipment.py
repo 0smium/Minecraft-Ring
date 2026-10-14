@@ -22,8 +22,8 @@ MAIN=r'''
 int main() {
     using namespace mb;using namespace mb::host_equipment;
     static Access access;static Mailbox mailbox;
-    auto prepare=[](){
-        seed();
+    auto prepare=[](uint32_t normalCount=3){
+        seed(normalCount,2);
         /* EQUIPMENT_CODE */
         put(NORMAL+4,uint32_t(0x10013880)); // owned head armor
         put(NORMAL+8,uint32_t(0)); // real owned gear may carry zero quantity
@@ -35,7 +35,7 @@ int main() {
     assert(access.talismanSlots((void*)PLAYER,1)==3);
     assert(access.talismanSlots((void*)PLAYER,0)==0);
     put(DATA+0xC6,uint8_t(7));assert(!access.talismanSlots((void*)PLAYER,1));put(DATA+0xC6,uint8_t(2));
-    assert(reader.init(BASE));auto inv=observe();
+    assert(reader.init(BASE));const auto& inv=observe();
     ErmcHeader header={};header.hostPid=77;header.hostStartMs=1000;header.coreGeneration=4;header.hostLife=9;header.coreStatus=1;
     ErmcEquipmentRequest req={};req.version=1;req.operation=1;req.hostPid=77;req.coreGeneration=4;
     req.hostLife=9;req.zone=10;req.equipmentSlot=12;req.inventorySlot=2;req.handle=0x80800001;req.itemId=0x10013880;
@@ -85,7 +85,25 @@ int main() {
     for(unsigned i=2;i<16;++i){box.request=original;box.request.nonce+=i;box.reqSeq++;mailbox.service(&box,now,execute);}
     box.request.nonce=999;box.reqSeq++;mailbox.service(&box,now,execute);assert(box.result.status==DEDUP_FULL&&executed==16);
     now=9000;box.request=original;box.reqSeq++;mailbox.service(&box,now,execute);assert(box.result.status==EXPIRED&&executed==16);
-    now=3000;prepare();memory[BASE+kEquip][0]^=1;assert(!access.init(BASE));expect(req,UNSUPPORTED);
+    // The owned armor can be beyond the former 1024-entry limit, including quantity zero.
+    now=3000;prepare(1104);assert(access.init(BASE));assert(reader.init(BASE));
+    const uint32_t tail=1103;
+    put(NORMAL+tail*24+4,uint32_t(0x10013880));put(NORMAL+tail*24+8,uint32_t(0));
+    observe();req.operation=1;req.handle=0x80800001+tail;req.itemId=0x10013880;req.inventorySlot=tail+2;
+    req.snapshotToken=inv.token();req.fingerprint=inv.fingerprint;req.deadlineMs=8000;req.nonce=1001;
+    unsigned beforeCalls=calls;out=run(req);assert(out.status==OK&&calls==beforeCalls+1&&out.inventorySlot==1105);
+    expect(req,STALE);
+    req.operation=2;req.handle=0;req.itemId=0;req.inventorySlot=UINT32_MAX;req.snapshotToken=out.snapshotToken;req.nonce++;
+    out=run(req);assert(out.status==OK&&out.itemId==0x10002710);
+    req.operation=1;req.handle=0x80800001+tail;req.itemId=0x10013880;req.inventorySlot=tail+2;req.snapshotToken=out.snapshotToken;req.nonce++;
+    // A tail change between the two pre-call reads must fail; this also detects
+    // comparing two aliases of the reader's reused snapshot instead of saved scalars.
+    auto changingArmor=[&](uint32_t item,uint32_t slot){put(NORMAL+tail*24+12,uint32_t(777));return armor(item,slot);};
+    beforeCalls=calls;
+    out=access.execute(req,header,(void*)PLAYER,ready,zone,changingArmor,invoke,[&]{return now;},[&]{return current;});
+    assert(out.status==STALE&&calls==beforeCalls);
+    prepare();memory[BASE+kEquip][0]^=1;assert(!access.init(BASE));expect(req,UNSUPPORTED);
+    puts("PASS: tail armor equip/unequip beyond 1024, zero quantity ownership, full-content stale token and reused-buffer reread rejection");
     puts("PASS: production equipment guards: owner/session/life/zone/token/item/slot/deadline, equip/unequip readback, unknown outcome, 16-entry nonce dedup/full/expiry, signature refusal and actual pouch slot formula");
     puts("LIMIT: invocation is a private fixture; real armor visuals/stats/persistence remain manual checks");
 }
@@ -120,7 +138,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='ermc-equipment-') as directory:
         work=Path(directory);(work/'windows.h').write_text('#pragma once\nusing HWND=void*;using LONG=long;inline LONG InterlockedIncrement(volatile LONG* p){return ++*p;}inline LONG InterlockedDecrement(volatile LONG* p){return --*p;}\n')
         (work/'check.cpp').write_text(source,encoding='utf-8');binary=work/'check.exe'
-        subprocess.run([compiler,'-std=c++17','-static','-Wall','-Wextra','-Werror',f'-I{work}',f'-I{ER/"include"}',f'-I{ER/"src"}',str(work/'check.cpp'),'-o',str(binary)],check=True)
+        subprocess.run([compiler,'-std=c++17','-O2','-static','-Wall','-Wextra','-Werror','-Wframe-larger-than=16384',f'-I{work}',f'-I{ER/"include"}',f'-I{ER/"src"}',str(work/'check.cpp'),'-o',str(binary)],check=True)
         subprocess.run([str(binary)],check=True)
 
 if __name__=='__main__':main()

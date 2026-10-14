@@ -64,7 +64,9 @@ typedef struct ErmcTerrainContacts {
 
 /* Actual simulation feet, independent of delayed/interpolated frame poses. */
 #define ERMC_OFF_COLLISION_CONTROL 0x350000u
-#define ERMC_OFF_HOST_INVENTORY 0x360000u /* Optional read-only native inventory snapshot */
+#define ERMC_OFF_HOST_INVENTORY_LEGACY 0x360000u /* Retired HINV v1/v2; explicitly invalidated */
+#define ERMC_HOST_INVENTORY_LEGACY_SIZE 0x8060u
+#define ERMC_OFF_HOST_INVENTORY 0x380000u /* HINV v3, complete bounded native inventory */
 typedef struct ErmcCollisionControl {
     volatile uint32_t seq;
     uint32_t flags, zone;
@@ -153,14 +155,15 @@ typedef struct ErmcHostProgression {
 /* Actual ER inventory observations, never Minecraft container items or write requests.
  * ownerFingerprint has the same weak-name semantics as HPRG; no native pointer crosses ABI. */
 #define ERMC_HOST_INVENTORY_MAGIC 0x564E4948u /* bytes "HINV" */
-#define ERMC_HOST_INVENTORY_VERSION 2u
+#define ERMC_HOST_INVENTORY_VERSION 3u
 #define ERMC_INVENTORY_UNAVAILABLE 0u
 #define ERMC_INVENTORY_LOADING 1u
 #define ERMC_INVENTORY_READY 2u
 #define ERMC_INVENTORY_MC_CONTROL 1u
 #define ERMC_INVENTORY_TRUNCATED 2u
 #define ERMC_INVENTORY_KEY_ITEM 1u
-#define ERMC_MAX_INVENTORY_ENTRIES 1024u
+/* Each of the two validated native partitions has at most 4096 slots. */
+#define ERMC_MAX_INVENTORY_ENTRIES 8192u
 typedef struct ErmcInventoryEntry {
     uint32_t slot;                /* native index: key index, or keyCapacity + normal index */
     uint32_t gaitemHandle;        /* session-local item handle, not a native pointer */
@@ -184,11 +187,30 @@ typedef struct ErmcHostInventory {
     uint32_t normalCapacity;      /* 0x38 validated native slot capacity */
     uint32_t keyCapacity;         /* 0x3C native key index partition capacity */
     ErmcInventoryEntry entries[ERMC_MAX_INVENTORY_ENTRIES]; /* 0x40 */
-    uint64_t snapshotToken;       /* 0x8040 content token; 0 when unavailable */
+    uint64_t snapshotToken;       /* 0x40040 content token; 0 when unavailable */
     uint32_t zone, writableSlots;
     uint32_t talismanSlots;       /* 0 unknown, otherwise native total 1..4 */
     uint32_t reserved[3];
-} ErmcHostInventory;              /* 0x8060, v2 readers also accept read-only v1 */
+} ErmcHostInventory;              /* 0x40060; v3 has a separate location from v1/v2 */
+
+/* Read-only interaction handoff observation; no menu/input writes or pointers. */
+#define ERMC_OFF_HOST_INTERACTION 0x3D0000u
+#define ERMC_HOST_INTERACTION_MAGIC 0x544E4948u /* HINT */
+#define ERMC_HOST_INTERACTION_VERSION 1u
+#define ERMC_INTERACTION_VALID 1u
+#define ERMC_INTERACTION_MENU_BLOCKING 2u
+#define ERMC_INTERACTION_CAN_RESUME 4u
+#define ERMC_INTERACTION_RESTING 8u /* any of the native bonfire phase bits below */
+#define ERMC_INTERACTION_ACTION_READY 16u
+#define ERMC_INTERACTION_HOST_READY 32u
+#define ERMC_INTERACTION_REST_MASK 0x1E0u /* Lua begin/pending-end/sitting/stand-up */
+typedef struct ErmcHostInteraction {
+    volatile uint32_t seq;
+    uint32_t magic, version, flags;
+    uint64_t sampleFrame, sampleTimeMs, hostStartMs;
+    uint32_t hostPid, coreGeneration, hostLife, zone;
+    uint32_t restFlags, reserved;
+} ErmcHostInteraction; /* 0x40 */
 
 /* Gameplay equipment intent mailbox, deliberately separate from the debug mailbox.
  * No native pointers cross this ABI. Only the game thread executes accepted intents. */
@@ -560,16 +582,21 @@ static_assert(sizeof(ErmcHostEffects) == 0x38, "host effects size");
 static_assert(offsetof(ErmcHostEffects, rotEffectId) == 0x20 &&
               offsetof(ErmcHostEffects, frostProcs) == 0x30, "host effects v2 offsets");
 static_assert(sizeof(ErmcHostProgression) == 0x58, "host progression size");
-static_assert(sizeof(ErmcInventoryEntry) == 0x20 && sizeof(ErmcHostInventory) == 0x8060, "host inventory size");
+static_assert(sizeof(ErmcInventoryEntry) == 0x20 && sizeof(ErmcHostInventory) == 0x40060 &&
+              offsetof(ErmcHostInventory, snapshotToken) == 0x40040, "host inventory v3 size");
 static_assert(sizeof(ErmcEquipmentRequest) == 80 && sizeof(ErmcEquipmentResult) == 64 &&
               sizeof(ErmcEquipmentMailbox) == 160, "equipment intent ABI");
 static_assert(offsetof(ErmcHostInventory, sampleFrame) == 0x10 &&
               offsetof(ErmcHostInventory, sampleTimeMs) == 0x18 &&
               offsetof(ErmcHostInventory, ownerFingerprint) == 0x20 &&
               offsetof(ErmcHostInventory, entries) == 0x40, "host inventory offsets");
-static_assert(ERMC_OFF_COLLISION_CONTROL + sizeof(ErmcCollisionControl) <= ERMC_OFF_HOST_INVENTORY &&
-              ERMC_OFF_HOST_INVENTORY + sizeof(ErmcHostInventory) <= ERMC_OFF_HOST_EQUIPMENT &&
-              ERMC_OFF_HOST_EQUIPMENT + sizeof(ErmcEquipmentMailbox) <= ERMC_SHM_SIZE, "inventory/equipment blocks fit");
+static_assert(ERMC_OFF_COLLISION_CONTROL + sizeof(ErmcCollisionControl) <= ERMC_OFF_HOST_INVENTORY_LEGACY &&
+              ERMC_OFF_HOST_INVENTORY_LEGACY + ERMC_HOST_INVENTORY_LEGACY_SIZE <= ERMC_OFF_HOST_EQUIPMENT &&
+              ERMC_OFF_HOST_EQUIPMENT + sizeof(ErmcEquipmentMailbox) <= ERMC_OFF_HOST_INVENTORY &&
+              ERMC_OFF_HOST_INVENTORY + sizeof(ErmcHostInventory) <= ERMC_OFF_HOST_INTERACTION &&
+              ERMC_OFF_HOST_INTERACTION + sizeof(ErmcHostInteraction) <= ERMC_SHM_SIZE, "inventory/equipment/interaction blocks fit");
+static_assert(sizeof(ErmcHostInteraction) == 64 && offsetof(ErmcHostInteraction, sampleFrame) == 16 &&
+              offsetof(ErmcHostInteraction, restFlags) == 56, "host interaction ABI");
 static_assert(offsetof(ErmcHostProgression, sampleFrame) == 0x10 &&
               offsetof(ErmcHostProgression, fingerprint) == 0x28 &&
               offsetof(ErmcHostProgression, name) == 0x30 &&
