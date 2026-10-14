@@ -25,6 +25,10 @@ hand, character and HUD. Both games stay running throughout a session.
 [Setup guide](docs/installation.md) · [Development and diagnostics](docs/development.md) ·
 [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/siddoff/Minecraft-Ring/issues)
 
+Fork development: [current status and PR order](docs/current-development.md) ·
+[architecture](docs/architecture.md) · [roadmap](docs/gameplay-roadmap.md).
+The character gameplay mod split is required but has not been implemented in this candidate.
+
 ## What works
 
 - **Movement and camera.** Walk, sprint, jump, crouch and fly with Minecraft

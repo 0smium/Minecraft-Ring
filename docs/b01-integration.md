@@ -5,6 +5,8 @@
 本轮已写入实际入口，完成离线检查；后续已开始 [R09 修复与首次共载](experiments/2026-10-13-r09-b01-smoke.md)，**成长闭环尚待人工验收**。
 原准备内核及规则见 [b01-preparation.md](b01-preparation.md)。
 
+2026-10-14 澄清：Speed 复用 LB Custom.Strafe，三档数值是可调范围的上限，升级不会把用户值固定为该上限。角色功能与通用策略要迁入独立 Fabric 模组，当前尚未迁移；当前架构和交付条件见 [architecture.md](architecture.md)，最新集成候选见 [current-development.md](current-development.md)。
+
 ## 这一轮负责什么
 
 - 原生只读等级/名称采样；MC 集成服务器显式绑定角色、保存最高等级额度。
@@ -16,7 +18,7 @@
 
 | 项目 | 固定值 |
 | --- | --- |
-| ER | App 1.17.1 / exe 2.7.1.0；新增读取仍待实机验证 |
+| ER | App 1.17.1 / exe 2.7.1.0；真实等级 164 已人工核对，持续升级消费链仍待验证 |
 | MC / Fabric | 1.21.1，保持当前工程版本 |
 | LB | v0.22.0 / Build #3530，原始 JAR，不内嵌 |
 | LB SHA-256 | `1824011D91046F8F8B388CFA63782F38CDF754F12CB997317EAB8E69E67EF20D` |
