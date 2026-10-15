@@ -12,7 +12,10 @@
     "CapabilityBHopMixin",
     "CapabilityManagerMixin",
     "CapabilityModuleListMixin",
-    "CapabilitySettingsViewMixin"
+    "CapabilitySettingsViewMixin",
+    "SleepEventMixin",
+    "SleepScheduledActionMixin",
+    "SleepSequenceMixin"
   ],
   "injectors": {
     "defaultRequire": 1

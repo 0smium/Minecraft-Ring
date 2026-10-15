@@ -72,6 +72,21 @@ public final class InventoryWireCheck {
         var maximum = read(Path.of(path + ".maximum"));
         check(maximum.entries().size()==8192 && maximum.totalEntries()==8192 && maximum.entries().get(8191).slot()==8191);
         check(maximum.canWriteSlot(15));
+        var nativeTalismans=read(Path.of(path+".talismans"));
+        check(nativeTalismans.talismanSlots()==4&&nativeTalismans.writableSlots()==0x1EF000);
+        for(int slot=17;slot<=20;slot++)check(nativeTalismans.canWriteSlot(slot));
+        var unknownTalismans=read(Path.of(path+".talisman-unknown"));
+        check(unknownTalismans.talismanSlots()==0&&unknownTalismans.writableSlots()==0xF000);
+        check(unknownTalismans.canWriteSlot(12)&&!unknownTalismans.canWriteSlot(17));
+        for(int capacity=0;capacity<=4;capacity++) {
+            ByteBuffer talismans=direct(original);
+            talismans.putInt(HostInventorySample.FOOTER_OFFSET+12,HostInventorySample.availableEquipmentSlots(capacity));
+            talismans.putInt(HostInventorySample.FOOTER_OFFSET+16,capacity);
+            var capable=HostInventorySample.readCurrent(talismans,0).orElseThrow();
+            check(capable.canWriteSlot(12)&&capable.canWriteSlot(15));
+            for(int slot=17;slot<=20;slot++) check(capable.canWriteSlot(slot)==(slot-17<capacity));
+            check(!capable.canWriteSlot(16)&&!capable.canWriteSlot(21));
+        }
         reject(b -> b.putInt(0, 0)); reject(b -> b.putInt(0, 3)); reject(b -> b.putInt(4, 0));
         reject(b -> b.putInt(8, 4)); reject(b -> b.putInt(12, 3)); reject(b -> b.putLong(16, -1));
         reject(b -> b.putLong(24, 0)); reject(b -> b.putLong(32, 0)); reject(b -> b.putInt(44, 5));
@@ -83,6 +98,9 @@ public final class InventoryWireCheck {
         reject(b -> b.putInt(92, 1)); reject(b -> b.putInt(12, 1));
         reject(b -> b.putLong(HostInventorySample.FOOTER_OFFSET,0));
         reject(b -> b.putInt(HostInventorySample.FOOTER_OFFSET+12,1<<17));
+        reject(b -> {b.putInt(HostInventorySample.FOOTER_OFFSET+16,1);b.putInt(HostInventorySample.FOOTER_OFFSET+12,1<<18);});
+        reject(b -> {b.putInt(HostInventorySample.FOOTER_OFFSET+16,4);b.putInt(HostInventorySample.FOOTER_OFFSET+12,1<<16);});
+        reject(b -> {b.putInt(HostInventorySample.FOOTER_OFFSET+16,4);b.putInt(HostInventorySample.FOOTER_OFFSET+12,1<<21);});
         reject(b -> b.putInt(HostInventorySample.FOOTER_OFFSET+16,5));
         reject(b -> b.putInt(HostInventorySample.FOOTER_OFFSET+20,1));
         reject(b -> b.limit(HostInventorySample.SIZE-1));

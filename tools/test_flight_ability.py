@@ -36,6 +36,9 @@ public final class ServerLifecycleEvents {public static final ServerTickEvents.E
 'dev/ermc/bridge/api/BridgeLifecycle.java':'''package dev.ermc.bridge.api;
 import java.util.function.Consumer;import net.minecraft.server.level.ServerPlayer;
 public final class BridgeLifecycle {public static final Event PLAYER_DISCONNECTED=new Event();public static final class Event {private Consumer<ServerPlayer> callback;public void register(Consumer<ServerPlayer> c){callback=c;}public void fire(ServerPlayer p){callback.accept(p);}}}''',
+'dev/ermc/bridge/character/action/ActionLockServer.java':'''package dev.ermc.bridge.character.action;
+import net.minecraft.server.level.ServerPlayer;
+public final class ActionLockServer {public static ServerPlayer sleeping;public static boolean blocks(ServerPlayer player){return sleeping==player;}}''',
 'dev/ermc/bridge/gameplay/runtime/B01Runtime.java':'''package dev.ermc.bridge.gameplay.runtime;
 import java.util.*;import dev.ermc.bridge.api.CapabilitySnapshot;import net.minecraft.server.level.ServerPlayer;
 public final class B01Runtime {public static final Map<ServerPlayer,CapabilitySnapshot> policies=new IdentityHashMap<>();public static boolean challenge=true;
@@ -44,6 +47,7 @@ public static boolean challengeFor(ServerPlayer p){return challenge;}public stat
 CHECK=r'''import java.util.*;
 import dev.ermc.bridge.api.*;import dev.ermc.bridge.api.CapabilitySnapshot.*;
 import dev.ermc.bridge.gameplay.runtime.*;
+import dev.ermc.bridge.character.action.ActionLockServer;
 import net.minecraft.server.MinecraftServer;import net.minecraft.server.level.ServerPlayer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.*;
 public final class FlightLeaseCheck {
@@ -64,6 +68,11 @@ public final class FlightLeaseCheck {
   policy(p,grant(2,.03));tick(server);near(p.abilities.speed,.015f,"upgrade retains legal preference");check(p.updates==2,"upgrade sends once");
   policy(p,grant(1,.012));tick(server);near(p.abilities.speed,.012f,"downgrade applies reduced cap");
   B01Runtime.policies.remove(p);tick(server);check(!p.abilities.mayfly&&!p.abilities.flying,"loading absent snapshot revokes lease");near(p.abilities.speed,.05f,"release restores prior speed");
+  policy(p,grant(1,.02));tick(server);p.abilities.flying=true;ActionLockServer.sleeping=p;tick(server);
+  check(!p.abilities.mayfly&&!p.abilities.flying,"sleep suspends bridge-owned flight lease");near(p.abilities.speed,.05f,"sleep restores original speed");
+  int sleepUpdates=p.updates;for(int i=0;i<15;i++)tick(server);check(p.updates==sleepUpdates,"sleep cannot re-grant flight each tick");
+  ActionLockServer.sleeping=null;tick(server);check(p.abilities.mayfly&&!p.abilities.flying,"wake re-grants permission without automatically resuming flight");
+  near(p.abilities.speed,.02f,"wake reapplies current learned speed cap");B01Runtime.policies.remove(p);tick(server);
   p.abilities.mayfly=true;p.abilities.flying=true;p.abilities.speed=.06f;policy(p,grant(1,.02));tick(server);policy(p,locked());tick(server);
   check(p.abilities.mayfly&&p.abilities.flying,"pre-existing external flight permission retained");near(p.abilities.speed,.06f,"pre-existing speed restored");
   p.abilities.mayfly=false;p.abilities.flying=false;p.abilities.speed=.05f;policy(p,grant(1,.02));tick(server);p.abilities.flying=true;p.alive=false;tick(server);

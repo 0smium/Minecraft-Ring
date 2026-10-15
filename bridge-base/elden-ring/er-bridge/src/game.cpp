@@ -1593,7 +1593,7 @@ static uint8_t* param_row(uint32_t index, int32_t id) {
 }
 
 // Equipment metadata is read from the currently loaded regulation, not inferred
-// from item IDs. The field layout is Paramdex EquipParamProtector v6 / PlayerCommon.
+// from item IDs. Layouts: Paramdex EquipParamProtector v6, Accessory v2, PlayerCommon.
 static bool equipment_param_bytes(uint32_t index, int32_t id, uint8_t* out, size_t size, uint16_t version = 0) {
     uint8_t* file=param_file(index);
     uint8_t header[0x40];
@@ -1623,6 +1623,14 @@ static bool armor_fits_slot(uint32_t itemId,uint32_t slot) {
 static uint32_t base_talisman_slots() {
     uint8_t row[0x0E];
     return equipment_param_bytes(144,0,row,sizeof(row)) && row[0x0D]>=1 && row[0x0D]<=4 ? row[0x0D] : 0;
+}
+static bool talisman_group(uint32_t itemId,int16_t& group) {
+    uint8_t row[0x4A];
+    if (itemId>>28!=2 || !equipment_param_bytes(2,int32_t(itemId&0x0FFFFFFF),row,sizeof(row),2)) return false;
+    // Verified target D238E0 compares signed accessoryGroup +0x48; -1 means
+    // no family restriction. No item-ID rounding or guessed family table.
+    memcpy(&group,row+0x48,sizeof(group));
+    return group>=-1;
 }
 
 // Small flinch (dmgLevel 1) and some poise damage, 1 physical damage as vanilla. In memory only:
@@ -2734,10 +2742,13 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
             return result;
         });
     bool standing = alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER);
-    const bool equipmentReady=standing && g_standing && (c.flags & ERMC_CTRL_GROUNDED) && !(c.flags & ERMC_CTRL_FLYING);
+    const HostEffectsSnapshot effects = g_hostEffects.read(alive ? p.ins : nullptr);
+    const bool equipmentReady=standing && g_standing && (c.flags & ERMC_CTRL_GROUNDED) && !(c.flags & ERMC_CTRL_FLYING)
+        && !(effects.valid && effects.sleepEffectId >= 0);
     if (g_equipmentMailbox.service(equipment_mailbox(),now_ms(),[&](const ErmcEquipmentRequest& request,uint32_t seq) {
         auto result=g_hostEquipment.execute(request,*shm_header(),alive?p.ins:nullptr,equipmentReady,g_frame.zone,
-            armor_fits_slot,[](uintptr_t fn,void* equipment,const ErmcEquipmentRequest& req) {
+            armor_fits_slot,talisman_group,[&]{return g_hostEquipment.talismanSlots(p.ins,base_talisman_slots());},
+            [](uintptr_t fn,void* equipment,const ErmcEquipmentRequest& req) {
                 if(req.operation==1) {
                     uint32_t handle=req.handle;
                     ((void(__fastcall*)(void*,uint32_t,const uint32_t*,uint32_t,bool,bool,bool))fn)
@@ -2768,7 +2779,6 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
     }
     publish_prompt(alive && g_standing);
 
-    const HostEffectsSnapshot effects = g_hostEffects.read(alive ? p.ins : nullptr);
     const HostProgressionSnapshot progression = g_hostProgression.read(alive ? p.ins : nullptr);
     frame_claim_source();
     on_frame();
@@ -2782,11 +2792,11 @@ static void __fastcall task_tick(void* /*self*/, const void* /*data*/) {
     publish_host_interaction(g_hostInteraction.read(alive && g_frame.valid &&
         !(shm_state()->flags & (ERMC_STATE_PLAYER_DEAD|ERMC_STATE_HOST_BUSY))),
         shm_state()->frame,g_frame.zone,now_ms());
+    const uint32_t talismanSlots=alive && progression.valid ? g_hostEquipment.talismanSlots(p.ins,base_talisman_slots()) : 0;
     g_hostInventory.tick(alive ? p.ins : nullptr, progression, progressionLoading,
                          alive && ctrl && (c.flags & ERMC_CTRL_MOVE_HUNTER) && g_standing,
                          shm_state()->frame, shm_header()->hostLife, now_ms(),g_frame.zone,
-                         equipmentReady ? g_hostEquipment.writableSlots() : 0,
-                         alive && progression.valid ? g_hostEquipment.talismanSlots(p.ins,base_talisman_slots()) : 0);
+                         equipmentReady ? g_hostEquipment.writableSlots(talismanSlots) : 0,talismanSlots);
     QueryPerformanceCounter(&t1);
     QueryPerformanceFrequency(&fq);
     perf_add_tick((double)(t1.QuadPart - t0.QuadPart) * 1000.0 / fq.QuadPart);

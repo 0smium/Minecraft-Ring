@@ -79,7 +79,8 @@ public class ErBridgeClient implements ClientModInitializer {
 				toast(mc, "Draw inside Elden Ring (occlusion): " + (FramePassthrough.enabled() ? "on" : "off"));
 			}
 			while (actionKey.consumeClick()) {
-				if (Overlay.active() && !Overlay.hostBusy() && ErLink.get().alive()) {
+				if (Overlay.active() && !Overlay.hostBusy() && ErLink.get().alive()
+						&& dev.ermc.bridge.api.PlayerActions.allowed(mc.player)) {
 					var beforeAction = ErLink.get().readHostInteraction().orElse(null);
 					pendingAction = ErLink.get().requestAction();
 					HostInteractionClient.requested(pendingAction, beforeAction);

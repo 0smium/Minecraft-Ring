@@ -1,6 +1,7 @@
 package dev.ermc.bridge.effects;
 
 import dev.ermc.bridge.HostEffectsBridge;
+import dev.ermc.bridge.character.action.ActionLockServer;
 import dev.ermc.bridge.link.*;
 import dev.ermc.bridge.link.HostEffectRules.Effect;
 import dev.ermc.bridge.mixin.MobEffectInstanceAccessor;
@@ -23,6 +24,7 @@ public final class HostEffectsCheck {
         cursor();
         rules();
         bridge();
+        sleepActions();
         externalHiddenEffects();
         System.out.println("PASS: Java codec/cursor/rules/real bridge with platform stubs; frostBurst="
                 + Boolean.getBoolean("erbridge.experimentalFrostBurst"));
@@ -162,6 +164,38 @@ public final class HostEffectsCheck {
     private static void advance(MinecraftServer server) {
         ErLink.get().state.frame++; ErLink.get().render++;
         HostEffectsBridge.onServerTick(server);
+    }
+
+    private static void sleepActions() throws Exception {
+        var scenario=sleeping(0);var player=scenario.player();var server=scenario.server();var link=ErLink.get();
+        check(ActionLockServer.blocks(player));
+        for(int flags:new int[]{0,Protocol.HOST_EFFECT_VALID|Protocol.HOST_EFFECT_SLEEP,
+                Protocol.HOST_EFFECT_MC_CONTROL|Protocol.HOST_EFFECT_SLEEP}) {
+            link.state.flags=READY|Protocol.HOST_EFFECT_SLEEP;advance(server);check(ActionLockServer.blocks(player));
+            int observations=ActionLockServer.observations;
+            link.state.flags=flags;advance(server);
+            check(!ActionLockServer.blocks(player));equal(observations,ActionLockServer.observations);
+        }
+        link.state.flags=READY|Protocol.HOST_EFFECT_POISON;advance(server);
+        check(player.hasEffect(MobEffects.POISON)&&!ActionLockServer.blocks(player));
+        player.addEffect(new MobEffectInstance(MobEffects.BLINDNESS,200,0));
+        player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN,200,3));
+        advance(server);check(!ActionLockServer.blocks(player)); // No inference from potion icons.
+        link.state.flags=READY|Protocol.HOST_EFFECT_SLEEP;advance(server);check(ActionLockServer.blocks(player));
+        link.state.hostLife++;advance(server);check(!ActionLockServer.blocks(player));link.state.hostLife=link.life;
+        advance(server);check(ActionLockServer.blocks(player));
+        link.readable=false;advance(server);check(!ActionLockServer.blocks(player));link.readable=true;
+        advance(server);check(ActionLockServer.blocks(player));
+        link.connected=false;advance(server);check(!ActionLockServer.blocks(player));link.connected=true;
+        advance(server);check(ActionLockServer.blocks(player));
+        var age=HostEffectsBridge.class.getDeclaredField("effectAdvancedAt");age.setAccessible(true);
+        age.setLong(null,System.nanoTime()/1_000_000L-2000);HostEffectsBridge.onServerTick(server);
+        check(!ActionLockServer.blocks(player));advance(server);check(ActionLockServer.blocks(player));
+        player.alive=false;advance(server);check(!ActionLockServer.blocks(player));player.alive=true;
+        advance(server);check(ActionLockServer.blocks(player));
+        HostEffectsBridge.onServerStopping(server);check(!ActionLockServer.blocks(player));
+        advance(server);check(ActionLockServer.blocks(player));HostEffectsBridge.reset();check(!ActionLockServer.blocks(player));
+        System.out.println("PASS: only validated MC-control HEFX sleep locks actions; invalid/F8/poison/icons/life/stale/disconnect/death/stop/reset release");
     }
 
     private record Scenario(MinecraftServer server, ServerPlayer player) {}

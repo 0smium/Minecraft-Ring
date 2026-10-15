@@ -39,10 +39,10 @@ public final class HostEquipmentMenus {
         });
     }
     /** Only the observed identity is carried. The server owns the native snapshot and request token. */
-    public record Intent(int containerId, int epoch, int armorIndex, boolean remove, int inventorySlot, int handle, int itemId) implements CustomPacketPayload {
+    public record Intent(int containerId, int epoch, int equipmentIndex, boolean remove, int inventorySlot, int handle, int itemId) implements CustomPacketPayload {
         public static final Type<Intent> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("er_character_bridge", "equipment_intent"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Intent> CODEC = StreamCodec.of(
-            (b,p) -> { b.writeInt(p.containerId); b.writeInt(p.epoch); b.writeInt(p.armorIndex); b.writeBoolean(p.remove); b.writeInt(p.inventorySlot); b.writeInt(p.handle); b.writeInt(p.itemId); },
+            (b,p) -> { b.writeInt(p.containerId); b.writeInt(p.epoch); b.writeInt(p.equipmentIndex); b.writeBoolean(p.remove); b.writeInt(p.inventorySlot); b.writeInt(p.handle); b.writeInt(p.itemId); },
             b -> new Intent(b.readInt(), b.readInt(), b.readInt(), b.readBoolean(), b.readInt(), b.readInt(), b.readInt()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }

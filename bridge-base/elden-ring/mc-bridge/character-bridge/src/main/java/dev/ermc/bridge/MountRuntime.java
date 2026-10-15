@@ -112,6 +112,7 @@ public final class MountRuntime {
             release("dismiss command"); collectRetired(player.getServer()); return 1;
         }
         beforeTerrainTick(player.getServer());
+        if (!dev.ermc.bridge.api.PlayerActions.allowed(player)) return fail(source, "当前状态不能召唤坐骑。");
         if (active != null) return fail(source, "已有测试马，请先下马。");
         if (!RETIRED.isEmpty()) return fail(source, "上一匹测试马的装备尚未归还，请腾出背包空间。");
         ErLink link = ErLink.get();

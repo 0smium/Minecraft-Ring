@@ -3,7 +3,9 @@
   "package": "dev.ermc.bridge.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "MobEffectInstanceAccessor"
+    "MobEffectInstanceAccessor",
+    "ActionLockLivingMixin",
+    "ActionLockPlayerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

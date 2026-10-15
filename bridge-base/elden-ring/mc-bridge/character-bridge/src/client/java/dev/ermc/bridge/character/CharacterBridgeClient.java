@@ -8,6 +8,7 @@ import net.fabricmc.api.ClientModInitializer;
 public final class CharacterBridgeClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
+        dev.ermc.bridge.client.action.ActionLockClient.initialize();
         ProgressionClient.initialize();
         MountClient.initialize();
         dev.ermc.bridge.client.equipment.HostEquipmentClient.initialize();

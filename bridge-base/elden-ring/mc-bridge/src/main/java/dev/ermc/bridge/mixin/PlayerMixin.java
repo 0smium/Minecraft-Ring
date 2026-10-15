@@ -19,6 +19,9 @@ public abstract class PlayerMixin {
 	private void erbridge$noteCritical(Entity target, CallbackInfo ci) {
 		if (target instanceof ErEntity proxy) {
 			Player self = (Player) (Object) this;
+			// Character may cancel the attack in another HEAD injection. Respect its gate
+			// here as well, independently of the order in which Mixin inserts callbacks.
+			if (!dev.ermc.bridge.api.PlayerActions.allowed(self)) return;
 			proxy.noteAttack(self, ErEntity.isCriticalSwing(self));
 		}
 	}

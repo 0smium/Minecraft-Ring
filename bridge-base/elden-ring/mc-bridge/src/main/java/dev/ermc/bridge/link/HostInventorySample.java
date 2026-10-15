@@ -31,7 +31,17 @@ public record HostInventorySample(long frame, long sampledAt, long fingerprint, 
     }
     public boolean canWriteSlot(int slot) {
         return state == READY && snapshotToken != 0 && (flags & MC_CONTROL) != 0 &&
-            (flags & TRUNCATED) == 0 && slot >= 12 && slot <= 15 && (writableSlots & (1 << slot)) != 0;
+            (flags & TRUNCATED) == 0 && talismanSlots >= 0 && talismanSlots <= 4 &&
+            isEquipmentSlot(slot) && (writableSlots & availableEquipmentSlots(talismanSlots) & (1 << slot)) != 0;
+    }
+    public static boolean isEquipmentSlot(int slot) { return slot >= 12 && slot <= 15 || slot >= 17 && slot <= 20; }
+    public static int availableEquipmentSlots(int talismans) {
+        return 0xF000 | (talismans >= 1 && talismans <= 4 ? ((1 << talismans) - 1) << 17 : 0);
+    }
+    /** Category is only an early boundary; native Param data remains authoritative for fit/conflicts. */
+    public static boolean acceptsEquipmentItem(int slot, Entry item) {
+        return item != null && !item.keyItem() && isEquipmentSlot(slot)
+            && item.itemId() >>> 28 == (slot <= 15 ? 1 : 2);
     }
 
     public record Entry(int slot, int handle, int itemId, int quantity, int sortId, int equipmentMask, boolean keyItem) {
@@ -121,7 +131,8 @@ public record HostInventorySample(long frame, long sampledAt, long fingerprint, 
             if (state != READY && (fingerprint != 0 || count != 0 || total != 0 || normal != 0 || key != 0 || flags != 0))
                 return Optional.empty();
             if (state == READY && (fingerprint == 0 || frame <= 0 || time <= 0)) return Optional.empty();
-            if (version >= 2 && (talismans < 0 || talismans > 4 || (writable & ~0xF000) != 0 ||
+            if (version >= 2 && (talismans < 0 || talismans > 4 ||
+                (writable & ~(version == 3 ? availableEquipmentSlots(talismans) : 0xF000)) != 0 ||
                 (state != READY && (token != 0 || writable != 0 || talismans != 0 || zone != 0)) ||
                 (state == READY && token == 0) || ((flags & MC_CONTROL) == 0 && writable != 0) ||
                 ((flags & TRUNCATED) != 0 && writable != 0) || b.getInt(base+footer+20) != 0 ||

@@ -104,6 +104,14 @@ int main(int argc, char** argv) {
 """
 
 STUBS = {
+    "dev/ermc/bridge/character/action/ActionLockServer.java": '''package dev.ermc.bridge.character.action;
+import net.minecraft.server.level.ServerPlayer;
+public final class ActionLockServer {
+public static ServerPlayer holder;public static boolean sleeping;public static int observations,clears;
+public static void observe(ServerPlayer player,boolean asleep){holder=player;sleeping=asleep;observations++;}
+public static void clear(){holder=null;sleeping=false;clears++;}
+public static boolean blocks(ServerPlayer player){return holder==player&&sleeping;}
+}''',
     "org/spongepowered/asm/mixin/Mixin.java": 'package org.spongepowered.asm.mixin; public @interface Mixin { Class<?>[] value(); }',
     "org/spongepowered/asm/mixin/gen/Accessor.java": 'package org.spongepowered.asm.mixin.gen; public @interface Accessor { String value(); }',
     "org/slf4j/Logger.java": 'package org.slf4j; public interface Logger { default void info(String s,Object... args) {} }',

@@ -182,6 +182,7 @@ public final class TerrainManager {
 	 * fires the player's attack at it, which breaks breakable objects), then resample around it.
 	 */
 	public static void strike(net.minecraft.world.entity.player.Player player, BlockPos pos) {
+		if (!dev.ermc.bridge.api.PlayerActions.allowed(player)) return;
 		CoordMap.Mapping map = CoordMap.get();
 		if (map == null || map.provisional()) {
 			return;

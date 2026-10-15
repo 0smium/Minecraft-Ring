@@ -14,6 +14,7 @@ public final class CharacterBridgeMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        dev.ermc.bridge.character.action.ActionLockServer.initialize();
         MountRuntime.initialize();
         dev.ermc.bridge.character.equipment.HostEquipmentMenus.initialize();
         ServerLifecycleEvents.SERVER_STOPPING.register(HostEffectsBridge::onServerStopping);

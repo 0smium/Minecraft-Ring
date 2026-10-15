@@ -22,7 +22,7 @@ public final class HostEquipmentChannel {
                        int hostPid,int generation,int life,long hostStart,long now) {
         if (sample==null || !sample.canWriteSlot(slot) || sample.hostLife()!=life || hostPid<=0 ||
             hostStart<=0 || sample.sampledAt()<hostStart || sample.sampledAt()<now-2000 || sample.sampledAt()>now+1000 ||
-            (item!=null && (!sample.entries().contains(item) || item.keyItem() || item.itemId()>>>28!=1))) return 0;
+            (item!=null && (!sample.entries().contains(item) || !HostInventorySample.acceptsEquipmentItem(slot,item)))) return 0;
         int req=(int)INT.getAcquire(buffer,OFFSET),resp=(int)INT.getAcquire(buffer,OFFSET+4);
         if (req!=resp) return 0;
         int seq=req+1;if(seq==0)seq=1;

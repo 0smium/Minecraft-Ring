@@ -1,6 +1,7 @@
 package dev.ermc.bridge.client.integrations.liquidbounce;
 
 import dev.ermc.bridge.client.integrations.LiquidBounceCapabilityAccess;
+import dev.ermc.bridge.client.action.ActionLockClient;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -14,6 +15,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class CapabilityAuraMixin {
     @Inject(method = "checkIfReadyToAttack(Lnet/minecraft/class_1297;)Z", at = @At("HEAD"), cancellable = true)
     private void erbridge$boundEachAttack(Entity target, CallbackInfoReturnable<Boolean> result) {
-        if (!LiquidBounceCapabilityAccess.allowAuraAttack(target)) result.setReturnValue(false);
+        if (ActionLockClient.blocksActions() || !LiquidBounceCapabilityAccess.allowAuraAttack(target)) result.setReturnValue(false);
     }
 }

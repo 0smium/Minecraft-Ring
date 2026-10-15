@@ -7,9 +7,10 @@ namespace mb::host_equipment {
 // task_update; no worker-side invocation or direct equipment-memory write exists.
 constexpr uintptr_t kEquip = 0x249160, kUnequip = 0x247160;
 constexpr uint32_t kArmorSlots = (1u << 12) | (1u << 13) | (1u << 14) | (1u << 15);
+constexpr uint32_t kTalismanSlots = (1u << 17) | (1u << 18) | (1u << 19) | (1u << 20);
 enum Status { OK=0, BAD_REQUEST=-40, UNSUPPORTED=-41, NOT_READY=-42, SESSION=-43,
     OWNER=-44, EXPIRED=-45, STALE=-46, ITEM=-47, SLOT=-48, SUPERSEDED=-49,
-    READBACK_UNKNOWN=-50, DEDUP_FULL=-51 };
+    READBACK_UNKNOWN=-50, DEDUP_FULL=-51, CONFLICT=-52 };
 
 inline ErmcEquipmentResult result(const ErmcEquipmentRequest& req, int status) {
     ErmcEquipmentResult out = {};
@@ -40,17 +41,50 @@ class Access {
             code(kUnequip, 0x61B, 0x5B44F153BA58F3FFull) &&
             code(0x788E84, 0x1F, 0x656BFC673790468Cull) &&
             code(0x247890, 0x49, 0x4671F979229599F2ull) &&
-            code(0xD3005C, 0x23, 0x5A1D9C888691BE68ull);
+            code(0xD3005C, 0x23, 0x5A1D9C888691BE68ull) &&
+            code(0xD238E0, 0x57, 0x0F6C4C72CDCB869Bull) && // actual same-group predicate
+            code(0xD23657, 0x23, 0x4E3549431A522F3Cull) && // accessory param index 2
+            code(0x788630, 0x3A, 0x3F3F5C3CDD3DED2Full) && // native UI conflict loop
+            code(0x788CE9, 0x13, 0x036335D52C8CF836ull);   // native accessory slot category
     }
     static bool session(const ErmcEquipmentRequest& req, const ErmcHeader& host) {
         return req.hostPid && req.hostPid == host.hostPid && req.hostStartMs == host.hostStartMs &&
             req.coreGeneration == host.coreGeneration && req.hostLife == host.hostLife && host.coreStatus == 1;
     }
+    template<class Accessory>
+    static int talismanRules(const ErmcEquipmentRequest& req, const HostInventorySnapshot& inventory,
+                             Accessory accessory) {
+        int16_t requestedGroup=-1;
+        if (req.operation==1 && ((req.itemId>>28)!=2 || !accessory(req.itemId,requestedGroup))) return ITEM;
+        for (uint32_t slot=17;slot<=20;++slot) {
+            const uint32_t index=inventory.equipmentIndices[slot], handle=inventory.equipmentHandles[slot];
+            if (index==UINT32_MAX && handle==0) continue;
+            const ErmcInventoryEntry* equipped=nullptr;
+            for (uint32_t i=0;i<inventory.count;++i) {
+                const auto& entry=inventory.entries[i];
+                if (entry.slot==index && entry.gaitemHandle==handle && (entry.equipmentMask&(1u<<slot))) {
+                    if (equipped) return ITEM;
+                    equipped=&entry;
+                }
+            }
+            // A broken/foreign occupied slot is unknown, never silently skipped.
+            int16_t group=-1;
+            if (!equipped || equipped->flags || (equipped->rawItemId>>28)!=2 ||
+                !accessory(equipped->rawItemId,group)) return ITEM;
+            if (req.operation==1 && slot!=req.equipmentSlot &&
+                (equipped->gaitemHandle==req.handle || equipped->rawItemId==req.itemId ||
+                 (requestedGroup!=-1 && group!=-1 && requestedGroup==group))) return CONFLICT;
+        }
+        return OK;
+    }
 public:
     bool init(uintptr_t base) {
         base_ = base; enabled_ = reader_.init(base) && signatures(); return enabled_;
     }
-    uint32_t writableSlots() const { return enabled_ ? kArmorSlots : 0; }
+    uint32_t writableSlots(uint32_t talismans=0) const {
+        if (!enabled_) return 0;
+        return kArmorSlots | (talismans>=1 && talismans<=4 ? ((1u<<talismans)-1u)<<17 : 0);
+    }
 
     // Metadata uses the same game-verified formula as EquipGameData::GetAccessorySize:
     // PlayerCommonParam[0].baseAccSlotSize + PlayerGameData.unlocked_talisman_slots,
@@ -65,9 +99,10 @@ public:
         return count > 4 ? 4 : count;
     }
 
-    template<class Armor, class Invoke, class Clock, class Current>
+    template<class Armor, class Accessory, class Capacity, class Invoke, class Clock, class Current>
     ErmcEquipmentResult execute(const ErmcEquipmentRequest& req, const ErmcHeader& host,
-        const void* player, bool ready, uint32_t zone, Armor armor, Invoke invoke, Clock clock, Current current) {
+        const void* player, bool ready, uint32_t zone, Armor armor, Accessory accessory, Capacity capacity,
+        Invoke invoke, Clock clock, Current current) {
         auto out = result(req, BAD_REQUEST);
         uint64_t now = clock();
         if (req.version != ERMC_HOST_EQUIPMENT_VERSION || !req.nonce || !req.snapshotToken ||
@@ -75,9 +110,12 @@ public:
         if (now >= req.deadlineMs) { out.status=EXPIRED; return out; }
         if (!current()) { out.status=SUPERSEDED; return out; }
         if (!enabled_ || !signatures()) { out.status=UNSUPPORTED; return out; }
-        if (req.equipmentSlot < 12 || req.equipmentSlot > 15) { out.status=SLOT; return out; }
+        const bool talisman=req.equipmentSlot>=17 && req.equipmentSlot<=20;
+        if (!talisman && (req.equipmentSlot < 12 || req.equipmentSlot > 15)) { out.status=SLOT; return out; }
         if (!ready || !player) { out.status=NOT_READY; return out; }
         if (!session(req,host) || req.zone != zone) { out.status=SESSION; return out; }
+        const uint32_t slots=talisman ? capacity() : 0;
+        if (talisman && (!slots || slots>4 || req.equipmentSlot-17>=slots)) { out.status=SLOT; return out; }
         const auto& before = reader_.read(player);
         if (!before.valid || before.fingerprint != req.fingerprint) { out.status=OWNER; return out; }
         const uint64_t fingerprint = before.fingerprint, token = before.token();
@@ -89,10 +127,14 @@ public:
                 if (entry.slot == req.inventorySlot && entry.gaitemHandle == req.handle &&
                     entry.rawItemId == req.itemId && !entry.flags) found=true;
             }
-            if (!found || (req.itemId >> 28) != 1 || !armor(req.itemId,req.equipmentSlot)) {
+            if (!found || (!talisman && ((req.itemId >> 28) != 1 || !armor(req.itemId,req.equipmentSlot)))) {
                 out.status=ITEM; return out;
             }
         } else if (req.handle || req.itemId || req.inventorySlot != UINT32_MAX) return out;
+        if (talisman) {
+            out.status=talismanRules(req,before,accessory);
+            if (out.status!=OK) return out;
+        }
 
         uintptr_t data = 0, repeatedData = 0;
         if (!mem_read((const uint8_t*)player+0x580,&data,8) || !data) { out.status=OWNER; return out; }
@@ -103,6 +145,7 @@ public:
             !mem_read((const uint8_t*)player+0x580,&repeatedData,8) || data != repeatedData) {
             out.status=STALE; return out;
         }
+        if (talisman && (capacity()!=slots || talismanRules(req,again,accessory)!=OK)) { out.status=STALE; return out; }
         if (!session(req,host) || clock() >= req.deadlineMs || !current()) { out.status=SUPERSEDED; return out; }
         invoke(req.operation == 1 ? base_+kEquip : base_+kUnequip, (void*)(data+0x2B0), req);
         // Invocation happened exactly once. Any missing/different observation means
@@ -112,6 +155,13 @@ public:
         if (!after.valid || after.totalEntries != after.count || after.fingerprint != fingerprint || !session(req,host) ||
             !mem_read((const uint8_t*)player+0x580,&repeatedData,8) || data != repeatedData) return out;
         out.snapshotToken=after.token();
+        if (talisman && req.operation==2) {
+            // 0x247614..0x247643 passes native handle=0 and index=-1 to equip.
+            // Missing item projection is insufficient: verify both raw native fields.
+            if (after.equipmentIndices[req.equipmentSlot]==UINT32_MAX && !after.equipmentHandles[req.equipmentSlot])
+                out.status=OK;
+            return out;
+        }
         for (uint32_t i=0;i<after.count;++i) {
             const auto& entry=after.entries[i];
             if (!(entry.equipmentMask & (1u << req.equipmentSlot))) continue;

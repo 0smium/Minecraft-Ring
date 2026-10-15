@@ -12,10 +12,15 @@ struct HostInventorySnapshot {
     bool valid = false;
     uint64_t fingerprint = 0;
     uint32_t count = 0, totalEntries = 0, normalCapacity = 0, keyCapacity = 0;
+    // Internal observation, not a wire-layout extension. Absence from the item
+    // projection alone cannot prove that a native equipment slot is empty.
+    uint32_t equipmentIndices[22] = {}, equipmentHandles[22] = {};
     ErmcInventoryEntry entries[ERMC_MAX_INVENTORY_ENTRIES] = {};
     void clear() {
         valid = false; fingerprint = 0;
         count = totalEntries = normalCapacity = keyCapacity = 0;
+        memset(equipmentIndices, 0, sizeof(equipmentIndices));
+        memset(equipmentHandles, 0, sizeof(equipmentHandles));
         memset(entries, 0, sizeof(entries));
     }
     uint64_t token() const {
@@ -28,6 +33,7 @@ struct HostInventorySnapshot {
         add(&fingerprint, sizeof(fingerprint)); add(&count, sizeof(count));
         add(&totalEntries, sizeof(totalEntries)); add(&normalCapacity, sizeof(normalCapacity));
         add(&keyCapacity, sizeof(keyCapacity)); add(entries, size_t(count)*sizeof(entries[0]));
+        add(equipmentIndices, sizeof(equipmentIndices)); add(equipmentHandles, sizeof(equipmentHandles));
         return hash ? hash : 1;
     }
 };
@@ -169,6 +175,8 @@ public:
             !mem_read((void*)(equipment+0x3F8),&localAgain,1) || localAgain != 1) return result;
         result.normalCapacity = normalCapacity;
         result.keyCapacity = keyCapacity;
+        memcpy(result.equipmentIndices, equipped, sizeof(equipped));
+        memcpy(result.equipmentHandles, handles, sizeof(handles));
         if (!append(result,key_,keyLength,0,true,equipped,handles) ||
             !append(result,normal_,normalLength,keyCapacity,false,equipped,handles)) {
             result.clear(); return result;
@@ -204,8 +212,9 @@ inline void publish_host_inventory(const HostInventorySnapshot* value, bool load
     else memset(out->entries,0,sizeof(out->entries));
     out->snapshotToken = ready ? value->token() : 0;
     out->zone = ready ? zone : 0;
-    out->writableSlots = ready && mcControl && value->count == value->totalEntries ? writableSlots : 0;
     out->talismanSlots = ready && talismanSlots <= 4 ? talismanSlots : 0;
+    const uint32_t allowedSlots=0xF000u | (((1u<<out->talismanSlots)-1u)<<17);
+    out->writableSlots = ready && mcControl && value->count == value->totalEntries ? writableSlots&allowedSlots : 0;
     memset(out->reserved, 0, sizeof(out->reserved));
     __asm__ __volatile__("" ::: "memory");
     out->seq = writing+1u;

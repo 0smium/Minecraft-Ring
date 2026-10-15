@@ -140,6 +140,8 @@ exercise collision, movement and capture behavior without launching the games:
 
 | Command | Coverage |
 | --- | --- |
+| `python tools/test_sleep_action_server.py` | Production owner-only sleep lifecycle/action policy with explicit platform/network doubles |
+| `python tools/test_sleep_action_mixins.py` | Actual MC/LB sleep injections, Core/Character attack guards, module categories/queues and paused lease; no gameplay |
 | `python tools/test_surface_resource_plan.py` | Coordinate-stable tree/plant/rock layouts, bounds and leaf connectivity; no world startup |
 | `python tools/test_surface_resource_state.py` | Actual SavedData/NBT receipts, sampling freshness and stable-ground selection; no world startup |
 | `python tools/test_surface_resource_blocks.py` | Real MC block/plant/leaf states and loaded-only placement planning; memory-backed blocks, no live world mutation |

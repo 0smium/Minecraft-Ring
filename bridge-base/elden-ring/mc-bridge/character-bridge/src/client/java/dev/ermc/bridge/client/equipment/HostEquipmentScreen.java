@@ -19,7 +19,7 @@ import java.util.List;
 public final class HostEquipmentScreen extends AbstractContainerScreen<HostEquipmentMenu> {
     private Button previous,next;
     private final List<Button> filters=new ArrayList<>();
-    private int armorIndex;
+    private int equipmentIndex;
     private double viewScale=1,pressX,pressY;
     private Gesture gesture;
     private boolean dragged;
@@ -65,9 +65,10 @@ public final class HostEquipmentScreen extends AbstractContainerScreen<HostEquip
         hint=null;
         if(slot!=null){
             if(menu.pending()||!menu.getCarried().isEmpty())return true;
-            if(slot.index<4)armorIndex=slot.index;
+            if(slot.index<8)equipmentIndex=slot.index;
             if(button==1){
-                if(slot.index<4&&slot.hasItem())send(slot.getItem(),menu.epoch(),slot.index,true);
+                if(slot.index<8&&slot.hasItem())send(slot.getItem(),menu.epoch(),slot.index,true);
+                else if(slot.index<8)hint=slotHint(slot.index);
                 else hint="本类物品暂只读；丢弃尚未接入法环原生流程";
             }else if(button==0&&slot.hasItem()){
                 gesture=new Gesture(slot.index,slot.getItem().copy(),menu.epoch());pressX=x;pressY=y;dragged=false;
@@ -89,13 +90,13 @@ public final class HostEquipmentScreen extends AbstractContainerScreen<HostEquip
             if(captured.epoch()!=menu.epoch()){hint="背包已刷新，请按新画面重新拖动";return true;}
             Slot target=slotAt(x,y);
             if(dragged){
-                if(captured.slotIndex()>=8&&target!=null&&target.index<4){
-                    armorIndex=target.index;send(captured.observed(),captured.epoch(),armorIndex,false);
-                }else if(captured.slotIndex()<4&&inList(x,y)){
+                if(captured.slotIndex()>=8&&target!=null&&target.index<8){
+                    equipmentIndex=target.index;send(captured.observed(),captured.epoch(),equipmentIndex,false);
+                }else if(captured.slotIndex()<8&&inList(x,y)){
                     send(captured.observed(),captured.epoch(),captured.slotIndex(),true);
-                }else hint="拖至对应防具槽装配；拖回列表卸下。移出页面不会丢弃物品";
-            }else if(captured.slotIndex()>=8)send(captured.observed(),captured.epoch(),armorIndex,false);
-            else if(captured.slotIndex()>=4)hint="护符槽容量按实际皮袋显示；护符装卸暂未开放";
+                }else hint="拖至对应防具或护符槽装配；拖回列表卸下。移出页面不会丢弃物品";
+            }else if(captured.slotIndex()>=8)send(captured.observed(),captured.epoch(),equipmentIndex,false);
+            else hint=slotHint(captured.slotIndex());
             return true;
         }
         return super.mouseReleased(x,y,button);
@@ -104,15 +105,25 @@ public final class HostEquipmentScreen extends AbstractContainerScreen<HostEquip
     @Override public boolean mouseScrolled(double x,double y,double horizontal,double vertical){
         return super.mouseScrolled(x/viewScale,y/viewScale,horizontal,vertical);
     }
-    private void send(ItemStack observed,int epoch,int armor,boolean remove){
+    private String slotHint(int index){
+        if(index>=4&&(menu.talismans()==0||index-4>=menu.talismans()))
+            return menu.talismans()==0?"尚未读取护符皮袋容量":"需要护符皮袋解锁";
+        return menu.canWriteEquipment(index)?"拖入装配，右键或拖回列表卸下":"当前状态不可装配，请等待法环背包刷新";
+    }
+    private void send(ItemStack observed,int epoch,int equipment,boolean remove){
         var custom=observed.get(DataComponents.CUSTOM_DATA);
         if(custom==null)return;var tag=custom.copyTag();
         if(!tag.contains("erbridge_view_epoch",3)||!tag.contains("erbridge_inventory_slot",3)
                 ||!tag.contains("erbridge_item_handle",3)||!tag.contains("erbridge_item_id",3))return;
         if(tag.getInt("erbridge_view_epoch")!=epoch||epoch!=menu.epoch()){hint="背包已刷新，请重新选择";return;}
         int itemId=tag.getInt("erbridge_item_id");
-        if(itemId>>>28!=1){hint="当前只开放四件防具装卸；其他物品暂只读";return;}
-        ClientPlayNetworking.send(new HostEquipmentMenus.Intent(menu.containerId,epoch,armor,remove,
+        int slot=HostEquipmentMenu.hostSlot(equipment);
+        if(slot<0)return;
+        if(!menu.canWriteEquipment(equipment)){hint=slotHint(equipment);return;}
+        int category=itemId>>>28;
+        if(category!=1&&category!=2){hint="当前只开放防具与护符装卸；其他物品暂只读";return;}
+        if(category!=(equipment<4?1:2)){hint="请将防具放入对应防具槽、护符放入已解锁护符槽";return;}
+        ClientPlayNetworking.send(new HostEquipmentMenus.Intent(menu.containerId,epoch,equipment,remove,
             tag.getInt("erbridge_inventory_slot"),tag.getInt("erbridge_item_handle"),itemId));
     }
     @Override protected void slotClicked(Slot slot,int slotId,int button,ClickType type){
@@ -132,7 +143,7 @@ public final class HostEquipmentScreen extends AbstractContainerScreen<HostEquip
         Slot hovered=slotAt(mouseX,mouseY);
         for(int i=0;i<menu.slots.size();i++){
             Slot slot=menu.slots.get(i);int x=leftPos+slot.x,y=topPos+slot.y;
-            int color=i==armorIndex?0xFFD4B36B:hovered==slot?0xFF94A7B4:0xFF52606C;
+            int color=i==equipmentIndex?0xFFD4B36B:hovered==slot?0xFF94A7B4:0xFF52606C;
             g.fill(x-1,y-1,x+HostEquipmentMenu.ICON_SIZE+1,y+HostEquipmentMenu.ICON_SIZE+1,color);
             g.fill(x,y,x+HostEquipmentMenu.ICON_SIZE,y+HostEquipmentMenu.ICON_SIZE,0xFF0F171E);
             if(i>=4&&i<8&&(menu.talismans()==0||i-4>=menu.talismans()))
@@ -178,7 +189,6 @@ public final class HostEquipmentScreen extends AbstractContainerScreen<HostEquip
         if(x>=leftPos+14&&x<leftPos+imageWidth-14&&y>=topPos+261&&y<topPos+276)
             g.renderTooltip(font,Component.literal(hint==null?menu.statusText():hint),screenX,screenY);
         if(hoveredSlot!=null&&hoveredSlot.index>=4&&hoveredSlot.index<8&&!hoveredSlot.hasItem())
-            g.renderTooltip(font,Component.literal(menu.talismans()==0?"尚未读取护符皮袋容量":
-                hoveredSlot.index-4>=menu.talismans()?"需要护符皮袋解锁":"护符槽已解锁；护符装卸暂只读"),screenX,screenY);
+            g.renderTooltip(font,Component.literal(slotHint(hoveredSlot.index)),screenX,screenY);
     }
 }

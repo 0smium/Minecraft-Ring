@@ -17,7 +17,7 @@ OUTPUT = ROOT / "runtime/experiments/block-collider-mixin-check"
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.5.jar")
+    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.6.jar")
     args = parser.parse_args()
     if not args.bridge_jar.is_file():
         parser.error("Build the remapped Core JAR first")

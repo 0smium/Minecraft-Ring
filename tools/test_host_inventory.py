@@ -95,7 +95,12 @@ int main(int argc,char** argv){
     put(EQUIP+8+4,uint32_t(2));put(EQUIP+0x90+4,uint32_t(0x80800001));
     observe();assert(out.valid&&out.count==4&&out.entries[2].quantity==0&&out.entries[3].slot==4);
     assert(out.entries[2].equipmentMask==(1u<<1));
+    assert(out.equipmentIndices[1]==2&&out.equipmentHandles[1]==0x80800001);
+    const auto equipmentToken=out.token();
     put(EQUIP+0x90+4,uint32_t(0x80800002));observe();assert(out.entries[2].equipmentMask==0);
+    const auto unmatchedToken=out.token();assert(unmatchedToken!=equipmentToken);
+    put(EQUIP+0x90+4,uint32_t(0x80809999));observe();
+    assert(out.entries[2].equipmentMask==0&&out.token()!=unmatchedToken); // invisible occupied slots affect token
     put(EQUIP+0x90+4,uint32_t(0x80800001));
     memset(mapping+ERMC_OFF_HOST_PROGRESSION,0xA5,sizeof(ErmcHostProgression));
     publish_host_inventory(&observe(),false,true,100,7,1791964800000ull);
@@ -155,6 +160,12 @@ int main(int argc,char** argv){
     publish_host_inventory(&out,false,true,103,8,1791964801500ull,10,0xF000,4);
     assert(packet->version==3&&packet->flags==1&&packet->writableSlots==0xF000&&packet->talismanSlots==4);
     wire(argv[1],".large");
+    publish_host_inventory(&out,false,true,103,8,1791964801500ull,10,0x1EF000,4);
+    assert(packet->writableSlots==0x1EF000&&packet->talismanSlots==4);wire(argv[1],".talismans");
+    publish_host_inventory(&out,false,true,103,8,1791964801500ull,10,0x1EF000,2);
+    assert(packet->writableSlots==0x6F000&&packet->talismanSlots==2);
+    publish_host_inventory(&out,false,true,103,8,1791964801500ull,10,0x1EF000,0);
+    assert(packet->writableSlots==0xF000&&packet->talismanSlots==0);wire(argv[1],".talisman-unknown");
     seed(4096,4096);observe();assert(out.valid&&out.count==8192&&out.totalEntries==8192);
     const auto fullToken=out.token();put(NORMAL+4095*24+12,uint32_t(777));observe();assert(out.token()!=fullToken);
     publish_host_inventory(&out,false,true,103,8,1791964801500ull,10,0xF000,4);wire(argv[1],".maximum");

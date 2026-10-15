@@ -31,6 +31,7 @@ public final class FlightAbilityBridge {
         // The player-list entry may remain the dead/removed instance until respawn.
         // Releasing the old lease must not grant flight back to that same instance.
         if (player == null || !player.isAlive() || player.isRemoved()) return;
+        if (dev.ermc.bridge.character.action.ActionLockServer.blocks(player)) { release(); return; }
         // A gamemode change owns its own ability flags. Never overwrite creative/spectator state.
         if (player.isCreative() || player.isSpectator()) { clear(); return; }
         Grant grant = B01Runtime.challengeFor(player)

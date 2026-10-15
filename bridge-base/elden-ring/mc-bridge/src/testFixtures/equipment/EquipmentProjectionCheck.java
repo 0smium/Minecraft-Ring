@@ -55,11 +55,43 @@ public final class EquipmentProjectionCheck {
             new HostEquipmentMenus.Intent(12,72,1,false,entry.slot(),entry.handle(),entry.itemId()+1))==null,"raw item identity must still match");
         check(HostEquipmentMenu.equippedEntry(ready,1)==entry&&HostEquipmentMenu.equippedEntry(ready,0)==null,"equipment mask, not page order, selects the equipped piece");
         var talisman=new HostInventorySample.Entry(9,93,0x20001234,1,2,1<<20,false);
+        var equippedTalismans=java.util.List.of(entry,talisman);
+        var full=new HostInventorySample(100,1000,4,2,2,1,2,10,0,equippedTalismans,46,1,0x1EF000,4);
+        check(HostEquipmentMenu.hostSlot(0)==12&&HostEquipmentMenu.hostSlot(3)==15&&
+            HostEquipmentMenu.hostSlot(4)==17&&HostEquipmentMenu.hostSlot(7)==20&&
+            HostEquipmentMenu.hostSlot(-1)==-1&&HostEquipmentMenu.hostSlot(8)==-1,"eight equipment indices map to exact native slots; reserved slot excluded");
+        check(HostEquipmentMenu.unpackWritableSlots((short)0xF000,(short)0x1E)==0x1EF000,
+            "signed 16-bit ContainerData preserves host capability bits 17..20 using two words");
+        check(HostEquipmentMenu.equippedEntry(full,7)==talisman,"fourth talisman resolves from equipment mask");
+        for(int index=4;index<8;index++) {
+            var talismanEquip=new HostEquipmentMenus.Intent(12,72,index,false,talisman.slot(),talisman.handle(),talisman.itemId());
+            check(HostEquipmentMenu.resolveIntentEntry(full,equippedTalismans,0,72,talismanEquip)==talisman,"unlocked talisman destination accepts owned observed entry");
+            check(HostEquipmentMenu.resolveIntentEntry(full,equippedTalismans,0,73,talismanEquip)==null,"stale talisman drag rejected");
+            check(HostEquipmentMenu.resolveIntentEntry(full,equippedTalismans,0,72,
+                new HostEquipmentMenus.Intent(12,72,index,false,entry.slot(),entry.handle(),entry.itemId()))==null,"armor cannot enter talisman slot");
+        }
+        var talismanRemove=new HostEquipmentMenus.Intent(12,72,7,true,talisman.slot(),talisman.handle(),talisman.itemId());
+        check(HostEquipmentMenu.resolveIntentEntry(full,equippedTalismans,0,72,talismanRemove)==talisman,"talisman unequip uses observed equipped identity");
+        check(HostEquipmentMenu.resolveIntentEntry(full,equippedTalismans,0,72,
+            new HostEquipmentMenus.Intent(12,72,6,true,talisman.slot(),talisman.handle(),talisman.itemId()))==null,"another talisman slot cannot authorize remove");
+        check(HostEquipmentMenu.resolveIntentEntry(full,equippedTalismans,0,72,
+            new HostEquipmentMenus.Intent(12,72,7,true,talisman.slot(),talisman.handle()+1,talisman.itemId()))==null,"replaced talisman handle cannot authorize remove");
+        var locked=new HostInventorySample(100,1000,4,2,2,1,2,10,0,equippedTalismans,46,1,0x1EF000,1);
+        check(locked.canWriteSlot(17)&&!locked.canWriteSlot(18)&&!locked.canWriteSlot(20),"real pouch capacity checked even with excessive capability bits");
+        check(HostEquipmentMenu.resolveIntentEntry(locked,equippedTalismans,0,72,talismanRemove)==null,"locked talisman cannot be removed through projection");
+        var readOnly=new HostInventorySample(100,1000,4,2,2,1,2,10,0,equippedTalismans,46,1,0xF000,4);
+        check(!readOnly.canWriteSlot(17)&&HostEquipmentMenu.resolveIntentEntry(readOnly,equippedTalismans,0,72,talismanRemove)==null,
+            "pouch capacity alone does not grant native write capability");
+        ItemStack talismanProjected=HostEquipmentMenu.display(talisman);
+        var talismanContainer=new SimpleContainer(1);talismanContainer.setItem(0,talismanProjected);
+        var talismanSlot=new HostEquipmentMenu.ProjectionSlot(talismanContainer,0,0,0);
+        check(!talismanSlot.mayPickup(null)&&talismanSlot.remove(1).isEmpty()&&talismanContainer.getItem(0)==talismanProjected,
+            "writable native talismans remain non-extractable MC ghosts");
         check(HostEquipmentMenu.matchesFilter(entry,0)&&HostEquipmentMenu.matchesFilter(talisman,0),"all-items filter includes armor and talismans");
         check(HostEquipmentMenu.matchesFilter(entry,1)&&!HostEquipmentMenu.matchesFilter(talisman,1),"armor tab excludes talismans");
         check(HostEquipmentMenu.matchesFilter(talisman,2)&&!HostEquipmentMenu.matchesFilter(entry,2),"talisman tab excludes armor");
         check(HostEquipmentMenu.resolveIntentEntry(ready,java.util.List.of(talisman),0,72,
-            new HostEquipmentMenus.Intent(12,72,1,false,talisman.slot(),talisman.handle(),talisman.itemId()))==null,"read-only talisman drag cannot become armor equip");
+            new HostEquipmentMenus.Intent(12,72,1,false,talisman.slot(),talisman.handle(),talisman.itemId()))==null,"talisman drag cannot become armor equip");
         var keyed=new HostInventorySample.Entry(10,94,entry.itemId(),1,2,0,true);
         check(HostEquipmentMenu.resolveIntentEntry(ready,java.util.List.of(keyed),0,72,
             new HostEquipmentMenus.Intent(12,72,1,false,keyed.slot(),keyed.handle(),keyed.itemId()))==null,"key item cannot authorize equipment operation");
@@ -71,6 +103,8 @@ public final class EquipmentProjectionCheck {
             var remove=new HostEquipmentMenus.Intent(12,4,3,true,entry.slot(),entry.handle(),entry.itemId());
             HostEquipmentMenus.Intent.CODEC.encode(bytes,remove);
             check(HostEquipmentMenus.Intent.CODEC.decode(bytes).equals(remove),"explicit unequip remains distinct from an empty-item equip");
+            HostEquipmentMenus.Intent.CODEC.encode(bytes,talismanRemove);
+            check(HostEquipmentMenus.Intent.CODEC.decode(bytes).equals(talismanRemove),"fourth talisman index and removal identity survive C2S roundtrip");
         } finally { bytes.release(); }
         System.out.println("PASS "+checks+": actual MC projection ItemStack, enlarged ghost Slot, native intent identity/page/epoch, filters and write boundary");
         System.out.println("LIMIT: no screen, integrated server, gameplay, native equipment function or live inventory was exercised");

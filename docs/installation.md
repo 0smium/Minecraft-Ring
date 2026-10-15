@@ -3,7 +3,7 @@
 [Back to Minecraft Ring](../README.md)
 
 This guide describes the current source-build workflow for Minecraft Ring
-0.3.5 (split Fabric candidate). It targets Windows x64, Elden Ring App Ver. 1.17.1 (`eldenring.exe`
+0.3.6 (split Fabric candidate). It targets Windows x64, Elden Ring App Ver. 1.17.1 (`eldenring.exe`
 2.7.1.0), and Minecraft Java Edition 1.21.1.
 
 ## Toolchains
@@ -52,9 +52,9 @@ $env:GRADLE_USER_HOME = Join-Path (Get-Location) '.tools\gradle-home'
 ```
 
 The remapped mod is written to
-`bridge-base/elden-ring/mc-bridge/build/libs/er-bridge-0.3.5.jar`.
+`bridge-base/elden-ring/mc-bridge/build/libs/er-bridge-0.3.6.jar`.
 Add `-Pcharacter=true` to build the independent
-`character-bridge/build/libs/er-character-bridge-0.3.5.jar` alongside Core.
+`character-bridge/build/libs/er-character-bridge-0.3.6.jar` alongside Core.
 `-Pb01=true` includes Character plus its pinned Skills adapter/data. Both character
 variants use the same mod ID; install only the selected one with the matching Core.
 After dependencies are cached, add `--offline` for an offline build.
@@ -95,7 +95,9 @@ to verified open ground in ER Bridge worlds. Generation receipts are saved with
 the world so harvesting and reconnecting do not respawn a site. Use
 `/erbridge resources status`, `off` or `on`; disabling generation keeps existing
 blocks. This is an untested in-game candidate; see [surface resources](surface-resources.md).
-It uses the previous 0.3.4 native candidate without new protocol changes.
+Deploy the paired 0.3.6 native candidate for the new armor/talisman equipment capabilities.
+Shared-memory layouts remain unchanged; the new talisman capability bits still require
+the matching Java reader. Character adds sleep action restrictions; see [sleep actions](sleep-actions.md).
 
 ## Optional native block collision candidate
 

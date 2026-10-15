@@ -21,7 +21,7 @@ OUTPUT = ROOT / "runtime/experiments/meteor-adapter-check"
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--meteor-jar", type=Path, default=ROOT / "runtime/downloads/meteor-client-0.5.8.jar")
-    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.5.jar")
+    parser.add_argument("--bridge-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.6.jar")
     parser.add_argument("--java-home", type=Path, default=ROOT / ".tools/java/jdk-25.0.4.1+1")
     args = parser.parse_args()
     data = args.meteor_jar.read_bytes()

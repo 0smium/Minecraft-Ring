@@ -93,6 +93,7 @@ public final class HostEffectsBridge {
             return;
         }
         boolean frostBurst = CURSOR.observe(STATE);
+        dev.ermc.bridge.character.action.ActionLockServer.observe(player, STATE.has(Protocol.HOST_EFFECT_SLEEP));
         Map<Effect, LeaseSpec> desired = HostEffectRules.desired(STATE);
         var leases = LEASES.entrySet().iterator();
         while (leases.hasNext()) {
@@ -151,6 +152,7 @@ public final class HostEffectsBridge {
     }
 
     private static void clearOwn(String reason) {
+        dev.ermc.bridge.character.action.ActionLockServer.clear();
         for (Lease lease : LEASES.values()) {
             if (lease.ownsEffect()) lease.releaseOwned();
             LOG.info("Host {} lease released for {} ({})", lease.spec.effect(), lease.player.getName().getString(), reason);

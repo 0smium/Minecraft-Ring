@@ -1,5 +1,6 @@
 import dev.ermc.bridge.link.HostEquipmentChannel;
 import dev.ermc.bridge.link.HostInventorySample;
+import dev.ermc.bridge.link.HostEquipmentResult;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
@@ -42,6 +43,25 @@ public final class EquipmentWireCheck {
         check(remove!=0&&remove!=nonce&&b.getInt(base)==2&&b.getInt(q+4)==2);
         check(b.getInt(q+28)==-1&&b.getInt(q+32)==0&&b.getInt(q+36)==0);
         check(channel.result(nonce).isEmpty());
+        b.putInt(base+4,b.getInt(base));
+        var talisman=new HostInventorySample.Entry(8,0x80800002,0x20001234,0,5,0,false);
+        var both=new HostInventorySample(100,3000,123,9,2,1,2,10,2,List.of(entry,talisman),456,10,0x1EF000,4);
+        for(int slot=17;slot<=20;slot++) {
+            check(both.canWriteSlot(slot));
+            check(channel.submit(both,slot,entry,77,4,9,1000,3000)==0);
+            check(channel.submit(both,12,talisman,77,4,9,1000,3000)==0);
+            long equipTalisman=channel.submit(both,slot,talisman,77,4,9,1000,3000);
+            check(equipTalisman!=0&&b.getInt(q+24)==slot&&b.getInt(q+36)==talisman.itemId()&&b.getInt(q+28)==8);
+            b.putInt(base+4,b.getInt(base));
+            check(channel.submit(both,slot,null,77,4,9,1000,3000)!=0&&b.getInt(q+4)==2&&b.getInt(q+28)==-1);
+            b.putInt(base+4,b.getInt(base));
+        }
+        var locked=new HostInventorySample(100,3000,123,9,2,1,2,10,2,List.of(entry,talisman),456,10,0x1EF000,1);
+        check(channel.submit(locked,18,talisman,77,4,9,1000,3000)==0);
+        check(channel.submit(locked,20,null,77,4,9,1000,3000)==0);
+        var readOnly=new HostInventorySample(100,3000,123,9,2,1,2,10,2,List.of(entry,talisman),456,10,0xF000,4);
+        check(channel.submit(readOnly,17,talisman,77,4,9,1000,3000)==0);
+        check(new HostEquipmentResult(-52,17,0,0,0,9,1,0,0,1000).message().contains("同系护符"));
         System.out.println("PASS: "+checks+" actual equipment Java codec checks: owner/life/freshness, immutable item membership, request fields, single in-flight request, nonce result matching and unknown outcome");
     }
 }

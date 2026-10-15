@@ -2,7 +2,7 @@
 
 沿用已有真实中毒读链，本轮将候选映射扩展到猩红腐败、冻伤、睡眠、发狂。宿主活动状态提供身份，Minecraft 原版效果实现行为；宿主 HP 差额不是效果身份。新增状态已通过原生读取 / 跨语言协议 / Java 桩回归，尚未在实际游戏验证。此前中毒的人工记录保留在下方，不据此推定新状态也已实测。
 
-2026-10-14 用户修订的目标：冻伤保持 Slowness I；睡眠希望用 Blindness + 高等级 Slowness / Mining Fatigue 近似失能，不能主动行动但仍会受击。下面表格记录的**当前代码仍是 Slowness IV + Blindness I**，尚未加入 Mining Fatigue 或完整动作限制。目标强度进入配置，临时能力/输入限制在角色模组的统一策略中处理；继续使用原版效果，不能据此重写移动。详见[架构第 9 节](architecture.md#9-能力成长复用客户端实现统一限制配置)与[更正记录](reviews/20261014-architecture-pr-alignment.md)。
+2026-10-15 的0.3.6候选保留冻伤 Slowness I、睡眠 Slowness IV + Blindness I，并落实[睡眠主动操作约束](sleep-actions.md)：同一份已校验宿主状态限制普通操作和固定LB行为模块，保留被动运动/受击及GUI，不依赖挑战模式。没有提高药水强度、加入Mining Fatigue或另写移动算法；状态解除继续以真实宿主为准。代码、协议与离线注入已检查，睡眠实际触发和最终组合仍待实机。原目标与历史归因见[更正记录](reviews/20261014-architecture-pr-alignment.md)。
 
 ## 职责与协议
 
@@ -26,7 +26,7 @@
 | Poison，stateInfo 2 | Poison I | 保留现有非致死毒规则；不区分 ER 不同毒强度 |
 | Scarlet Rot，5 | Wither I | 可致死，与 Poison 有明确差别；不复制 ER 持续伤害公式 |
 | Frostbite，260 | Slowness I；可选一次 Instant Damage I | 默认只有持续减速。一次伤害已实现但默认关闭，见下方归因验证 |
-| Sleep，436 | Blindness I + Slowness IV | 表达感知受限和强减速；不模拟真正睡眠、强制停手或动作前后摇 |
+| Sleep，436 | Blindness I + Slowness IV；临时主动操作约束 | 0.3.6限制主动走/跳/攻击/使用/挖掘、原生交互和换装，固定LB行为模块暂停执行但保留偏好；保留重力/受击/击退；实机待验 |
 | Madness，437 | Nausea I + Weakness I | 暂作感知 / 攻击能力受损；不映射 FP 损失或发狂爆发伤害 |
 | Hemorrhage，6 | 暂不添加 | 瞬时事件可能被快照漏掉，需要事件源；不按 HP 下降猜成出血 |
 | Death blight / 真正死亡 | 保持现有 LifeBridge 路径 | 不再叠加一次无来源死亡伤害 |
@@ -65,7 +65,7 @@ native 只在同一生命期、连续有效采样观察到“没有冻伤 → �
 2. 腐败在低 HP 时能致死，毒保持非致死；外部药水先存在或中途增强时，不被桥接误清。
 3. 全程只开减速，记录攻击触发冻伤时 incoming-hit 实际 HP 与未知残差；再开实验爆发进行对照，确认一次触发只结算一次。
 4. 有状态时 F8、断连、死亡 / 复活、重进存档；不重放历史爆发、不遗留永久效果。LAN 来宾不继承本机状态。
-5. Core / 固定 LB / 固定 Meteor 分别对照；Speed 不应无条件抵消睡眠 / 冻伤，但服务端能力预算尚未接入，记录实际组合表现。
+5. Core / Character / 固定 LB 分别对照；0.3.6睡眠输入和LB执行限制已成候选。Meteor自动模块尚未接入等价约束，冻伤与直接改速模块的数值组合也仍需单独验证。
 
 此前实现与人工结果见 [受击与状态实验记录](experiments/20261012-core-combat-baseline.md)。
 

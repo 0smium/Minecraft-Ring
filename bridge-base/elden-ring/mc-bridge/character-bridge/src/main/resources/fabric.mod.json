@@ -20,6 +20,10 @@
   "mixins": [
     "er_character_bridge.mixins.json",
     {
+      "config": "er_character_bridge.action.mixins.json",
+      "environment": "client"
+    },
+    {
       "config": "er_character_bridge.liquidbounce.mixins.json",
       "environment": "client"
     },
