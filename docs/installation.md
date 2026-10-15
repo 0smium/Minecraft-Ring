@@ -3,7 +3,7 @@
 [Back to Minecraft Ring](../README.md)
 
 This guide describes the current source-build workflow for Minecraft Ring
-0.3.0. It targets Windows x64, Elden Ring App Ver. 1.17.1 (`eldenring.exe`
+0.3.7 (split Fabric candidate). It targets Windows x64, Elden Ring App Ver. 1.17.1 (`eldenring.exe`
 2.7.1.0), and Minecraft Java Edition 1.21.1.
 
 ## Toolchains
@@ -14,14 +14,13 @@ Install Python 3 and place the extracted build tools in the following layout:
 Minecraft-Ring/
   .tools/
     compiler/<llvm-mingw-folder>/bin/clang++.exe
-    java/<jdk-25-folder>/bin/java.exe
-    gradle/<gradle-9.7.1-folder>/bin/gradle.bat
+    java/jdk-25.0.4.1+1/bin/java.exe
+    gradle/gradle-9.7.1/bin/gradle.bat
 ```
 
 Use a Windows x64 LLVM-MinGW distribution with `clang.exe` and `clang++.exe`.
 The native build selects a compiler under `.tools/compiler/`; the launcher
-selects the first directory under `.tools/java/` and `.tools/gradle/`, so keep
-one intended toolchain in each location.
+uses the fixed Java and Gradle paths shown above.
 
 Gradle 9.7.1 and Fabric Loom 1.18.2 use JDK 25. The current project also selects
 JDK 25 as its Java toolchain and compiles with `--release 21`; a separate JDK 21
@@ -34,13 +33,8 @@ caches and local settings are excluded from Git.
 
 ## Build
 
-Prepare the pinned optional skill-framework compile dependency first (no game launch):
-
-```powershell
-python tools/prepare_b01_skills.py
-```
-
-It is only loaded at runtime with the explicit B01 profile; see [B01 integration](b01-integration.md).
+Core and ordinary Character builds need no Skills, LB or Meteor JAR. Only the
+B01 profile requires `python tools/prepare_b01_skills.py`; see [B01 integration](b01-integration.md).
 
 From the repository root:
 
@@ -52,14 +46,19 @@ The output is `dist/dinput8.dll` (loader) and `dist/erbridge_core.dll` (native
 bridge). To build the Fabric mod without launching Minecraft:
 
 ```powershell
-$env:JAVA_HOME = (Get-ChildItem .\.tools\java -Directory | Select-Object -First 1).FullName
+$env:JAVA_HOME = Join-Path (Get-Location) '.tools\java\jdk-25.0.4.1+1'
 $env:GRADLE_USER_HOME = Join-Path (Get-Location) '.tools\gradle-home'
 .\bridge-base\elden-ring\mc-bridge\gradlew.bat -p .\bridge-base\elden-ring\mc-bridge --no-daemon --no-configuration-cache build
 ```
 
 The remapped mod is written to
-`bridge-base/elden-ring/mc-bridge/build/libs/er-bridge-0.3.0.jar`.
+`bridge-base/elden-ring/mc-bridge/build/libs/er-bridge-0.3.7.jar`.
+Add `-Pcharacter=true` to build the independent
+`character-bridge/build/libs/er-character-bridge-0.3.7.jar` alongside Core.
+`-Pb01=true` includes Character plus its pinned Skills adapter/data. Both character
+variants use the same mod ID; install only the selected one with the matching Core.
 After dependencies are cached, add `--offline` for an offline build.
+See [module boundaries and profiles](character-modules.md).
 
 ## Install and launch
 
@@ -75,8 +74,10 @@ After dependencies are cached, add `--offline` for an offline build.
    ignored `installation.json`. Keep that record and its backup together.
 
 3. Start Steam for your Elden Ring installation, then double-click `start.bat`
-   or `Play.bat`. The launcher starts `eldenring.exe` directly with the bridge
-   marker, waits for the native core, and starts Gradle's `remapJar runClient`.
+   or `Play.bat` for Core-only. Add `-Character` for character features or
+   `-B01` for Character + Skills + fixed LB. The launcher builds and resolves
+   the selected profile before starting `eldenring.exe` with the bridge marker,
+   then waits for native readiness and starts Minecraft.
 
 4. Choose **Continue** in Elden Ring. Minecraft automatically creates or opens
    the local `ER Bridge` world and connects to the host player. New worlds start
@@ -86,6 +87,25 @@ Keep the launcher console open while Minecraft is running. A second launch
 recognizes an already running bridge client instead of deliberately starting
 another one. The bridge is for offline play and will not activate with Easy
 Anti-Cheat present.
+
+## Surface resources candidate
+
+Fabric 0.3.5 adds sparse Minecraft trees, flowers, grass, berries and stone outcrops
+to verified open ground in ER Bridge worlds. Generation receipts are saved with
+the world so harvesting and reconnecting do not respawn a site. Use
+`/erbridge resources status`, `off` or `on`; disabling generation keeps existing
+blocks. This is an untested in-game candidate; see [surface resources](surface-resources.md).
+Deploy the 0.3.6 native candidate (unchanged for Fabric 0.3.7) for the new armor/talisman equipment capabilities.
+Shared-memory layouts remain unchanged; the new talisman capability bits still require
+the matching Java reader. Character adds sleep action restrictions; see [sleep actions](sleep-actions.md).
+
+## Optional native block collision candidate
+
+The native-block collision experiment is opt-in through `-NativeBlockCollision`,
+including with `-B01 -CheckOnly`. It requires the paired DLLs and a full ER restart;
+it is not enabled by ordinary launches. See [native block collision](native-block-collision.md)
+for limits and pending manual checks. Experimental native bodies prevent Core hot reload
+until ER exits.
 
 ## Optional Meteor candidate
 
@@ -101,8 +121,8 @@ python tools/prepare_meteor.py
 It uses `run-meteor` for its world, logs and client configuration, and cannot
 be combined with `-LiquidBounce` or `-B01`. Preparation checks the fixed official
 SHA-256, release metadata and adapter signatures, then records a local pin.
-`-CheckOnly` validates profile/artifacts without starting games or changing
-configuration; it does not verify native deployment. This candidate has passed
+`-CheckOnly` builds the selected JARs and resolves their runtime dependencies
+without starting games or changing game configuration; it does not verify native deployment. This candidate has passed
 Windows native/Fabric builds, official release-JAR preflight and eight real
 Mixin injection calls in an offline transformer. Game startup, module
 initialization and rendering are pending. See [Meteor integration](meteor-integration.md)

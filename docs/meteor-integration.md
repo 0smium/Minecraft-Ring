@@ -28,7 +28,7 @@ python tools/prepare_meteor.py
 .\Launch.ps1 -Meteor
 ```
 
-默认下载地址是[官方 Maven 的 0.5.8 发布坐标](https://maven.meteordev.org/releases/meteordevelopment/meteor-client/0.5.8/meteor-client-0.5.8.jar)，已解决默认 Python User-Agent 返回 403 的下载问题。`-CheckOnly` 仅校验所选 profile 与本地制品，不启动游戏、不修改配置，也不验证 DLL 部署或画面。如果下载失败，可使用手动从官方渠道取得的同版本发布 JAR：
+默认下载地址是[官方 Maven 的 0.5.8 发布坐标](https://maven.meteordev.org/releases/meteordevelopment/meteor-client/0.5.8/meteor-client-0.5.8.jar)，已解决默认 Python User-Agent 返回 403 的下载问题。`-CheckOnly` 构建所选 JAR 并解析实际运行依赖，不启动游戏、不修改配置，也不验证 DLL 部署或画面。如果下载失败，可使用手动从官方渠道取得的同版本发布 JAR：
 
 ```powershell
 python tools/prepare_meteor.py --jar 'D:\Downloads\meteor-client-0.5.8.jar'
@@ -39,12 +39,12 @@ python tools/prepare_meteor.py --jar 'D:\Downloads\meteor-client-0.5.8.jar'
 
 此 JAR 的 `meteor-client:commit` 为空；参考提交来自 `v0.5.8` 源码标签，不能把标签当作 JAR 内含的构建提交证明。
 
-`run-meteor` 有独立 options、日志、存档及 Meteor 设置。首次进入会创建自己的桥接世界，不自动读取 `run/saves`；需要复用既有世界时，关闭两端后手动复制并保留备份。切换客户端前先退出当前 MC。`-Meteor` 与 `-LiquidBounce`、`-B01` 不能同时指定；B01 的技能授权目前只落实到固定 LB，不能让 Meteor 绕过该规则进入挑战配置。Core 不带上述开关。Baritone 作为独立依赖另行评估，本轮没有打包它。
+`run-meteor` 有独立 options、日志、存档及 Meteor 设置。首次进入会创建自己的桥接世界，不自动读取 `run/saves`；需要复用既有世界时，关闭两端后手动复制并保留备份。切换客户端前先退出当前 MC。`-Meteor` 与 `-LiquidBounce`、`-B01` 不能同时指定；B01 的技能授权目前只落实到固定 LB，不能让 Meteor 绕过该规则进入挑战配置。`-Meteor` 只含 Core 和实体适配；需要背包、坐骑和原版状态规则时加 `-Character`。这不增加 Meteor 成长授权。Core 不带上述开关。Baritone 作为独立依赖另行评估，本轮没有打包它。
 
 冻伤一次伤害默认关闭，需要专门混合受击测试时可加：
 
 ```powershell
-.\Launch.ps1 -Meteor -ExperimentalFrostBurst
+.\Launch.ps1 -Character -Meteor -ExperimentalFrostBurst
 ```
 
 这不是 Meteor 必需参数；含义见 [状态映射](host-state-mapping.md)。

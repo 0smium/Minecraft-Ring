@@ -1,5 +1,7 @@
 package dev.ermc.bridge;
 
+import dev.ermc.bridge.api.MovementSubjects;
+
 import dev.ermc.bridge.link.ErLink;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
@@ -90,9 +92,10 @@ public final class TerrainDetailManager {
 	 * This is bounded by the player's next 1.5 metres, not the whole loaded map. */
 	public static void discover(ServerLevel level, List<ServerPlayer> players) {
 		for (ServerPlayer player : players) {
-			Vec3 feet = player.position();
+			var motionBody = MovementSubjects.body(player);
+			Vec3 feet = motionBody.position();
 			Vec3 ahead = player.getViewVector(1).multiply(1, 0, 1).normalize().scale(1.5);
-			AABB body = player.getBoundingBox().expandTowards(ahead);
+			AABB body = motionBody.getBoundingBox().expandTowards(ahead);
 			AABB area = new AABB(body.minX - .1, feet.y + .02, body.minZ - .1,
 				body.maxX + .1, body.maxY + .65, body.maxZ + .1);
 			for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(area.minX, area.minY, area.minZ),
@@ -101,7 +104,7 @@ public final class TerrainDetailManager {
 				if (COLUMNS.containsKey(key) || TerrainManager.movingColumn(pos.getX(), pos.getZ())) continue;
 				BlockState state = level.getBlockState(pos);
 				if (!ErBridgeMod.isTerrain(state)) continue;
-				var shape = state.getCollisionShape(level, pos, CollisionContext.of(player));
+				var shape = state.getCollisionShape(level, pos, CollisionContext.of(motionBody));
 				if (shape.isEmpty() || !shape.bounds().move(pos).intersects(area)) continue;
 				COLUMNS.put(key, new Sample(pos.getX(), pos.getZ(), feet.y,
 					Mth.floor(area.maxY), Mth.floor(feet.y - 1), pos.getY(),
@@ -153,6 +156,10 @@ public final class TerrainDetailManager {
 				return;
 			}
 			link.readHits(pendingCount, HITS, FLAGS, ATTRS);
+			if (!TerrainRayEvidence.known(FLAGS, 0, pendingCount)) {
+				pending = -1; requested = null;
+				return; // Retain measured shapes; no unknown hit becomes floor or air.
+			}
 			boolean current = map.equals(pendingMap) && System.currentTimeMillis() - pendingAt < 3000
 				&& COLUMNS.get(ChunkPos.asLong(requested.x, requested.z)) == requested;
 			if (current && samplingFloors) {
@@ -203,10 +210,11 @@ public final class TerrainDetailManager {
 		double distance = RANGE * RANGE;
 		boolean bestWaiting = false;
 		for (ServerPlayer player : players) {
+			var body = MovementSubjects.body(player);
 			// Local geometry can be prepared before the player stands on it.
 			for (Sample sample : COLUMNS.values()) {
-				if (sample.top < player.getY() - 1 || sample.bottom > player.getY() + CLEAR_HEIGHT) continue;
-				Vec3 p = player.position();
+				if (sample.top < body.getY() - 1 || sample.bottom > body.getY() + CLEAR_HEIGHT) continue;
+				Vec3 p = body.position();
 				boolean waiting = TerrainManager.detailPending(sample.x, sample.z);
 				if (sample.checkedFrom != null && Math.abs(sample.checkedFrom.y - p.y) < .25
 					&& System.currentTimeMillis() - sample.checkedAt < TerrainPrefetch.REFRESH_MS) continue;
@@ -394,6 +402,10 @@ public final class TerrainDetailManager {
 	}
 
 	private static void store(ServerLevel level, BlockPos pos, int[] cells) {
+		// Cached native air/geometry may outlive a player placement or resource generation.
+		// Only the proxy layer belongs to this refiner; never replay it over real MC blocks.
+		BlockState current = level.getBlockState(pos);
+		if (!current.isAir() && !ErBridgeMod.isTerrain(current)) return;
 		boolean empty = true, full = true;
 		for (int cell : cells) { empty &= cell == 0; full &= cell == 0xFFFF; }
 		remember(pos, cells);

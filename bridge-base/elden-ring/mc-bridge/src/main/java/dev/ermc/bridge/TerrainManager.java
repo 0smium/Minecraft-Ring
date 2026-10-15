@@ -1,5 +1,8 @@
 package dev.ermc.bridge;
 
+import dev.ermc.bridge.api.MovementSubjects;
+import dev.ermc.bridge.api.BridgeLifecycle;
+
 import dev.ermc.bridge.link.GameState;
 import dev.ermc.bridge.link.ErLink;
 import dev.ermc.bridge.link.Protocol;
@@ -122,12 +125,14 @@ public final class TerrainManager {
 	private static final List<ServerPlayer> PLATFORM_TRACE_PLAYERS = new ArrayList<>();
 	private static long platformTraceUntil;
 	private static final LongOpenHashSet MOVING_COLUMNS = new LongOpenHashSet();
+	private static final it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet RESOURCE_REFRESH = new it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet();
 	private static final MovingPlatformBoarding PLATFORM_BOARDING = new MovingPlatformBoarding();
 
 	// Ray batch in flight
 	private static int pendingSeq = -1;
 	private static long pendingSince;
 	private static CoordMap.Mapping pendingMap;
+	private static boolean pendingResourceEvidence;
 	private static boolean pendingStallReported;
 	private static final List<PendingColumn> PENDING_COLUMNS = new ArrayList<>();
 	/** A door/prop changed after these columns' rays were submitted. */
@@ -144,6 +149,7 @@ public final class TerrainManager {
 	}
 
 	public static void reset() {
+		dev.ermc.bridge.world.SurfaceResources.reset();
 		TerrainDetailManager.reset();
 		TerrainTravelClearance.reset();
 		preferTravel = true;
@@ -154,6 +160,7 @@ public final class TerrainManager {
 		PLATFORM_TRACE_PLAYERS.clear();
 		platformTraceUntil = 0;
 		MOVING_COLUMNS.clear();
+		RESOURCE_REFRESH.clear();
 		preferBackground = false;
 		coarseBatches = lastBatchMs = maxBatchMs = 0;
 		FLOORED_CHUNKS.clear();
@@ -175,6 +182,7 @@ public final class TerrainManager {
 	 * fires the player's attack at it, which breaks breakable objects), then resample around it.
 	 */
 	public static void strike(net.minecraft.world.entity.player.Player player, BlockPos pos) {
+		if (!dev.ermc.bridge.api.PlayerActions.allowed(player)) return;
 		CoordMap.Mapping map = CoordMap.get();
 		if (map == null || map.provisional()) {
 			return;
@@ -235,6 +243,20 @@ public final class TerrainManager {
 		wallIgnoreMask = mask;
 	}
 
+	public static boolean defaultRaySettings() { return rayFilter == null && wallIgnoreMask == 0; }
+	public static void clearResourceSurfaceRequests() { RESOURCE_REFRESH.clear(); }
+
+	/** Reuse the ordinary bounded ray scheduler; do not erase collision or stable observations. */
+	public static void refreshResourceSurface(int x, int z, int radius) {
+		if (radius < 0 || radius > 2) return;
+		for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) {
+			long key = ChunkPos.asLong(x + dx, z + dz);
+			if (RESOURCE_REFRESH.contains(key)) continue;
+			if (RESOURCE_REFRESH.size() >= 128) RESOURCE_REFRESH.removeFirstLong();
+			RESOURCE_REFRESH.add(key);
+		}
+	}
+
 	/** Dev: remove all sampled terrain and sample again. */
 	public static void requestReset() {
 		resetRequested = true;
@@ -247,6 +269,7 @@ public final class TerrainManager {
 	}
 
 	private static void invalidate(long key) {
+		dev.ermc.bridge.world.SurfaceResources.forget(ChunkPos.getX(key), ChunkPos.getZ(key));
 		TerrainTravelClearance.invalidate();
 		if (pendingSeq >= 0 && BATCH_KEYS.contains(key)) INVALIDATED_PENDING.add(key);
 		COLUMNS.remove(key);
@@ -350,6 +373,8 @@ public final class TerrainManager {
 		}
 		if (resetRequested) {
 			resetRequested = false;
+			dev.ermc.bridge.world.SurfaceResources.reset();
+			RESOURCE_REFRESH.clear();
 			for (it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry<Column> en : COLUMNS.long2ObjectEntrySet()) {
 				Column c = en.getValue();
 				// Around the players the old blocks stay until the new sample replaces them (a
@@ -381,10 +406,11 @@ public final class TerrainManager {
 		TerrainDetailManager.discover(level, players);
 		List<Forecast> forecasts = new ArrayList<>();
 		for (ServerPlayer player : players) {
-			Vec3 previous = LAST_POSITIONS.put(player.getUUID(), player.position());
-			Vec3 velocity = previous == null ? Vec3.ZERO : player.position().subtract(previous).scale(20);
+			var body = MovementSubjects.body(player);
+			Vec3 previous = LAST_POSITIONS.put(player.getUUID(), body.position());
+			Vec3 velocity = previous == null ? Vec3.ZERO : body.position().subtract(previous).scale(20);
 			Vec3 look = player.getViewVector(1);
-			double[] ahead = TerrainPrefetch.ahead(player.getX(), player.getZ(), velocity.x, velocity.z, look.x, look.z);
+			double[] ahead = TerrainPrefetch.ahead(body.getX(), body.getZ(), velocity.x, velocity.z, look.x, look.z);
 			forecasts.add(new Forecast(player, ahead[0], ahead[1]));
 		}
 		if (pendingSeq < 0 && !TerrainDetailManager.busy() && !TerrainTravelClearance.busy() && !players.isEmpty()) {
@@ -430,13 +456,14 @@ public final class TerrainManager {
 		if (map.zone() == STATE.stageId && recallSettled(400)) PLATFORM_BOARDING.refresh(level, map, MOVING_COLUMNS);
 		for (ServerPlayer player : players) {
 			MovingPlatformMotion motion = PLATFORM_MOTION.computeIfAbsent(player.getUUID(), id -> new MovingPlatformMotion());
+			if (player.isPassenger()) { motion.reset(); continue; }
 			long traceNow = System.currentTimeMillis();
 			int previousEpoch = motion.epoch();
 			boolean wasMoving = motion.moving(traceNow);
 			boolean valid = STATE.has(Protocol.STATE_SUPPORT_VALID) && map.zone() == STATE.stageId && recallSettled(400)
 				&& Math.abs(player.getX() - support.x) < .75 && Math.abs(player.getZ() - support.z) < .75;
 			var step = motion.update(valid, STATE.supportEpoch, STATE.supportTravelY / map.unitsPerMeter(), support.y,
-				player.getY(), player.onGround(), player.getAbilities().flying, player.getDeltaMovement().y, System.currentTimeMillis());
+				player.getY(), player.onGround(), dev.ermc.bridge.api.PlayerFlight.isFlying(player), player.getDeltaMovement().y, System.currentTimeMillis());
 			if (wasMoving || step.moving()) platformTraceUntil = traceNow + 750;
 			boolean resetContact = previousEpoch != 0 && previousEpoch != motion.epoch();
 			if (traceNow < platformTraceUntil && (player.tickCount % 5 == 0 || resetContact)) {
@@ -461,7 +488,7 @@ public final class TerrainManager {
 	/** Refresh a verified lift before vanilla validates the client's movement against its floor. */
 	public static void beforePlayerMove(ServerPlayer player) {
 		if (!bridgeWorld || player.serverLevel().dimension() != net.minecraft.world.level.Level.OVERWORLD
-			|| player.getAbilities().flying || player.isSpectator() || player.isPassenger() || !recallSettled(400)) return;
+			|| dev.ermc.bridge.api.PlayerFlight.isFlying(player) || player.isSpectator() || player.isPassenger() || !recallSettled(400)) return;
 		var map = CoordMap.get();
 		var motion = PLATFORM_MOTION.get(player.getUUID());
 		var link = ErLink.get();
@@ -541,10 +568,11 @@ public final class TerrainManager {
 					long key = ChunkPos.asLong(x, z);
 					if (MOVING_COLUMNS.contains(key)) continue;
 					Column c = COLUMNS.get(key);
-					if (!TerrainPrefetch.needsSample(c == null ? null : c.sample(), x, z, fromX, py, fromZ,
-						System.currentTimeMillis(), priority) || !BATCH_KEYS.add(key)) {
+					if ((!RESOURCE_REFRESH.contains(key) && !TerrainPrefetch.needsSample(c == null ? null : c.sample(), x, z, fromX, py, fromZ,
+						System.currentTimeMillis(), priority)) || !BATCH_KEYS.add(key)) {
 						continue;
 					}
+					RESOURCE_REFRESH.remove(key);
 					putRay(map, n++, x + 0.5, py + RAY_ABOVE, z + 0.5, x + 0.5, py - RAY_BELOW, z + 0.5);
 					putRay(map, n++, x + 0.5, py + RAY_HIGH, z + 0.5, x + 0.5, py + RAY_ABOVE, z + 0.5);
 					for (double height : PROBE_HEIGHTS) {
@@ -573,14 +601,16 @@ public final class TerrainManager {
 		BATCH_KEYS.clear();
 		int n = 0;
 		for (ServerPlayer player : players) {
-			n = sampleAround(map, player.getX(), player.getY(), player.getZ(), priority ? TerrainPrefetch.NEAR_RADIUS : SAMPLE_RADIUS,
-				n, priority, player.getX(), player.getZ());
+			var body = MovementSubjects.body(player);
+			n = sampleAround(map, body.getX(), body.getY(), body.getZ(), priority ? TerrainPrefetch.NEAR_RADIUS : SAMPLE_RADIUS,
+				n, priority, body.getX(), body.getZ());
 		}
 		if (priority) {
 			for (Forecast forecast : forecasts) {
 				ServerPlayer player = forecast.player();
-				n = sampleAround(map, forecast.aheadX(), player.getY(), forecast.aheadZ(), TerrainPrefetch.NEAR_RADIUS,
-					n, true, player.getX(), player.getZ());
+				var body = MovementSubjects.body(player);
+				n = sampleAround(map, forecast.aheadX(), body.getY(), forecast.aheadZ(), TerrainPrefetch.NEAR_RADIUS,
+					n, true, body.getX(), body.getZ());
 			}
 		}
 		if (!priority && !players.isEmpty() && n + RAYS_PER_COLUMN <= BATCH) {
@@ -602,9 +632,11 @@ public final class TerrainManager {
 		INVALIDATED_PENDING.clear();
 		BATCH_KEYS.clear();
 		int n = 0;
-		for (ServerPlayer player : players)
-			n = sampleAround(map, player.getX(), player.getY(), player.getZ(), 2, n,
-				true, player.getX(), player.getZ());
+		for (ServerPlayer player : players) {
+			var body = MovementSubjects.body(player);
+			n = sampleAround(map, body.getX(), body.getY(), body.getZ(), 2, n,
+				true, body.getX(), body.getZ());
+		}
 		return n;
 	}
 
@@ -614,6 +646,7 @@ public final class TerrainManager {
 		if (seq >= 0) {
 			pendingSeq = seq;
 			pendingMap = map;
+			pendingResourceEvidence = filter == null && wallIgnoreMask == 0;
 			pendingSince = System.currentTimeMillis();
 			pendingStallReported = false;
 		} else {
@@ -698,8 +731,13 @@ public final class TerrainManager {
 		maxBatchMs = Math.max(maxBatchMs, lastBatchMs);
 		coarseBatches++;
 		for (int i = 0; i < n; i++) {
+			// An owned MC block can hide native ground. Keep this column until it is visible again.
 			PendingColumn request = PENDING_COLUMNS.get(i);
 			long key = request.key();
+			if (!TerrainRayEvidence.known(HIT_FLAGS, i * RAYS_PER_COLUMN, RAYS_PER_COLUMN)) {
+				dev.ermc.bridge.world.SurfaceResources.forget(ChunkPos.getX(key), ChunkPos.getZ(key));
+				continue;
+			}
 			// Never reinsert a closed door's old collision after an opening event,
 			// or carve a newly closed door using pre-event clearance. Sample again.
 			if (INVALIDATED_PENDING.contains(key)) continue;
@@ -708,7 +746,10 @@ public final class TerrainManager {
 			int z = ChunkPos.getZ(key);
 			// These rays were submitted before the latest lift position. The live
 			// support cells own this column until motion stops or the player steps off.
-			if (MOVING_COLUMNS.contains(key)) continue;
+			if (MOVING_COLUMNS.contains(key)) {
+				dev.ermc.bridge.world.SurfaceResources.forget(x, z);
+				continue;
+			}
 			Column old = COLUMNS.get(key);
 			if (old == null) {
 				// First sample of this column since the world opened (or since a terrain reset):
@@ -798,6 +839,12 @@ public final class TerrainManager {
 			}
 			TerrainPrefetch.Sample sample = new TerrainPrefetch.Sample(sampleY, request.fromX(), request.fromZ(), now);
 			COLUMNS.put(key, new Column(sample, top, bottom, topBlock, height, obstacle));
+			// This is geometric evidence, not a grass/roof material classification. A missing high
+			// hit only verifies the sampled 40 m overhead band; MC heightmaps cannot provide it.
+			dev.ermc.bridge.world.SurfaceResources.observe(map, x, z, groundY,
+				pendingResourceEvidence && defaultRaySettings()
+					&& lowHit && !obstacle && HIT_FLAGS[high] == 0 && HITS[down * 6 + 4] >= .9F
+					&& Math.abs(groundY - sampleY) <= .75, now);
 		}
 		PENDING_COLUMNS.clear();
 		pendingSeq = -1;
@@ -936,6 +983,7 @@ public final class TerrainManager {
 
 	private static void teleportToHunter(ServerLevel level, ServerPlayer player, CoordMap.Mapping map) {
 		if (!LocalHostOwner.isOwner(player)) return;
+		BridgeLifecycle.BEFORE_RECALL.invoker().beforeRecall(player);
 		boolean known = STATE.has(Protocol.STATE_PLAYER_VALID);
 		Vec3 target = known
 			? map.toMc(STATE.playerPos[0], STATE.playerPos[1], STATE.playerPos[2])

@@ -23,7 +23,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 JAR = ROOT / "runtime/downloads/puffish_skills-0.19.2-1.21-fabric.jar"
 SHA256 = "276ce0b5f15bcfeafe632c8eabe0d2d3104b9b0362897e66fd049bcd217ba915"
-RESOURCES = ROOT / "bridge-base/elden-ring/mc-bridge/src/main/resources/data/erbridge/puffish_skills"
+RESOURCES = ROOT / "bridge-base/elden-ring/mc-bridge/character-bridge/src/skills/resources/data/erbridge/puffish_skills"
 
 
 def cached_classpath():
@@ -125,38 +125,60 @@ public class B01SkillsCheck {
         var parsed=reader.readCategory("erbridge","abilities",0,context);
         if(parsed.getSuccess().isEmpty())throw new AssertionError(parsed.getFailure().orElseThrow().toString());
         CategoryConfig category=parsed.getSuccess().orElseThrow();
-        check(category.skills().getAll().size()==6,"Exactly three ranks in each of two abilities");
-        check(category.experience().isEmpty() && category.exchange().isEmpty(),"No extra XP or exchange point source");
+        check(category.skills().getAll().size()==32,"Existing 29 nodes plus hop and two precision nodes");
+        check(category.experience().isEmpty() && category.exchange().isEmpty(),"No extra XP or exchange source");
         check(category.definitions().getAll().stream().allMatch(d -> d.rewards().isEmpty()),"No duplicate attribute rewards");
-        System.out.println("PASS: real Skills 0.19.2 parses the pack, category, icons, definitions and directed graph");
-
+        var catalog=dev.ermc.bridge.gameplay.capability.AbilityCatalog.instance();
         var source=ResourceLocation.parse("erbridge:er_level");
+        var testSource=ResourceLocation.parse("erbridge:test_preset");
         CategoryData a=CategoryData.create(category.general()),b=CategoryData.create(category.general());
-        check(!a.isUnlocked() && a.getPointsTotal()==0,"An unbound player receives no category or points");
-        a.unlock();a.setPoints(source,2);b.unlock();b.setPoints(source,1);
-        check(!a.canUnlockSkill(category,category.skills().getById("speed_2").orElseThrow(),false),"Cannot skip Speed I");
-        check(!a.canUnlockSkill(category,category.skills().getById("aura_2").orElseThrow(),false),"Cannot skip Aura I");
+        check(!a.isUnlocked() && a.getPointsTotal()==0,"Unbound player has no category or points");
+        a.unlock();a.setPoints(source,8);b.unlock();b.setPoints(source,8);
+        check(!a.canUnlockSkill(category,category.skills().getById("speed_2").orElseThrow(),false),"Cannot skip prerequisite");
         purchase(a,category,"speed_1");purchase(a,category,"speed_2");purchase(b,category,"aura_1");
-        check(a.getSpentPoints(category)==2 && a.getPointsLeft(category)==0,"A consumes its two point costs");
-        check(b.getSpentPoints(category)==1 && b.getPointsLeft(category)==0,"B consumes only its own point cost");
-        check(!a.canUnlockSkill(category,category.skills().getById("aura_1").orElseThrow(),false),"No purchase with zero remaining points");
+        check(a.getSpentPoints(category)==8 && a.getPointsLeft(category)==0,"Normal updated costs consume exactly 8");
+        check(b.getSpentPoints(category)==8 && b.getPointsLeft(category)==0,"Separate owner cost");
+        check(!a.canUnlockSkill(category,category.skills().getById("autotool_1").orElseThrow(),false),"No zero-point purchase");
         check(!a.canUnlockSkill(category,category.skills().getById("speed_1").orElseThrow(),false),"No duplicate purchase");
-        check(!a.getUnlockedSkillIds().contains("aura_1") && !b.getUnlockedSkillIds().contains("speed_1"),"Independent framework data");
-        System.out.println("PASS: actual normal affordability, prerequisites, costs, duplicate rejection and separate player data");
-        a.setPoints(source,2);a.setPoints(source,2);
-        check(a.getSpentPoints(category)==2 && a.getPointsLeft(category)==0,"Cumulative reconciliation preserves spending");
-        a.setPoints(source,3);
-        check(a.getPointsLeft(category)==1 && b.getPointsLeft(category)==0,"One new source point without cross-player changes");
-        purchase(a,category,"speed_3");
-        check(a.getSpentPoints(category)==3 && a.getPointsLeft(category)==0,"Speed III consumes the third earned point");
-        a.resetSkills();
-        check(a.getSpentPoints(category)==0 && a.getPointsLeft(category)==3,"Framework respec restores points, not a second balance");
-        purchase(a,category,"aura_1");purchase(a,category,"aura_2");purchase(a,category,"aura_3");
-        var restored=CategoryData.read(a.writeNbt(new CompoundTag()));
-        check(restored.isUnlocked() && restored.getPoints(source)==3 && restored.getSpentPoints(category)==3
-            && restored.getPointsLeft(category)==0 && restored.getUnlockedSkillIds().equals(Set.of("aura_1","aura_2","aura_3")),
-            "Framework NBT restores source quota and learned skills together");
-        System.out.println("PASS: cumulative source reconciliation, real data reset/refund and framework NBT restoration");
+        CategoryData routes=CategoryData.create(category.general());routes.unlock();routes.setPoints(source,9);
+        check(!routes.canUnlockSkill(category,category.skills().getById("speed_hop_1").orElseThrow(),false),"Hop requires actual base purchase");
+        purchase(routes,category,"speed_1");
+        check(!routes.canUnlockSkill(category,category.skills().getById("speed_hop_1").orElseThrow(),false),"Nine real points cannot pay four plus six");
+        purchase(routes,category,"speed_2");
+        check(routes.getSpentPoints(category)==8 && routes.getPointsLeft(category)==1,"Existing nine-point Speed II save keeps eight spent and one remaining");
+        routes.setPoints(source,14);purchase(routes,category,"speed_hop_1");
+        check(routes.getPointsLeft(category)==0 && routes.getUnlockedSkillIds().containsAll(List.of("speed_1","speed_2","speed_hop_1")),"Both routes can coexist with exact independent cost");
+        routes.lockSkill("speed_hop_1");
+        check(routes.getSpentPoints(category)==8 && routes.getPointsLeft(category)==6,"Refund branch preserves original ground nodes/cost");
+        a.setPoints(source,100);
+        check(!a.canUnlockSkill(category,category.skills().getById("fly_1").orElseThrow(),false),"Flight requires 24 points invested, not merely a large balance");
+        check(!a.canUnlockSkill(category,category.skills().getById("fly_precision_1").orElseThrow(),false),"Precision cannot skip base flight or investment threshold");
+        check(!a.canUnlockSkill(category,category.skills().getById("speed_3").orElseThrow(),false),"Mastery stage threshold is real Skills behavior");
+        for(var preset:catalog.presets().values()) {
+            CategoryData trial=CategoryData.create(category.general());trial.unlock();
+            trial.setPoints(source,8);purchase(trial,category,"speed_1");purchase(trial,category,"speed_2");
+            Set<String> before=Set.copyOf(trial.getUnlockedSkillIds());
+            trial.resetSkills();trial.setPoints(testSource,preset.budget());
+            for(String node:catalog.purchaseOrder(catalog.selectedNodes(preset.ranks()))) purchase(trial,category,node);
+            check(trial.getSpentPoints(category)==catalog.cost(preset.ranks()),"Preset actual Skills cost "+preset.id());
+            check(trial.getPointsLeft(category)==8,"Preset separate point source "+preset.id());
+            var resumed=CategoryData.read(trial.writeNbt(new CompoundTag()));
+            check(resumed.getPoints(testSource)==preset.budget() && resumed.getUnlockedSkillIds().equals(trial.getUnlockedSkillIds()),"Preset NBT restore "+preset.id());
+            if(preset.id().equals("flight_routes")) {
+                resumed.lockSkill("fly_precision_2");resumed.lockSkill("fly_precision_1");
+                check(resumed.getSpentPoints(category)==102 && resumed.getPointsLeft(category)==34
+                        && resumed.getUnlockedSkillIds().containsAll(List.of("fly_1","fly_2","fly_3")),"Precision refund returns its own 26 points and preserves cruise mastery");
+            }
+            resumed.setPoints(source,9);resumed.resetSkills();resumed.setPoints(testSource,0);
+            for(String node:catalog.purchaseOrder(before))purchase(resumed,category,node);
+            check(resumed.getPointsLeft(category)==1 && resumed.getSpentPoints(category)==8 && resumed.getPoints(testSource)==0
+                && resumed.getUnlockedSkillIds().equals(before),"Clear restores original build and keeps one real upgrade "+preset.id());
+        }
+        CategoryData legacy=CategoryData.create(category.general());legacy.unlock();legacy.setPoints(source,6);
+        for(String node:List.of("speed_1","speed_2","speed_3","aura_1","aura_2","aura_3"))legacy.unlockSkill(node);
+        check(legacy.getPointsLeft(category)<0,"Changed legacy prices cannot silently authorize");
+        legacy.resetSkills();check(legacy.getPointsLeft(category)==6 && legacy.getSpentPoints(category)==0,"Explicit migration uses real refund, retains level entitlement");
+        System.out.println("PASS: actual Skills 0.19.2 parser, 32 nodes, branch affordability/prerequisites/refund, preserved nine-point Speed II, all presets, NBT persistence and clear");
         System.out.println("LIMIT: offline parser/data validation; player callbacks, GUI, config reload and ER/LB co-load remain untested");
     }
 }
@@ -194,8 +216,12 @@ def main():
         source = output / "B01SkillsCheck.java"
         source.write_text(JAVA, encoding="utf-8")
         subprocess.run([str(java_home / "bin" / f"javac{executable}"), "-encoding", "UTF-8", "-cp", classpath,
-                        "-d", str(output), str(source)], cwd=ROOT, check=True)
-        subprocess.run([str(java_home / "bin" / f"java{executable}"), "-cp", str(output) + os.pathsep + classpath,
+                        "-d", str(output), str(ROOT / "bridge-base/elden-ring/mc-bridge/src/main/java/dev/ermc/bridge/api/CapabilitySnapshot.java"),
+                        str(ROOT / "bridge-base/elden-ring/mc-bridge/src/main/java/dev/ermc/bridge/api/CharacterBinding.java"),
+                        str(ROOT / "bridge-base/elden-ring/mc-bridge/character-bridge/src/main/java/dev/ermc/bridge/gameplay/capability/AbilityCatalog.java"),
+                        str(ROOT / "bridge-base/elden-ring/mc-bridge/character-bridge/src/main/java/dev/ermc/bridge/gameplay/capability/AbilityPolicy.java"),
+                        str(source)], cwd=ROOT, check=True)
+        subprocess.run([str(java_home / "bin" / f"java{executable}"), "-cp", str(output) + os.pathsep + str(ROOT / "bridge-base/elden-ring/mc-bridge/character-bridge/src/main/resources") + os.pathsep + classpath,
                         "B01SkillsCheck", str(RESOURCES)], cwd=ROOT, check=True)
 
 

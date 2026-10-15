@@ -1,9 +1,13 @@
 # B01 游戏接入候选
 
+> 本页保留最初 Speed/Aura 接入说明。当前 0.3.2 已扩为六类 14 项、29 节点，成本、阶段、迁移和测试预设以[成长第一版](growth-v1.md)为准；不再按旧的每阶 1 点使用。
+
 开发分支 `feat/b01-preparation`，继续 [PR #3](https://github.com/0smium/Minecraft-Ring/pull/3)。
 目标是让**真实法环升级 → 技能点 → 技能树购买 → 固定 LB 的 Speed/Aura 执行**形成最小闭环。
 本轮已写入实际入口，完成离线检查；后续已开始 [R09 修复与首次共载](experiments/2026-10-13-r09-b01-smoke.md)，**成长闭环尚待人工验收**。
 原准备内核及规则见 [b01-preparation.md](b01-preparation.md)。
+
+2026-10-14 澄清：Speed 复用 LB Custom.Strafe，三档数值是可调范围的上限，升级不会把用户值固定为该上限。角色功能已迁入独立 Fabric 模组，通用能力描述与 GUI 联动仍待扩展；当前架构和交付条件见 [architecture.md](architecture.md)，最新集成候选见 [current-development.md](current-development.md)。
 
 ## 这一轮负责什么
 
@@ -16,7 +20,7 @@
 
 | 项目 | 固定值 |
 | --- | --- |
-| ER | App 1.17.1 / exe 2.7.1.0；新增读取仍待实机验证 |
+| ER | App 1.17.1 / exe 2.7.1.0；真实等级 164 已人工核对，持续升级消费链仍待验证 |
 | MC / Fabric | 1.21.1，保持当前工程版本 |
 | LB | v0.22.0 / Build #3530，原始 JAR，不内嵌 |
 | LB SHA-256 | `1824011D91046F8F8B388CFA63782F38CDF754F12CB997317EAB8E69E67EF20D` |
@@ -24,8 +28,8 @@
 | Skills SHA-256 | `276CE0B5F15BCFEAFE632C8EABE0D2D3104B9B0362897E66FD049BCD217BA915` |
 
 构建前在仓库根执行 `python tools/prepare_b01_skills.py`。下载结果仅留在被忽略的 `runtime/downloads/`。
-Gradle 校验该 JAR 的 SHA-256，用于可选框架适配代码的编译；普通 Core/LB 启动不加载它。
-完整候选构建用标准 Gradle `build`，仍使用 JDK 25 / Gradle 9.7.1。
+只有 `-Pb01=true` 构建校验并编译这个 JAR；普通 Core/Character 构建无需它。
+完整成长候选使用 Gradle `-Pb01=true build`，仍使用 JDK 25 / Gradle 9.7.1。
 
 需要人工验收时，按原项目离线流程部署候选 DLL、保持 Steam 运行，再执行：
 
@@ -33,7 +37,8 @@ Gradle 校验该 JAR 的 SHA-256，用于可选框架适配代码的编译；普
 .\Launch.ps1 -B01
 ```
 
-`-B01` 包含固定 LB 和 Skills；`-LiquidBounce` 仍是原来的 LB 实验配置。
+`-B01` 包含 Core、独立 Character JAR、固定 LB 和 Skills；`-LiquidBounce` 为 Core + LB，
+需角色状态/背包/坐骑时使用 `-Character -LiquidBounce`。详见[模组与 profile](character-modules.md)。
 首次离线交付没有启动或部署；后续部署、备份、启动阻塞与修复结果记录在上述共载记录中。
 
 LB 重置配置后，关闭 `HUD → Blur`（其不透明后处理会把桥接背景盖黑）和 `HUD → In-built → Minimap → Enabled`（避免无用的后台扫描）。
@@ -95,6 +100,6 @@ python tools/test_host_progression.py
 另有实际 Skills JAR 的解析/扣点/退款/NBT 检查和 MC 网络编码检查，运行方法见对应 `tools/test_b01_*.py`。
 真实 LB Mixin 转换/Value 路径检查使用 `python tools/test_lb_capability_adapter.py`（先构建候选并保留本地依赖缓存）。
 这些检查不等同于双游戏共载。最终实机验收只围绕这条闭环：核对真实等级、绑定、升一级只发一次点、买两项技能并检查上限、退款停用、重连不重复发点。
-先记录一次真实结果，再决定是否进入 B02；不在本轮恢复移动平台和全屏输入的反复测试。
+真实升级消费链仍待集中测试。用户后续要求继续开发，因此已并行推进不依赖这条验收结果的 [B02 只读背包、MC 马与调试归属候选](b02-character-slice.md)；这不将 B01 的未测项目改成通过，也不恢复移动平台和全屏输入的反复试改。
 
 测试升级缺卢恩时，使用[本地测试卢恩入口](test-runes.md)先备份、再补测试货币，仍在赐福正常升级；不用刷取资源，也不通过直接改等级或模拟 MC 点数替代该验证。

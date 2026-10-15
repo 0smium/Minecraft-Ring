@@ -1,8 +1,0 @@
-{
-  "speed_1": {"x": -40, "y": 0, "definition": "speed_1", "root": true},
-  "speed_2": {"x": -40, "y": -40, "definition": "speed_2"},
-  "speed_3": {"x": -40, "y": -80, "definition": "speed_3"},
-  "aura_1": {"x": 40, "y": 0, "definition": "aura_1", "root": true},
-  "aura_2": {"x": 40, "y": -40, "definition": "aura_2"},
-  "aura_3": {"x": 40, "y": -80, "definition": "aura_3"}
-}

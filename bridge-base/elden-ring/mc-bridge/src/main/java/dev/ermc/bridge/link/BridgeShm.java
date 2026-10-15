@@ -21,9 +21,13 @@ public final class BridgeShm {
 	private static final VarHandle LONG = MethodHandles.byteBufferViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
 	private final MappedByteBuffer buf;
+	private final HostEquipmentChannel equipment;
+	private final int registeredMcPid = (int) ProcessHandle.current().pid();
+	private final long registeredMcStart = System.currentTimeMillis();
 
 	private BridgeShm(MappedByteBuffer buf) {
 		this.buf = buf;
+		this.equipment = new HostEquipmentChannel(buf);
 	}
 
 	public static BridgeShm open() throws IOException {
@@ -50,8 +54,8 @@ public final class BridgeShm {
 			buf.putInt(Protocol.H_SIZE, Protocol.SHM_SIZE);
 			INT.setRelease(buf, Protocol.H_MAGIC, Protocol.MAGIC);
 		}
-		buf.putInt(Protocol.H_MC_PID, (int) ProcessHandle.current().pid());
-		buf.putLong(Protocol.H_MC_START, System.currentTimeMillis());
+		buf.putInt(Protocol.H_MC_PID, registeredMcPid);
+		buf.putLong(Protocol.H_MC_START, registeredMcStart);
 	}
 
 	public long hostHeartbeat() {
@@ -68,6 +72,27 @@ public final class BridgeShm {
 
 	public java.util.Optional<HostProgressionSample> readHostProgression() {
 		return HostProgressionSample.read(buf, HostProgressionSample.OFFSET);
+	}
+
+	public java.util.Optional<HostInventorySample> readHostInventory() {
+		return HostInventorySample.readCurrent(buf, Protocol.OFF_HOST_INVENTORY);
+	}
+	public java.util.Optional<HostInteractionSample> readHostInteraction() {
+		return HostInteractionSample.read(buf,HostInteractionSample.OFFSET).filter(sample ->
+			sample.currentFor(hostProcessId(),hostStartMs(),buf.getInt(0x40),hostLife(),hostHeartbeat(),System.currentTimeMillis()));
+	}
+	public long submitEquipment(HostInventorySample sample,int slot,HostInventorySample.Entry item) {
+		return equipment.submit(sample,slot,item,hostProcessId(),buf.getInt(0x40),hostLife(),hostStartMs(),System.currentTimeMillis());
+	}
+	public java.util.Optional<HostEquipmentResult> readEquipmentResult(long nonce) { return equipment.result(nonce); }
+	private boolean ownsBlockColliderStream() { return BlockColliderChannel.registeredTo(buf, registeredMcPid, registeredMcStart); }
+	public BlockColliderChannel.Session blockColliderSession(int zone) { return ownsBlockColliderStream() ? BlockColliderChannel.session(buf, zone) : null; }
+	public boolean writeBlockColliders(BlockColliderChannel.Session session, long epoch, long revision,
+			float[] center, float[] boxes, boolean complete, boolean capped) {
+		return ownsBlockColliderStream() && BlockColliderChannel.write(buf, session, epoch, revision, System.currentTimeMillis(), center, boxes, complete, capped);
+	}
+	public java.util.Optional<BlockColliderChannel.Status> readBlockColliderStatus(BlockColliderChannel.Session session) {
+		return BlockColliderChannel.status(buf, session, System.currentTimeMillis());
 	}
 
 	/** Incremented by the host game each time F8 is pressed in it. */

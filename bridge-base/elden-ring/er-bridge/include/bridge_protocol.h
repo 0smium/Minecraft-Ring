@@ -64,6 +64,9 @@ typedef struct ErmcTerrainContacts {
 
 /* Actual simulation feet, independent of delayed/interpolated frame poses. */
 #define ERMC_OFF_COLLISION_CONTROL 0x350000u
+#define ERMC_OFF_HOST_INVENTORY_LEGACY 0x360000u /* Retired HINV v1/v2; explicitly invalidated */
+#define ERMC_HOST_INVENTORY_LEGACY_SIZE 0x8060u
+#define ERMC_OFF_HOST_INVENTORY 0x380000u /* HINV v3, complete bounded native inventory */
 typedef struct ErmcCollisionControl {
     volatile uint32_t seq;
     uint32_t flags, zone;
@@ -148,6 +151,124 @@ typedef struct ErmcHostProgression {
     uint16_t nameUnits;           /* 0x52 excludes terminator; zero unless READY */
     uint32_t reserved;            /* 0x54 */
 } ErmcHostProgression;            /* 0x58 */
+
+/* Actual ER inventory observations, never Minecraft container items or write requests.
+ * ownerFingerprint has the same weak-name semantics as HPRG; no native pointer crosses ABI. */
+#define ERMC_HOST_INVENTORY_MAGIC 0x564E4948u /* bytes "HINV" */
+#define ERMC_HOST_INVENTORY_VERSION 3u
+#define ERMC_INVENTORY_UNAVAILABLE 0u
+#define ERMC_INVENTORY_LOADING 1u
+#define ERMC_INVENTORY_READY 2u
+#define ERMC_INVENTORY_MC_CONTROL 1u
+#define ERMC_INVENTORY_TRUNCATED 2u
+#define ERMC_INVENTORY_KEY_ITEM 1u
+/* Each of the two validated native partitions has at most 4096 slots. */
+#define ERMC_MAX_INVENTORY_ENTRIES 8192u
+typedef struct ErmcInventoryEntry {
+    uint32_t slot;                /* native index: key index, or keyCapacity + normal index */
+    uint32_t gaitemHandle;        /* session-local item handle, not a native pointer */
+    uint32_t rawItemId;           /* category in high nibble; actual param ID in low 28 bits */
+    uint32_t quantity;
+    uint32_t sortId;
+    uint32_t equipmentMask;       /* confirmed matching handle/index, native equipment slots 0..21 */
+    uint32_t flags;               /* ERMC_INVENTORY_KEY_ITEM */
+    uint32_t reserved;
+} ErmcInventoryEntry;             /* 0x20 */
+typedef struct ErmcHostInventory {
+    volatile uint32_t seq;        /* 0x00 seqlock */
+    uint32_t magic, version, state;
+    uint64_t sampleFrame;         /* 0x10 originating GameState.frame */
+    uint64_t sampleTimeMs;        /* 0x18 Unix epoch milliseconds from now_ms(), NOT uptime */
+    uint64_t ownerFingerprint;    /* 0x20 same canonical weak-name hash as HPRG */
+    uint32_t hostLife;            /* 0x28 lifecycle, not durable character identity */
+    uint32_t flags;               /* 0x2C MC_CONTROL / TRUNCATED */
+    uint32_t count;               /* 0x30 at most ERMC_MAX_INVENTORY_ENTRIES */
+    uint32_t totalEntries;        /* 0x34 valid observed entries including truncated rows */
+    uint32_t normalCapacity;      /* 0x38 validated native slot capacity */
+    uint32_t keyCapacity;         /* 0x3C native key index partition capacity */
+    ErmcInventoryEntry entries[ERMC_MAX_INVENTORY_ENTRIES]; /* 0x40 */
+    uint64_t snapshotToken;       /* 0x40040 content token; 0 when unavailable */
+    uint32_t zone, writableSlots;
+    uint32_t talismanSlots;       /* 0 unknown, otherwise native total 1..4 */
+    uint32_t reserved[3];
+} ErmcHostInventory;              /* 0x40060; v3 has a separate location from v1/v2 */
+
+/* Read-only interaction handoff observation; no menu/input writes or pointers. */
+#define ERMC_OFF_HOST_INTERACTION 0x3D0000u
+#define ERMC_HOST_INTERACTION_MAGIC 0x544E4948u /* HINT */
+#define ERMC_HOST_INTERACTION_VERSION 1u
+#define ERMC_INTERACTION_VALID 1u
+#define ERMC_INTERACTION_MENU_BLOCKING 2u
+#define ERMC_INTERACTION_CAN_RESUME 4u
+#define ERMC_INTERACTION_RESTING 8u /* any of the native bonfire phase bits below */
+#define ERMC_INTERACTION_ACTION_READY 16u
+#define ERMC_INTERACTION_HOST_READY 32u
+#define ERMC_INTERACTION_REST_MASK 0x1E0u /* Lua begin/pending-end/sitting/stand-up */
+typedef struct ErmcHostInteraction {
+    volatile uint32_t seq;
+    uint32_t magic, version, flags;
+    uint64_t sampleFrame, sampleTimeMs, hostStartMs;
+    uint32_t hostPid, coreGeneration, hostLife, zone;
+    uint32_t restFlags, reserved;
+} ErmcHostInteraction; /* 0x40 */
+
+/* Opt-in Minecraft static block collision. Complete replacement snapshots only;
+ * no game pointers cross the wire. Coordinates are stable ER metres, NOT Havok. */
+#define ERMC_OFF_BLOCK_COLLIDERS 0x400000u
+#define ERMC_OFF_BLOCK_COLLIDER_STATUS 0x410000u
+#define ERMC_BLOCK_COLLIDER_MAGIC 0x4C43424Du /* MBCL */
+#define ERMC_BLOCK_COLLIDER_VERSION 1u
+#define ERMC_MAX_BLOCK_COLLIDERS 512u
+#define ERMC_BLOCK_COLLIDER_ENABLED 1u
+#define ERMC_BLOCK_COLLIDER_COMPLETE 2u
+#define ERMC_BLOCK_COLLIDER_CAPPED 4u /* nearest bounded subset, not an incomplete scan */
+#define ERMC_RAY_UNKNOWN 2u /* occluded by an owned block; neither native terrain nor proven air */
+typedef struct ErmcBlockColliderBox { float min[3], max[3]; } ErmcBlockColliderBox;
+typedef struct ErmcBlockColliders {
+    volatile uint32_t seq;
+    uint32_t magic, version, flags;
+    uint64_t revision, sampledAt, hostStartMs, mcStartMs;
+    uint32_t hostPid, coreGeneration, hostLife, zone;
+    uint32_t mcPid, count;
+    float center[3]; uint32_t reserved;
+    uint64_t worldEpoch;
+    ErmcBlockColliderBox boxes[ERMC_MAX_BLOCK_COLLIDERS];
+} ErmcBlockColliders; /* boxes at 0x60, total 0x3060 */
+typedef struct ErmcBlockColliderStatus {
+    volatile uint32_t seq;
+    uint32_t magic, version, state; /* 0 disabled, 1 waiting, 2 converging, 3 complete, 4 blocked */
+    uint64_t hostStartMs, sampleFrame;
+    uint32_t hostPid, coreGeneration, hostLife, zone;
+    uint64_t sampledAt, revision;
+    uint32_t owned, desired, pending, quarantined, created, removed, error, flags;
+    uint32_t mcPid, reserved;
+    uint64_t mcStartMs, worldEpoch;
+} ErmcBlockColliderStatus; /* 0x78 */
+static_assert(offsetof(ErmcBlockColliders, boxes) == 0x60 && sizeof(ErmcBlockColliders) == 0x3060, "MBCL ABI");
+static_assert(sizeof(ErmcBlockColliderStatus) == 0x78, "MBCL status ABI");
+
+/* Gameplay equipment intent mailbox, deliberately separate from the debug mailbox.
+ * No native pointers cross this ABI. Only the game thread executes accepted intents. */
+#define ERMC_OFF_HOST_EQUIPMENT 0x370000u
+#define ERMC_HOST_EQUIPMENT_VERSION 1u
+typedef struct ErmcEquipmentRequest {
+    uint32_t version, operation, hostPid, coreGeneration;
+    uint32_t hostLife, zone, equipmentSlot, inventorySlot;
+    uint32_t handle, itemId;
+    uint64_t hostStartMs, fingerprint, snapshotToken, deadlineMs, nonce;
+} ErmcEquipmentRequest; /* 80 bytes */
+typedef struct ErmcEquipmentResult {
+    uint32_t version;
+    int32_t status;
+    uint32_t equipmentSlot, handle, itemId, inventorySlot, hostLife, reserved;
+    uint64_t nonce, snapshotToken, sampledAt, hostStartMs;
+} ErmcEquipmentResult; /* 64 bytes */
+typedef struct ErmcEquipmentMailbox {
+    volatile uint32_t reqSeq, respSeq;
+    uint32_t reserved[2];
+    ErmcEquipmentRequest request;
+    ErmcEquipmentResult result;
+} ErmcEquipmentMailbox; /* 160 bytes */
 
 typedef struct ErmcHeader {
     uint32_t magic;               /* 0x00 */
@@ -496,6 +617,21 @@ static_assert(sizeof(ErmcHostEffects) == 0x38, "host effects size");
 static_assert(offsetof(ErmcHostEffects, rotEffectId) == 0x20 &&
               offsetof(ErmcHostEffects, frostProcs) == 0x30, "host effects v2 offsets");
 static_assert(sizeof(ErmcHostProgression) == 0x58, "host progression size");
+static_assert(sizeof(ErmcInventoryEntry) == 0x20 && sizeof(ErmcHostInventory) == 0x40060 &&
+              offsetof(ErmcHostInventory, snapshotToken) == 0x40040, "host inventory v3 size");
+static_assert(sizeof(ErmcEquipmentRequest) == 80 && sizeof(ErmcEquipmentResult) == 64 &&
+              sizeof(ErmcEquipmentMailbox) == 160, "equipment intent ABI");
+static_assert(offsetof(ErmcHostInventory, sampleFrame) == 0x10 &&
+              offsetof(ErmcHostInventory, sampleTimeMs) == 0x18 &&
+              offsetof(ErmcHostInventory, ownerFingerprint) == 0x20 &&
+              offsetof(ErmcHostInventory, entries) == 0x40, "host inventory offsets");
+static_assert(ERMC_OFF_COLLISION_CONTROL + sizeof(ErmcCollisionControl) <= ERMC_OFF_HOST_INVENTORY_LEGACY &&
+              ERMC_OFF_HOST_INVENTORY_LEGACY + ERMC_HOST_INVENTORY_LEGACY_SIZE <= ERMC_OFF_HOST_EQUIPMENT &&
+              ERMC_OFF_HOST_EQUIPMENT + sizeof(ErmcEquipmentMailbox) <= ERMC_OFF_HOST_INVENTORY &&
+              ERMC_OFF_HOST_INVENTORY + sizeof(ErmcHostInventory) <= ERMC_OFF_HOST_INTERACTION &&
+              ERMC_OFF_HOST_INTERACTION + sizeof(ErmcHostInteraction) <= ERMC_SHM_SIZE, "inventory/equipment/interaction blocks fit");
+static_assert(sizeof(ErmcHostInteraction) == 64 && offsetof(ErmcHostInteraction, sampleFrame) == 16 &&
+              offsetof(ErmcHostInteraction, restFlags) == 56, "host interaction ABI");
 static_assert(offsetof(ErmcHostProgression, sampleFrame) == 0x10 &&
               offsetof(ErmcHostProgression, fingerprint) == 0x28 &&
               offsetof(ErmcHostProgression, name) == 0x30 &&

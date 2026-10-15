@@ -33,11 +33,13 @@ public final class OfflineMixinProbe {
  "net.ccbluex.liquidbounce.config.types.Value",
  "net.ccbluex.liquidbounce.config.types.ChoiceConfigurable",
  "net.ccbluex.liquidbounce.features.module.ClientModule",
- "net.ccbluex.liquidbounce.features.module.modules.movement.speed.ModuleSpeed",
+ "net.ccbluex.liquidbounce.features.module.ModuleManager",
  "net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura",
  "net.ccbluex.liquidbounce.config.types.ToggleableConfigurable",
- "net.ccbluex.liquidbounce.features.module.modules.movement.speed.modes.SpeedBHopBase"
-}; int[] expectedCalls = {5,2,2,1,2,1,1}; int targetIndex = 0;
+ "net.ccbluex.liquidbounce.features.module.modules.movement.speed.modes.SpeedBHopBase",
+ "net.ccbluex.liquidbounce.integration.interop.protocol.rest.v1.client.ModuleFunctionsKt",
+ "net.ccbluex.liquidbounce.integration.interop.protocol.rest.v1.client.ModuleRequest"
+}; int[] expectedCalls = {5,2,2,1,1,1,1,1,1}; int targetIndex = 0;
     for (String target : targets) {
       byte[] original = bytes(target);
       byte[] result = transformer.transformClass(env, target, original);

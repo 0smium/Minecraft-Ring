@@ -184,6 +184,7 @@ public final class Overlay {
 			lastSwitchReq = req;
 		} else if (req != lastSwitchReq) {
 			lastSwitchReq = req;
+			HostInteractionClient.cancel();
 			switchToMc(mc);
 		}
 		boolean haveState = alive && link.snapshot(STATE);
@@ -201,6 +202,7 @@ public final class Overlay {
 			lastInWorldMs = now;
 		}
 		boolean hostBusyNow = !haveState || !STATE.has(Protocol.STATE_PLAYER_VALID) || STATE.has(Protocol.STATE_HOST_BUSY);
+		HostInteractionClient.onFrame(mc, link, haveClientWorld && !hostBusyNow && !STATE.has(Protocol.STATE_PLAYER_DEAD));
 		// Loading can stop the heartbeat for several seconds. Keep the bridge world
 		// transparent while its host window exists, including before the first save
 		// finishes loading; never expose the ordinary void world during that gap.

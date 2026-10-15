@@ -19,9 +19,15 @@
 !/docs/experiments/
 /docs/experiments/*
 !/docs/experiments/*.md
+!/docs/reviews/
+/docs/reviews/*
+!/docs/reviews/*.md
 !/docs/images/
 /docs/images/*
 !/docs/images/minecraft-ring.jpg
+!/docs/diagrams/
+/docs/diagrams/*
+!/docs/diagrams/growth-tree-layout.svg
 !/LICENSE
 !/THIRD_PARTY_NOTICES.md
 !/Install.ps1
@@ -49,9 +55,15 @@
 !/bridge-base/elden-ring/er-bridge/Makefile
 !/bridge-base/elden-ring/er-bridge/include/
 !/bridge-base/elden-ring/er-bridge/src/
+!/bridge-base/elden-ring/er-bridge/tests/
+/bridge-base/elden-ring/er-bridge/tests/*
+!/bridge-base/elden-ring/er-bridge/tests/native_colliders.cpp
 !/bridge-base/elden-ring/er-bridge/third_party/
 /bridge-base/elden-ring/er-bridge/third_party/*
 !/bridge-base/elden-ring/er-bridge/third_party/minhook/
+!/bridge-base/elden-ring/er-bridge/third_party/eldencraft/
+/bridge-base/elden-ring/er-bridge/third_party/eldencraft/*
+!/bridge-base/elden-ring/er-bridge/third_party/eldencraft/LICENSE
 !/bridge-base/elden-ring/mc-bridge/
 /bridge-base/elden-ring/mc-bridge/*
 !/bridge-base/elden-ring/mc-bridge/src/
@@ -61,6 +73,10 @@
 !/bridge-base/elden-ring/mc-bridge/build.gradle
 !/bridge-base/elden-ring/mc-bridge/settings.gradle
 !/bridge-base/elden-ring/mc-bridge/gradle.properties
+!/bridge-base/elden-ring/mc-bridge/character-bridge/
+/bridge-base/elden-ring/mc-bridge/character-bridge/*
+!/bridge-base/elden-ring/mc-bridge/character-bridge/build.gradle
+!/bridge-base/elden-ring/mc-bridge/character-bridge/src/
 # Generated files and private configuration, including inside source folders.
 **/.git/
 **/.gradle/

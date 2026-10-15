@@ -1,4 +1,4 @@
-param([switch]$LiquidBounce, [switch]$B01, [switch]$Meteor, [switch]$ExperimentalFrostBurst, [switch]$CheckOnly)
+param([switch]$Character, [switch]$LiquidBounce, [switch]$B01, [switch]$Meteor, [switch]$ExperimentalFrostBurst, [switch]$NativeBlockCollision, [switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
 if ($Meteor -and ($LiquidBounce -or $B01)) { throw 'Choose -Meteor or the -LiquidBounce/-B01 profile; simultaneous loading is not supported.' }
 $ProjectRoot = $PSScriptRoot
@@ -8,6 +8,7 @@ if (!(Test-Path -LiteralPath $GameExe)) { throw "Elden Ring was not found: $Game
 $ClientGradleArgs = @()
 $ClientTask = 'runClient'
 if ($B01) {
+    $Character = $true
     $LiquidBounce = $true
     $SkillsJar = Join-Path $ProjectRoot 'runtime\downloads\puffish_skills-0.19.2-1.21-fabric.jar'
     if (!(Test-Path -LiteralPath $SkillsJar)) {
@@ -22,7 +23,7 @@ if ($B01) {
     if ($SkillsHash -ne '276CE0B5F15BCFEAFE632C8EABE0D2D3104B9B0362897E66FD049BCD217BA915') {
         throw 'Prepare the pinned B01 dependency first: python tools/prepare_b01_skills.py'
     }
-    Write-Output 'B01 profile: fixed LiquidBounce + Pufferfish Skills 0.19.2; use /erbridge progression to bind and choose challenge mode.'
+    Write-Output 'B01 profile: Character Bridge + fixed LiquidBounce + Pufferfish Skills 0.19.2; use /erbridge progression to bind and choose challenge mode.'
 }
 if ($LiquidBounce) {
     $LbJar = Join-Path $ProjectRoot 'runtime\downloads\liquidbounce.jar'
@@ -58,17 +59,41 @@ if ($Meteor) {
     $ClientTask = 'productionMeteorClient'
     Write-Output "Meteor 0.5.8 candidate enabled (SHA-256 $MeteorHash); isolated run-meteor profile."
 }
-if ($ExperimentalFrostBurst) { $ClientGradleArgs += '-PexperimentalFrostBurst=true' }
+if ($Character) {
+    $ClientGradleArgs += '-Pcharacter=true'
+    Write-Output 'Character Bridge enabled: independent character JAR, inventory, mount and character rules.'
+} else {
+    Write-Output 'Core-only character profile: no character JAR or Skills dependency.'
+}
+if ($ExperimentalFrostBurst) {
+    if (!$Character) { throw '-ExperimentalFrostBurst requires -Character or -B01.' }
+    $ClientGradleArgs += '-PexperimentalFrostBurst=true'
+}
 $RunDirectory = if ($Meteor) { 'run-meteor' } else { 'run' }
+if ($NativeBlockCollision) {
+    $ClientGradleArgs += '-PnativeBlockCollision=true'
+    Write-Output 'Native block collision experiment selected: bounded static bodies, requires the paired DLL and full ER restart.'
+}
+$env:JAVA_HOME = Join-Path $ProjectRoot '.tools\java\jdk-25.0.4.1+1'
+$env:GRADLE_USER_HOME = Join-Path $ProjectRoot '.tools\gradle-home'
+$Gradle = Join-Path $ProjectRoot '.tools\gradle\gradle-9.7.1\bin\gradle.bat'
+if (!(Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
+    throw 'Prepare JDK 25 first; see docs/installation.md.'
+}
+if (!(Test-Path -LiteralPath $Gradle)) { throw 'Prepare Gradle 9.7.1 first; see docs/installation.md.' }
+# Resolve and build the exact selected runtime before opening ER. Artifact hashes
+# alone cannot detect missing Kotlin/Fabric dependencies or a broken character JAR.
+Write-Output 'Checking selected Minecraft runtime and building its bridge JARs before game startup...'
+& $Gradle '-p' "$ProjectRoot\bridge-base\elden-ring\mc-bridge" '--no-daemon' '--no-configuration-cache' @ClientGradleArgs 'verifyLaunchProfile'
+if ($LASTEXITCODE -ne 0) { throw 'Selected Minecraft profile failed preflight. Elden Ring was not started.' }
 if ($CheckOnly) {
-    Write-Output "Profile and artifact checks passed: $ClientTask ($RunDirectory). No game was started or configuration changed."
+    Write-Output "Profile build and runtime dependency checks passed: $ClientTask ($RunDirectory). No game was started or game configuration changed."
     Write-Output ("Gradle arguments: " + ($ClientGradleArgs -join ' '))
     return
 }
 $env:ERMC_DIR = Join-Path $ProjectRoot 'runtime'
 $env:ERBRIDGE = '1'
-$env:JAVA_HOME = (Get-ChildItem "$ProjectRoot\.tools\java" -Directory | Select-Object -First 1).FullName
-$env:GRADLE_USER_HOME = Join-Path $ProjectRoot '.tools\gradle-home'
+$env:ERMC_NATIVE_BLOCKS = if ($NativeBlockCollision) { '1' } else { '0' }
 New-Item -ItemType Directory -Path $env:ERMC_DIR -Force | Out-Null
 $SharedFile = Join-Path $env:ERMC_DIR 'bridge.shm'
 function Read-BridgeHeader {
@@ -87,6 +112,9 @@ function Read-BridgeHeader {
     } catch { return $null }
 }
 $HostProcess = Get-Process eldenring -ErrorAction SilentlyContinue | Where-Object Path -eq $GameExe | Select-Object -First 1
+if ($NativeBlockCollision -and $HostProcess) {
+    throw 'Native block collision needs a complete Elden Ring restart with -NativeBlockCollision; close ER before launching this experiment.'
+}
 if (!$HostProcess) {
     Write-Output 'Starting Elden Ring...'
     $HostProcess = Start-Process -FilePath $GameExe -WorkingDirectory $Install.game_dir -PassThru
@@ -131,6 +159,5 @@ function Set-MinecraftSetting([string]$Path, [string]$Name, [string]$Value) {
 Set-MinecraftSetting (Join-Path $MinecraftRun 'options.txt') 'fullscreen' 'false'
 Set-MinecraftSetting (Join-Path $MinecraftRun 'config\fullscreenfix.properties') 'startInFullscreen' 'false'
 Write-Output "Starting Minecraft in windowed mode... The $ClientTask task stays active while you play."
-$Gradle = (Get-ChildItem "$ProjectRoot\.tools\gradle" -Directory | Select-Object -First 1).FullName + '\bin\gradle.bat'
 & $Gradle '-p' "$ProjectRoot\bridge-base\elden-ring\mc-bridge" '--no-daemon' '--no-configuration-cache' @ClientGradleArgs 'remapJar' $ClientTask
 if ($LASTEXITCODE -ne 0) { throw 'Minecraft launch failed; see the console and run/logs/latest.log.' }

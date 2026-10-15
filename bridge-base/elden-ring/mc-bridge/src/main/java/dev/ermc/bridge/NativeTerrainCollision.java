@@ -261,7 +261,7 @@ public final class NativeTerrainCollision {
         if (snapshot == null) return;
         Vec3 current = player.position(), previous = snapshot.previousFeet.put(player.getUUID(), current);
         if (valid(player.level(), current) == null || !TerrainManager.recallSettled(400)
-                || player.isSpectator() || player.getAbilities().flying) return;
+                || player.isSpectator() || dev.ermc.bridge.api.PlayerFlight.isFlying(player)) return;
         // The first complete snapshot may arrive after several falling ticks.
         // Its original control pose is still direct evidence of that crossing.
         if (previous == null && snapshot.previousNativeFeet != null

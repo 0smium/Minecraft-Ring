@@ -10,3 +10,9 @@ pluginManagement {
 }
 
 rootProject.name = 'er-bridge'
+
+// A Core-only build never configures optional character or Skills dependencies.
+if (providers.gradleProperty('character').map { it.toBoolean() }.getOrElse(false)
+        || providers.gradleProperty('b01').map { it.toBoolean() }.getOrElse(false)) {
+    include 'character-bridge'
+}

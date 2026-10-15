@@ -1,6 +1,8 @@
 package dev.ermc.bridge;
 
 import dev.ermc.bridge.entity.CombatBridge;
+import dev.ermc.bridge.api.BridgeLifecycle;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import dev.ermc.bridge.entity.EntityBridge;
 import dev.ermc.bridge.entity.ErBridgeEntities;
 import net.fabricmc.api.ModInitializer;
@@ -54,12 +56,22 @@ public class ErBridgeMod implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		ErBridgeEntities.init();
+		dev.ermc.bridge.world.SurfaceResources.initialize();
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+			// Fabric can report channelInactive from Netty, before server-side disconnection.
+			var player = handler.player;
+			server.execute(() -> BridgeLifecycle.PLAYER_DISCONNECTED.invoker().disconnected(player));
+		});
 		ServerLifecycleEvents.SERVER_STARTING.register(server -> TerrainRegeneration.reset());
-		ServerLifecycleEvents.SERVER_STARTED.register(TerrainManager::onServerStarted);
+		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+			TerrainManager.onServerStarted(server);
+			BridgeLifecycle.HOST_WORLD_READY.invoker().tick(server);
+		});
 		ServerLifecycleEvents.SERVER_STARTED.register(LifeBridge::onServerStarted);  // after TerrainManager: needs isBridgeWorld()
 		ServerLifecycleEvents.SERVER_STARTED.register(WorldEnvironmentBridge::onServerStarted);
-		ServerLifecycleEvents.SERVER_STOPPING.register(HostEffectsBridge::onServerStopping);
 		ServerLifecycleEvents.SERVER_STOPPED.register(WorldEnvironmentBridge::reset);
+		ServerLifecycleEvents.SERVER_STOPPED.register(dev.ermc.bridge.collision.NativeBlockCollisionBridge::reset);
+		BridgeLifecycle.PLAYER_DISCONNECTED.register(dev.ermc.bridge.collision.NativeBlockCollisionBridge::disconnected);
 		ServerChunkEvents.CHUNK_LOAD.register(BridgeBiomes::onChunkLoad);
 		ServerChunkEvents.CHUNK_LOAD.register(TerrainRegeneration::onChunkLoad);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
@@ -69,19 +81,20 @@ public class ErBridgeMod implements ModInitializer {
 			EntityBridge.reset();
 			CombatBridge.reset();
 			LifeBridge.reset();
-			HostEffectsBridge.reset();
 		});
+		ServerTickEvents.END_SERVER_TICK.register(server -> BridgeLifecycle.BEFORE_TERRAIN_TICK.invoker().tick(server));
 		ServerTickEvents.END_SERVER_TICK.register(TerrainManager::onServerTick);
+		ServerTickEvents.END_SERVER_TICK.register(dev.ermc.bridge.world.SurfaceResources::tick);
 		ServerTickEvents.END_SERVER_TICK.register(EntityBridge::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(CombatBridge::onServerTick);
-		ServerTickEvents.END_SERVER_TICK.register(HostEffectsBridge::onServerTick);
+		ServerTickEvents.END_SERVER_TICK.register(server -> BridgeLifecycle.AFTER_COMBAT_TICK.invoker().tick(server));
 		ServerTickEvents.END_SERVER_TICK.register(LifeBridge::onServerTick);
 		ServerTickEvents.END_SERVER_TICK.register(WorldEnvironmentBridge::onServerTick);
+		ServerTickEvents.END_SERVER_TICK.register(dev.ermc.bridge.collision.NativeBlockCollisionBridge::tick);
 		ServerLivingEntityEvents.AFTER_DEATH.register(LifeBridge::onDeath);
 		ServerPlayerEvents.AFTER_RESPAWN.register(LifeBridge::onRespawn);
 		// Networking JOIN runs before PlayerList registers the player; owner identity is ready here.
 		ServerPlayerEvents.JOIN.register(player -> TerrainManager.onJoin(player.getServer(), player));
-		dev.ermc.bridge.gameplay.runtime.B01Runtime.initialize();
 
 		// The host game's ground is not breakable, even in creative mode.
 		PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, blockEntity) -> !isTerrain(state));

@@ -16,6 +16,7 @@ from test_b01_preparation import java_path
 ROOT = Path(__file__).resolve().parents[1]
 ER = ROOT / "bridge-base/elden-ring/er-bridge"
 MC = ER.parent / "mc-bridge/src"
+CHARACTER = ER.parent / "mc-bridge/character-bridge/src"
 
 NATIVE = r"""
 #include <cstdio>
@@ -103,6 +104,14 @@ int main(int argc, char** argv) {
 """
 
 STUBS = {
+    "dev/ermc/bridge/character/action/ActionLockServer.java": '''package dev.ermc.bridge.character.action;
+import net.minecraft.server.level.ServerPlayer;
+public final class ActionLockServer {
+public static ServerPlayer holder;public static boolean sleeping;public static int observations,clears;
+public static void observe(ServerPlayer player,boolean asleep){holder=player;sleeping=asleep;observations++;}
+public static void clear(){holder=null;sleeping=false;clears++;}
+public static boolean blocks(ServerPlayer player){return holder==player&&sleeping;}
+}''',
     "org/spongepowered/asm/mixin/Mixin.java": 'package org.spongepowered.asm.mixin; public @interface Mixin { Class<?>[] value(); }',
     "org/spongepowered/asm/mixin/gen/Accessor.java": 'package org.spongepowered.asm.mixin.gen; public @interface Accessor { String value(); }',
     "org/slf4j/Logger.java": 'package org.slf4j; public interface Logger { default void info(String s,Object... args) {} }',
@@ -228,8 +237,9 @@ def main():
             files.append(p)
         main = MC / "main/java/dev/ermc/bridge"
         files += [main / "link" / f"{name}.java" for name in
-                  ("BridgePaths", "Protocol", "HostEffectState", "HostEffectCodec", "HostEffectCursor", "HostEffectRules")]
-        files += [main / "HostEffectsBridge.java", main / "mixin/MobEffectInstanceAccessor.java",
+                  ("BridgePaths", "Protocol", "HostEffectState", "HostEffectCodec", "HostEffectCursor")]
+        character = CHARACTER / "main/java/dev/ermc/bridge"
+        files += [character / "link/HostEffectRules.java", character / "HostEffectsBridge.java", character / "mixin/MobEffectInstanceAccessor.java",
                   MC / "testFixtures/host-effects/HostEffectsCheck.java"]
         classes = out / "classes"
         classes.mkdir()

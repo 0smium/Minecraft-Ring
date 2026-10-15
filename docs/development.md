@@ -13,10 +13,16 @@
 | `mc-bridge/src/main/java/dev/ermc/bridge/` | Server-side terrain, collision shapes, moving platforms and shared life |
 | `mc-bridge/src/main/java/dev/ermc/bridge/entity/` | Host enemy proxies and combat |
 | `mc-bridge/src/client/java/dev/ermc/bridge/client/` | Camera, capture, Windows overlay, input and automatic bridge-world opening |
-| `Launch.ps1` | Host startup, readiness check, window settings and Fabric development-client launch |
+| `mc-bridge/character-bridge/` | Independent character UI, Horse lifecycle, effects, progression and optional Skills/LB authorization |
+| `mc-bridge/src/main/java/dev/ermc/bridge/api/` | Public motion, ordered lifecycle and host/capability data contracts |
+| `Launch.ps1` | Profile build/dependency preflight, host startup and Minecraft launch |
 
 Paths abbreviated to `er-bridge/` and `mc-bridge/` above are relative to
 `bridge-base/elden-ring/`.
+
+Core can build without Character, Skills, LB or Meteor. Character is an opt-in
+Gradle subproject and a separate Fabric JAR; build/launch flags and compatibility
+are documented in [character modules](character-modules.md).
 
 ## Protocol and rendering
 
@@ -28,11 +34,20 @@ Java can also override the directory with `-Derbridge.dir=<path>`.
 
 Actual host effects use an optional, separately versioned `HEFX` block at
 `0xC00`. The native `HostEffectsReader` reads identified ER state;
-`HostEffectsBridge` applies vanilla Minecraft effects on the server thread.
+the optional Character mod's `HostEffectsBridge` applies vanilla Minecraft effects on the server thread.
 Unattributed HP loss is observation data rather than an effect identity or a
 second damage event. HEFX v2 adds rot, frost, sleep and madness; the Java reader also accepts
 poison-only v1. The mappings, experimental frost burst and rollout checks are in
 [host-state mapping](host-state-mapping.md).
+
+The optional `HINV v2` block at `0x360000` publishes the local host's
+carried inventory and equipment-slot observations. Full reads run at most twice
+per second; loading or owner changes invalidate old data immediately. The B02
+[inventory and Minecraft horse candidate](b02-character-slice.md) includes the
+original viewer, managed vanilla Horse trial and scoped debug-enemy cleanup.
+The current [equipment page](equipment-v1.md) uses HINV v2 identity/capabilities
+and a separate confirmed equipment mailbox at `0x370000`; v1 remains readable
+but cannot authorize writes.
 
 State and control slots use sequence counters so readers can reject an update
 in progress. Terrain queries, moving-platform cells, enemy state and combat
@@ -55,8 +70,8 @@ The official release JAR and eight injection calls have passed offline checks;
 module initialization and gameplay remain outstanding.
 [Ability progression](ability-progression-strategy.md) defines the proposed
 server-owned limits, module modes and revocation rules. B01 now connects real
-host levels, the skill tree and fixed LB Speed/Aura authorization; further
-abilities and Meteor growth authorization remain proposals.
+host levels and the [14-ability skill tree](growth-v1.md), with costs, staged
+limits and reversible test presets. Meteor growth authorization remains a proposal.
 
 ## Terrain and moving platforms
 
@@ -125,6 +140,11 @@ exercise collision, movement and capture behavior without launching the games:
 
 | Command | Coverage |
 | --- | --- |
+| `python tools/test_sleep_action_server.py` | Production owner-only sleep lifecycle/action policy with explicit platform/network doubles |
+| `python tools/test_sleep_action_mixins.py` | Actual MC/LB sleep injections, Core/Character attack guards, module categories/queues and paused lease; no gameplay |
+| `python tools/test_surface_resource_plan.py` | Coordinate-stable tree/plant/rock layouts, bounds and leaf connectivity; no world startup |
+| `python tools/test_surface_resource_state.py` | Actual SavedData/NBT receipts, sampling freshness and stable-ground selection; no world startup |
+| `python tools/test_surface_resource_blocks.py` | Real MC block/plant/leaf states and loaded-only placement planning; memory-backed blocks, no live world mutation |
 | `python tools/test_host_effects.py` | Native-to-Java HEFX v1/v2, owned vanilla-effect leases, cadence, overlap, cleanup and optional frost events; platform stubs, not a game build |
 | `python tools/test_host_effects.py --vanilla` | Also tests actual MC 1.21.1 weaker/longer hidden-effect merging, ticking, nested and infinite chains; no game startup |
 | `python tools/test_host_effects_mixin.py` | Built production accessor applied to the actual intermediary MC effect class; run after Fabric build |
@@ -133,6 +153,9 @@ exercise collision, movement and capture behavior without launching the games:
 | `python tools/test_b01_preparation.py` | [B01 preparation](b01-preparation.md): character/session isolation, persistent level entitlement and capability policies; simulated hosts and fresh-JVM restore |
 | `python tools/test_local_host_routing.py --fabric-events --regression-ref b8615e1` | Real Combat/Life and Terrain recall code with platform doubles; pinned Fabric/MC JOIN order, local owner isolation and counter restarts; rejects old broadcast behavior |
 | `python tools/test_test_runes.py` | Explicit rune command bounds, ownership/session checks, expiry/replay handling, real function arithmetic on private fixture memory, closed-game backup and CLI tests; no live mailbox access |
+| `python tools/test_host_inventory.py` then `python tools/test_inventory_client.py` | Target-exe read signatures, actual C++ reader/feed with memory doubles, C++ publisher bytes consumed by Java; no live inventory |
+| `python tools/test_debug_spawn_ownership.py` | Actual native request/recognition/cleanup code with private objects; no full-debug-set deletion or late-result adoption |
+| `python tools/test_mount_vanilla.py` and `python tools/test_mount_lifecycle.py` | Real MC stack/components/codec and extracted cleanup functions with lifecycle doubles; actual riding remains unverified |
 | `python tools/test_stable_terrain.py` | Active block collision path and saved 8x8/16x16 compatibility |
 | `python tools/test_terrain_passages.py` | Two-stage passage refinement, descending stairs, low vaults, wall retention and door invalidation |
 | `python tools/test_terrain_clearance.py` | Narrow arches, corner and one-sided walls, stale openings and floor safety |

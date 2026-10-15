@@ -14,7 +14,9 @@ with Minecraft's controls, bring your inventory and skin, build in Elden Ring's
 world, and fight its enemies with Minecraft weapons. Elden Ring keeps running
 its own world, characters, interactions and saves.
 
-A native Windows bridge and a Fabric mod connect the games. Minecraft handles
+A native Windows bridge and the Core Fabric mod connect the games.
+The optional [Character mod](docs/character-modules.md) adds [equipment](docs/equipment-v1.md),
+managed mounts, status rules and a [14-ability growth tree](docs/growth-v1.md) in the current candidate. Minecraft handles
 the player and blocks; Elden Ring draws the combined scene, including Minecraft's
 hand, character and HUD. Both games stay running throughout a session.
 
@@ -24,6 +26,10 @@ hand, character and HUD. Both games stay running throughout a session.
 
 [Setup guide](docs/installation.md) · [Development and diagnostics](docs/development.md) ·
 [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/siddoff/Minecraft-Ring/issues)
+
+Fork development: [current status and PR order](docs/current-development.md) ·
+[architecture](docs/architecture.md) · [roadmap](docs/gameplay-roadmap.md).
+The character gameplay mod split is required but has not been implemented in this candidate.
 
 ## What works
 

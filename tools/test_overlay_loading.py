@@ -42,7 +42,7 @@ public class OverlayLoadingTest {
         static Platform get() {return WINDOWS;}
     }
     static class Protocol {
-        static final int STATE_PLAYER_VALID=1,STATE_HOST_BUSY=2,STATE_WINDOW_VALID=4;
+        static final int STATE_PLAYER_VALID=1,STATE_HOST_BUSY=2,STATE_WINDOW_VALID=4,STATE_PLAYER_DEAD=8;
     }
     static class GameState {
         int flags=Protocol.STATE_WINDOW_VALID;
@@ -75,6 +75,11 @@ public class OverlayLoadingTest {
         static boolean compositing,enabled=true;
         static boolean activeInHost() {return compositing;}
         static boolean enabled() {return enabled;}
+    }
+    // The handoff policy itself is exercised by test_interaction_handoff.py.
+    static class HostInteractionClient {
+        static void cancel() {}
+        static void onFrame(Minecraft mc,ErLink link,boolean usable) {}
     }
     static class CameraSync {
         enum Mode {DRIVE_HOST,FOLLOW_HOST}

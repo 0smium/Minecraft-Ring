@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "er_character_bridge",
+  "version": "${version}",
+  "name": "ER Character Bridge",
+  "description": "Character inventory, managed mounts, host status effects and optional progression for Minecraft Ring.",
+  "authors": [
+    "0smium"
+  ],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.ermc.bridge.character.CharacterBridgeMod"
+    ],
+    "client": [
+      "dev.ermc.bridge.character.CharacterBridgeClient"
+    ]
+  },
+  "mixins": [
+    "er_character_bridge.mixins.json",
+    {
+      "config": "er_character_bridge.action.mixins.json",
+      "environment": "client"
+    },
+    {
+      "config": "er_character_bridge.liquidbounce.mixins.json",
+      "environment": "client"
+    },
+    {
+      "config": "er_character_bridge.equipment.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "erbridge": "=${version}",
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

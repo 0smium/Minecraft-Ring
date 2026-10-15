@@ -1,19 +1,19 @@
 {
-	"required": true,
-	"package": "dev.ermc.bridge.mixin",
-	"compatibilityLevel": "JAVA_21",
-	"mixins": [
-		"ExplosionMixin",
-		"LivingEntityMixin",
-		"MobEffectInstanceAccessor",
-		"MobMixin",
-		"PlayerMixin",
-		"ServerPlayerMovementMixin",
-		"ServerWeatherMixin",
-		"TimeCommandMixin",
-		"WeatherCommandMixin"
-	],
-	"injectors": {
-		"defaultRequire": 1
-	}
+  "required": true,
+  "package": "dev.ermc.bridge.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ExplosionMixin",
+    "LivingEntityMixin",
+    "MobMixin",
+    "PlayerMixin",
+    "PlacedBlockColliderRevisionMixin",
+    "ServerPlayerMovementMixin",
+    "ServerWeatherMixin",
+    "TimeCommandMixin",
+    "WeatherCommandMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
 }

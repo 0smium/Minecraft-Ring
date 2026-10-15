@@ -22,5 +22,5 @@ for name in ['buffer.c','hook.c','trampoline.c','hde/hde64.c']:
     mh.append(str(obj))
 link = ['--target=x86_64-w64-mingw32','-shared','-static','-s']
 subprocess.run([str(CXX),*link, *[str(OBJ/f'{x}.o') for x in ['proxy','log','shm']],str(ER/'src/dinput8.def'),'-luser32','-lkernel32','-o',str(OUT/'dinput8.dll')],check=True)
-subprocess.run([str(CXX),*link, *[str(OBJ/f'{x}.o') for x in ['core','crash','log','shm','memutil','debugcmd','frame','game','compositor']],*mh,'-luser32','-lkernel32','-ld3d12','-ldxgi','-ldxguid','-o',str(OUT/'erbridge_core.dll')],check=True)
+subprocess.run([str(CXX),*link, *[str(OBJ/f'{x}.o') for x in ['core','crash','log','shm','memutil','debugcmd','frame','game','compositor']],*mh,'-luser32','-lkernel32','-lbcrypt','-ld3d12','-ldxgi','-ldxguid','-o',str(OUT/'erbridge_core.dll')],check=True)
 print('Built native Windows DLLs in',OUT)

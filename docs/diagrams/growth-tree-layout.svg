@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="-390 -410 780 800">
+<rect x="-390" y="-410" width="780" height="800" fill="#111a21"/>
+<g font-family="Microsoft YaHei, sans-serif" fill="#e8ece9" text-anchor="middle">
+<text y="-375" font-size="23">交界地成长 · 六类布局</text>
+<text y="-349" font-size="12" fill="#a8b8bd">当前 32 节点布局预览 · 非游戏截图 · 连线表示真实前置</text>
+<path d="M-54,-140 L-77,-200" stroke="#65767e" stroke-width="2"/>
+<path d="M-77,-200 L-100,-260" stroke="#65767e" stroke-width="2"/>
+<path d="M-54,-140 L-117,-179" stroke="#65767e" stroke-width="2"/>
+<path d="M-18,-149 L-26,-212" stroke="#65767e" stroke-width="2"/>
+<path d="M-26,-212 L-34,-276" stroke="#65767e" stroke-width="2"/>
+<path d="M-18,-149 L0,-246" stroke="#65767e" stroke-width="2"/>
+<path d="M0,-246 L0,-310" stroke="#65767e" stroke-width="2"/>
+<path d="M18,-149 L26,-212" stroke="#65767e" stroke-width="2"/>
+<path d="M54,-140 L77,-200" stroke="#65767e" stroke-width="2"/>
+<path d="M77,-200 L100,-260" stroke="#65767e" stroke-width="2"/>
+<path d="M116,-95 L165,-136" stroke="#65767e" stroke-width="2"/>
+<path d="M165,-136 L215,-177" stroke="#65767e" stroke-width="2"/>
+<path d="M141,-53 L200,-75" stroke="#65767e" stroke-width="2"/>
+<path d="M200,-75 L260,-97" stroke="#65767e" stroke-width="2"/>
+<path d="M141,53 L200,75" stroke="#65767e" stroke-width="2"/>
+<path d="M200,75 L260,97" stroke="#65767e" stroke-width="2"/>
+<path d="M-130,75 L-185,107" stroke="#65767e" stroke-width="2"/>
+<path d="M-185,107 L-241,139" stroke="#65767e" stroke-width="2"/>
+<text x="0" y="-87" font-size="15" fill="#81cdb2">机动</text>
+<g><title>迅捷 1 · 4 点</title>
+<circle cx="-54" cy="-140" r="14" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="-54" y="-136" font-size="11">4</text>
+<text x="-54" y="-108" font-size="10" fill="#81cdb2">迅捷 1</text></g>
+<g><title>迅捷 2 · 4 点</title>
+<circle cx="-77" cy="-200" r="16" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="-77" y="-196" font-size="11">4</text>
+<text x="-77" y="-166" font-size="10" fill="#81cdb2">迅捷 2</text></g>
+<g><title>迅捷 3 · 12 点</title>
+<circle cx="-100" cy="-260" r="18" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="-100" y="-256" font-size="11">12</text>
+<text x="-100" y="-224" font-size="10" fill="#81cdb2">迅捷 3</text></g>
+<g><title>空中行走 1 · 14 点</title>
+<circle cx="-18" cy="-149" r="14" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="-18" y="-145" font-size="11">14</text>
+<text x="-18" y="-117" font-size="10" fill="#81cdb2">飞行 1</text></g>
+<g><title>空中行走 2 · 6 点</title>
+<circle cx="-26" cy="-212" r="16" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="-26" y="-208" font-size="11">6</text>
+<text x="-26" y="-178" font-size="10" fill="#81cdb2">飞行 2</text></g>
+<g><title>空中行走 3 · 20 点</title>
+<circle cx="-34" cy="-276" r="18" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="-34" y="-272" font-size="11">20</text>
+<text x="-34" y="-240" font-size="10" fill="#81cdb2">飞行 3</text></g>
+<g><title>空中跳跃 1 · 7 点</title>
+<circle cx="18" cy="-149" r="14" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="18" y="-145" font-size="11">7</text>
+<text x="18" y="-117" font-size="10" fill="#81cdb2">空跳 1</text></g>
+<g><title>空中跳跃 2 · 20 点</title>
+<circle cx="26" cy="-212" r="16" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="26" y="-208" font-size="11">20</text>
+<text x="26" y="-178" font-size="10" fill="#81cdb2">空跳 2</text></g>
+<g><title>越障 1 · 4 点</title>
+<circle cx="54" cy="-140" r="14" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="54" y="-136" font-size="11">4</text>
+<text x="54" y="-108" font-size="10" fill="#81cdb2">越障 1</text></g>
+<g><title>越障 2 · 3 点</title>
+<circle cx="77" cy="-200" r="16" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="77" y="-196" font-size="11">3</text>
+<text x="77" y="-166" font-size="10" fill="#81cdb2">越障 2</text></g>
+<g><title>越障 3 · 12 点</title>
+<circle cx="100" cy="-260" r="18" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="100" y="-256" font-size="11">12</text>
+<text x="100" y="-224" font-size="10" fill="#81cdb2">越障 3</text></g>
+<g><title>连跳步法 1 · 6 点</title>
+<circle cx="-117" cy="-179" r="14" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="-117" y="-175" font-size="11">6</text>
+<text x="-117" y="-147" font-size="10" fill="#81cdb2">连跳步法 1</text></g>
+<g><title>精确飞行 1 · 8 点</title>
+<circle cx="0" cy="-246" r="14" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="0" y="-242" font-size="11">8</text>
+<text x="0" y="-214" font-size="10" fill="#81cdb2">精确飞行 1</text></g>
+<g><title>精确飞行 2 · 18 点</title>
+<circle cx="0" cy="-310" r="16" fill="#1d2931" stroke="#81cdb2" stroke-width="2"/>
+<text x="0" y="-306" font-size="11">18</text>
+<text x="0" y="-276" font-size="10" fill="#81cdb2">精确飞行 2</text></g>
+<text x="75" y="-43" font-size="15" fill="#ecab89">战斗</text>
+<g><title>近战辅助 1 · 8 点</title>
+<circle cx="116" cy="-95" r="14" fill="#1d2931" stroke="#ecab89" stroke-width="2"/>
+<text x="116" y="-91" font-size="11">8</text>
+<text x="116" y="-63" font-size="10" fill="#ecab89">近战 1</text></g>
+<g><title>近战辅助 2 · 6 点</title>
+<circle cx="165" cy="-136" r="16" fill="#1d2931" stroke="#ecab89" stroke-width="2"/>
+<text x="165" y="-132" font-size="11">6</text>
+<text x="165" y="-102" font-size="10" fill="#ecab89">近战 2</text></g>
+<g><title>近战辅助 3 · 18 点</title>
+<circle cx="215" cy="-177" r="18" fill="#1d2931" stroke="#ecab89" stroke-width="2"/>
+<text x="215" y="-173" font-size="11">18</text>
+<text x="215" y="-141" font-size="10" fill="#ecab89">近战 3</text></g>
+<g><title>稳固架势 1 · 8 点</title>
+<circle cx="141" cy="-53" r="14" fill="#1d2931" stroke="#ecab89" stroke-width="2"/>
+<text x="141" y="-49" font-size="11">8</text>
+<text x="141" y="-21" font-size="10" fill="#ecab89">抗击退 1</text></g>
+<g><title>稳固架势 2 · 6 点</title>
+<circle cx="200" cy="-75" r="16" fill="#1d2931" stroke="#ecab89" stroke-width="2"/>
+<text x="200" y="-71" font-size="11">6</text>
+<text x="200" y="-41" font-size="10" fill="#ecab89">抗击退 2</text></g>
+<g><title>稳固架势 3 · 18 点</title>
+<circle cx="260" cy="-97" r="18" fill="#1d2931" stroke="#ecab89" stroke-width="2"/>
+<text x="260" y="-93" font-size="11">18</text>
+<text x="260" y="-61" font-size="10" fill="#ecab89">抗击退 3</text></g>
+<text x="75" y="43" font-size="15" fill="#d6bc79">建造</text>
+<g><title>自动搭桥 1 · 7 点</title>
+<circle cx="141" cy="53" r="14" fill="#1d2931" stroke="#d6bc79" stroke-width="2"/>
+<text x="141" y="57" font-size="11">7</text>
+<text x="141" y="85" font-size="10" fill="#d6bc79">搭桥 1</text></g>
+<g><title>自动搭桥 2 · 5 点</title>
+<circle cx="200" cy="75" r="16" fill="#1d2931" stroke="#d6bc79" stroke-width="2"/>
+<text x="200" y="79" font-size="11">5</text>
+<text x="200" y="109" font-size="10" fill="#d6bc79">搭桥 2</text></g>
+<g><title>自动搭桥 3 · 16 点</title>
+<circle cx="260" cy="97" r="18" fill="#1d2931" stroke="#d6bc79" stroke-width="2"/>
+<text x="260" y="101" font-size="11">16</text>
+<text x="260" y="133" font-size="10" fill="#d6bc79">搭桥 3</text></g>
+<g><title>谨慎行走 1 · 2 点</title>
+<circle cx="116" cy="95" r="14" fill="#1d2931" stroke="#d6bc79" stroke-width="2"/>
+<text x="116" y="99" font-size="11">2</text>
+<text x="116" y="127" font-size="10" fill="#d6bc79">护边 1</text></g>
+<text x="0" y="87" font-size="15" fill="#9abde2">生存</text>
+<g><title>落地保护 1 · 10 点</title>
+<circle cx="25" cy="148" r="14" fill="#1d2931" stroke="#9abde2" stroke-width="2"/>
+<text x="25" y="152" font-size="11">10</text>
+<text x="25" y="180" font-size="10" fill="#9abde2">落地 1</text></g>
+<g><title>护甲整理 1 · 3 点</title>
+<circle cx="-25" cy="148" r="14" fill="#1d2931" stroke="#9abde2" stroke-width="2"/>
+<text x="-25" y="152" font-size="11">3</text>
+<text x="-25" y="180" font-size="10" fill="#9abde2">护甲 1</text></g>
+<text x="-75" y="43" font-size="15" fill="#b8a6d9">情报</text>
+<g><title>敌情轮廓 1 · 3 点</title>
+<circle cx="-98" cy="113" r="14" fill="#1d2931" stroke="#b8a6d9" stroke-width="2"/>
+<text x="-98" y="117" font-size="11">3</text>
+<text x="-98" y="145" font-size="10" fill="#b8a6d9">轮廓 1</text></g>
+<g><title>敌情标记 1 · 2 点</title>
+<circle cx="-130" cy="75" r="14" fill="#1d2931" stroke="#b8a6d9" stroke-width="2"/>
+<text x="-130" y="79" font-size="11">2</text>
+<text x="-130" y="107" font-size="10" fill="#b8a6d9">标记 1</text></g>
+<g><title>敌情标记 2 · 2 点</title>
+<circle cx="-185" cy="107" r="16" fill="#1d2931" stroke="#b8a6d9" stroke-width="2"/>
+<text x="-185" y="111" font-size="11">2</text>
+<text x="-185" y="141" font-size="10" fill="#b8a6d9">标记 2</text></g>
+<g><title>敌情标记 3 · 8 点</title>
+<circle cx="-241" cy="139" r="18" fill="#1d2931" stroke="#b8a6d9" stroke-width="2"/>
+<text x="-241" y="143" font-size="11">8</text>
+<text x="-241" y="175" font-size="10" fill="#b8a6d9">标记 3</text></g>
+<g><title>方向指示 1 · 2 点</title>
+<circle cx="-147" cy="29" r="14" fill="#1d2931" stroke="#b8a6d9" stroke-width="2"/>
+<text x="-147" y="33" font-size="11">2</text>
+<text x="-147" y="61" font-size="10" fill="#b8a6d9">指向 1</text></g>
+<text x="-75" y="-44" font-size="15" fill="#b6ca83">工具</text>
+<g><title>工具选择 1 · 2 点</title>
+<circle cx="-130" cy="-75" r="14" fill="#1d2931" stroke="#b6ca83" stroke-width="2"/>
+<text x="-130" y="-71" font-size="11">2</text>
+<text x="-130" y="-43" font-size="10" fill="#b6ca83">工具 1</text></g>
+<text y="2" font-size="14">76 点基础</text>
+<text y="22" font-size="12" fill="#a8b8bd">116 点广修双专精</text>
+<text y="354" font-size="12" fill="#a8b8bd">步法：地面 / 连跳 · 飞行：巡航 / 精确 · 分支各自付费，不改旧学习和点数</text>
+</g></svg>
