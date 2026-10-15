@@ -22,6 +22,14 @@
         "fly_3"
       ],
       [
+        "fly_1",
+        "fly_precision_1"
+      ],
+      [
+        "fly_precision_1",
+        "fly_precision_2"
+      ],
+      [
         "airjump_1",
         "airjump_2"
       ],

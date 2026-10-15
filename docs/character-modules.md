@@ -1,12 +1,12 @@
 # Core 与独立角色模组
 
-2026-10-15，PR #6 集成候选。Fabric配套版本为0.3.6，新增角色睡眠主动操作/LB执行约束和护符装卸；需配套本批原生DLL的新护符参数/调用校验，HINV v3、HINT v1与MBCL v1布局未变。实际安装尚为0.3.2，因此集中验证前需更新候选DLL与两个JAR。
-实际拆成两个制品；0.3.2 B01+LB加载和重进已由用户实测，0.3.3–0.3.6仍为开发/离线候选。
+2026-10-15，PR #6 集成候选。Fabric配套版本为0.3.7，新增Fly精确分支与资源区域排除；继续配套0.3.6原生DLL的护符参数/调用校验，HINV v3、HINT v1与MBCL v1布局未变。实际安装尚为0.3.2，因此集中验证前需更新候选DLL与两个JAR。
+实际拆成两个制品；0.3.2 B01+LB加载和重进已由用户实测，0.3.3–0.3.7仍为开发/离线候选。
 
 | 制品 | 保留内容 | 依赖 |
 | --- | --- | --- |
-| `er-bridge-0.3.6.jar` / `erbridge` | 合成、输入、地形、地表资源、实体代理、生命/普通受击、宿主传输校验、可选原生方块碰撞、公共API | MC/Fabric；无角色或能力端依赖 |
-| `er-character-bridge-0.3.6.jar` / `er_character_bridge` | E→ER防具/护符页、原版Horse管理、状态/睡眠动作规则、14模块/30节点含连跳分支、LB守卫 | 精确配套Core 0.3.6；默认无Skills依赖 |
+| `er-bridge-0.3.7.jar` / `erbridge` | 合成、输入、地形、地表资源、实体代理、生命/普通受击、宿主传输校验、可选原生方块碰撞、公共API | MC/Fabric；无角色或能力端依赖 |
+| `er-character-bridge-0.3.7.jar` / `er_character_bridge` | E→ER防具/护符页、原版Horse管理、状态/睡眠动作规则、14模块/32节点含连跳与精确飞行分支、LB守卫 | 精确配套Core 0.3.7；默认无Skills依赖 |
 | 同一角色模组的 B01 构建 | 以上内容加 Skills 0.19.2 API 适配和技能树数据 | 编译时要求固定 Skills JAR；使用技能树时加载它 |
 
 角色工程是 `bridge-base/elden-ring/mc-bridge/character-bridge`，具有自己的 Gradle 构建、Fabric 元数据、main/client 入口及 Mixin 配置。默认 Core 构建不配置这个子工程；`-Pcharacter=true` 或 `-Pb01=true` 才加入。没有把角色 JAR 嵌入 Core。
@@ -41,6 +41,8 @@
 LB/Meteor 互斥，B01 隐含 LB。冻伤实验参数要求 Character。原 `run` / `run-meteor` 目录保留，启动配置不会复制或重置世界、LB 设置和存档。
 
 ## 公共服务与兼容
+
+- `PlayerFlight.isFlying(Player)` 默认使用原版飞行位；Character仅为已获本机服务端确认的活动Vanilla模式补充分类。Core相机、平台与落地使用该接口，不引用LB或角色实现；原运动算法及创造飞行存储位保留。
 
 - `MovementSubjects.body(Player)` 默认返回玩家；角色模组注册真实受管理 Horse 的提供者。Core 从返回实体取得脚底、AABB、步高和落地状态，不认识 Horse 管理实现。
 - `BridgeLifecycle` 提供世界就绪、地形前 tick、普通受击后/生命处理前 tick、召回前、控制交回和断连事件。角色规则订阅事件；加载先后不影响成长初始化或回收顺序。

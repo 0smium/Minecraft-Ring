@@ -5,7 +5,8 @@
   "mixins": [
     "MobEffectInstanceAccessor",
     "ActionLockLivingMixin",
-    "ActionLockPlayerMixin"
+    "ActionLockPlayerMixin",
+    "PrecisionFlightPlayerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

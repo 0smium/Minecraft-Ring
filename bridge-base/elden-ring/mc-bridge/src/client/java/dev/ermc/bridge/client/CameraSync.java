@@ -159,9 +159,9 @@ public final class CameraSync {
 			| (debugDepth ? Protocol.CTRL_DEBUG_DEPTH : 0);
 		var motionBody = mc.player == null ? null : MovementSubjects.body(mc.player);
 		boolean mounted = motionBody != null && motionBody != mc.player;
-		if (motionBody != null && motionBody.onGround() && (mounted || !mc.player.getAbilities().flying))
+		if (motionBody != null && motionBody.onGround() && (mounted || !dev.ermc.bridge.api.PlayerFlight.isFlying(mc.player)))
 			CONTROL.flags |= Protocol.CTRL_GROUNDED;
-		if (mc.player != null && !mounted && mc.player.getAbilities().flying) CONTROL.flags |= Protocol.CTRL_FLYING;
+		if (mc.player != null && !mounted && dev.ermc.bridge.api.PlayerFlight.isFlying(mc.player)) CONTROL.flags |= Protocol.CTRL_FLYING;
 		CONTROL.poseLag = poseLag;
 		CONTROL.depthIndex = depthIndex;
 		CONTROL.mcFrame++;

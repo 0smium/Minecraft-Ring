@@ -8,6 +8,47 @@ public final class GuiPolicyProbe {
   static void check(boolean ok,String message){checks++;if(!ok)throw new AssertionError(message);}
   static JsonObject item(JsonObject root,String name){for(var e:root.getAsJsonArray("value"))if(e.getAsJsonObject().get("name").getAsString().equals(name))return e.getAsJsonObject();return null;}
   static Object singleton(ClassLoader loader,String name)throws Exception{return Class.forName(name,true,loader).getField("INSTANCE").get(null);}
+  /** Input is serialized from real LB ChoiceConfigurable/RangedValue objects in RoutePolicyProbe. */
+  public static void fly(ClassLoader loader,JsonObject original,int baseRank,int precisionRank)throws Throwable{
+    Class<?> gui=Class.forName("dev.ermc.bridge.client.integrations.LiquidBounceGuiPolicy",true,loader);
+    Method settings=gui.getMethod("settings",JsonElement.class),modules=gui.getMethod("modules",JsonElement.class);
+    String before=original.toString();
+    JsonObject shown=(JsonObject)settings.invoke(null,original);
+    JsonArray listed=(JsonArray)modules.invoke(null,JsonParser.parseString("[{\"name\":\"Fly\"}]"));
+    check(listed.size()==(baseRank==0?0:1),"Fly module visibility follows base unlock");
+    if(baseRank==0){
+      check(shown.getAsJsonArray("value").isEmpty(),"unlearned Fly settings remain hidden");
+      return;
+    }
+    var mode=item(shown,"Mode");
+    check(mode!=null,"learned adjustable Fly mode tree missing");
+    check(mode.getAsJsonObject("choices").keySet().equals(precisionRank==0?Set.of("Creative"):Set.of("Creative","Vanilla")),
+        "Fly GUI exposes exactly learned modes");
+    var creative=mode.getAsJsonObject("choices").getAsJsonObject("Creative");
+    check(item(creative,"MaxVelocity")==null&&item(creative,"SprintSpeed")==null&&item(creative,"BypassVanillaCheck")==null
+        &&item(creative,"ForceFlight")==null,"fixed Creative implementation settings hidden");
+    if(baseRank==1)check(item(creative,"Speed")==null,"fixed Creative I speed should not be an adjustable slider");
+    else{
+      var speed=item(creative,"Speed");check(speed!=null,"Creative speed slider removed by precise branch");
+      check(Math.abs(speed.getAsJsonObject("range").get("to").getAsDouble()-(baseRank==2?.15:.2))<.00001,
+          "precise branch overwrote Creative speed cap in GUI");
+    }
+    if(precisionRank>0){
+      var vanilla=mode.getAsJsonObject("choices").getAsJsonObject("Vanilla");
+      var base=item(vanilla,"BaseSpeed");check(base!=null,"Vanilla BaseSpeed group must preserve actual LB path");
+      var horizontal=item(base,"Horizontal");var vertical=item(base,"Vertical");
+      check(horizontal!=null&&vertical!=null,"independent precise flight sliders missing");
+      check(Math.abs(horizontal.getAsJsonObject("range").get("from").getAsDouble()-.1)<.00001
+          &&Math.abs(vertical.getAsJsonObject("range").get("from").getAsDouble()-.1)<.00001,"precise flight minimum GUI caps");
+      check(Math.abs(horizontal.getAsJsonObject("range").get("to").getAsDouble()-(precisionRank==1?.25:.4))<.00001
+          &&Math.abs(vertical.getAsJsonObject("range").get("to").getAsDouble()-(precisionRank==1?.2:.3))<.00001,
+          "precise flight rank GUI maximum caps");
+      check(item(vanilla,"Glide")==null&&item(vanilla,"SprintSpeed")==null&&item(vanilla,"BypassVanillaCheck")==null,
+          "fixed hover/sprint/bypass settings must not appear adjustable");
+      check(item(original,"Mode").getAsJsonObject("choices").has("Jetpack"),"test must retain real unapproved source option");
+    }
+    check(original.toString().equals(before),"Fly GUI projection mutated original LB serialized config");
+  }
   public static void run(ClassLoader loader)throws Throwable{
     Class<?> gui=Class.forName("dev.ermc.bridge.client.integrations.LiquidBounceGuiPolicy",true,loader);
     Method modules=gui.getMethod("modules",JsonElement.class),settings=gui.getMethod("settings",JsonElement.class);

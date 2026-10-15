@@ -65,7 +65,7 @@ public final class MovingPlatformClient {
 		double startY = mc.player.getY(), startYo = mc.player.yo, startVy = mc.player.getDeltaMovement().y;
 		boolean startGround = mc.player.onGround();
 		var step = MOTION.update(valid, STATE.supportEpoch, STATE.supportTravelY / map.unitsPerMeter(), support.y,
-			mc.player.getY(), mc.player.onGround(), mc.player.getAbilities().flying, mc.player.getDeltaMovement().y, System.currentTimeMillis());
+			mc.player.getY(), mc.player.onGround(), dev.ermc.bridge.api.PlayerFlight.isFlying(mc.player), mc.player.getDeltaMovement().y, System.currentTimeMillis());
 		if (wasMoving || step.moving()) traceUntil = now + 750;
 		boolean resetContact = previousEpoch != 0 && previousEpoch != MOTION.epoch();
 		traceTick = now < traceUntil && (mc.player.tickCount % 5 == 0 || resetContact);
@@ -119,7 +119,7 @@ public final class MovingPlatformClient {
 		boolean applied = false;
 		if (carriedPlayer != null) {
 			if (mc.player != carriedPlayer || mc.player.isPassenger() || mc.player.tickCount != carriedTick + 1
-				|| MOTION.epoch() != carriedEpoch || mc.player.getAbilities().flying
+				|| MOTION.epoch() != carriedEpoch || dev.ermc.bridge.api.PlayerFlight.isFlying(mc.player)
 				|| !Overlay.active() || Overlay.hostMode()) {
 				clearCarry();
 			} else {

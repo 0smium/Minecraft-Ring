@@ -1851,6 +1851,131 @@
           }
         }
       ]
+    },
+    {
+      "id": "fly_precision",
+      "branchOf": "fly",
+      "category": "movement",
+      "name": "精确飞行",
+      "description": "复用 LB Vanilla；分别调节水平与升降速度，无惯性悬停，不叠加巡航加速。候选待实机。",
+      "module": "Fly",
+      "icon": "minecraft:feather",
+      "ranks": [
+        {
+          "node": "fly_precision_1",
+          "cost": 8,
+          "requiredSpent": 40,
+          "prerequisites": [
+            "fly_1"
+          ],
+          "modes": [
+            "vanilla"
+          ],
+          "limits": {
+            "precision_horizontal": [
+              0.1,
+              0.25
+            ],
+            "precision_vertical": [
+              0.1,
+              0.2
+            ],
+            "precision_glide": [
+              0,
+              0
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Vanilla"
+            },
+            "precision_horizontal": {
+              "type": "number",
+              "path": "Mode/Vanilla/BaseSpeed/Horizontal",
+              "limitKey": "precision_horizontal"
+            },
+            "precision_vertical": {
+              "type": "number",
+              "path": "Mode/Vanilla/BaseSpeed/Vertical",
+              "limitKey": "precision_vertical"
+            },
+            "precision_glide": {
+              "type": "number",
+              "path": "Mode/Vanilla/Glide",
+              "limitKey": "precision_glide"
+            },
+            "Mode_Vanilla_SprintSpeed_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Vanilla/SprintSpeed/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Vanilla_BypassVanillaCheck": {
+              "type": "boolean",
+              "path": "Mode/Vanilla/BypassVanillaCheck",
+              "booleanValue": false
+            }
+          }
+        },
+        {
+          "node": "fly_precision_2",
+          "cost": 18,
+          "requiredSpent": 60,
+          "prerequisites": [
+            "fly_precision_1"
+          ],
+          "modes": [
+            "vanilla"
+          ],
+          "limits": {
+            "precision_horizontal": [
+              0.1,
+              0.4
+            ],
+            "precision_vertical": [
+              0.1,
+              0.3
+            ],
+            "precision_glide": [
+              0,
+              0
+            ]
+          },
+          "settings": {
+            "Mode": {
+              "type": "choice",
+              "path": "Mode",
+              "stringValue": "Vanilla"
+            },
+            "precision_horizontal": {
+              "type": "number",
+              "path": "Mode/Vanilla/BaseSpeed/Horizontal",
+              "limitKey": "precision_horizontal"
+            },
+            "precision_vertical": {
+              "type": "number",
+              "path": "Mode/Vanilla/BaseSpeed/Vertical",
+              "limitKey": "precision_vertical"
+            },
+            "precision_glide": {
+              "type": "number",
+              "path": "Mode/Vanilla/Glide",
+              "limitKey": "precision_glide"
+            },
+            "Mode_Vanilla_SprintSpeed_Enabled": {
+              "type": "boolean",
+              "path": "Mode/Vanilla/SprintSpeed/Enabled",
+              "booleanValue": false
+            },
+            "Mode_Vanilla_BypassVanillaCheck": {
+              "type": "boolean",
+              "path": "Mode/Vanilla/BypassVanillaCheck",
+              "booleanValue": false
+            }
+          }
+        }
+      ]
     }
   ],
   "presets": [
@@ -1957,6 +2082,42 @@
       "ranks": {
         "speed": 2,
         "speed_hop": 1
+      }
+    },
+    {
+      "id": "flight_precision",
+      "name": "精确飞行对照 · 候选",
+      "budget": 102,
+      "ranks": {
+        "fly": 1,
+        "airjump": 2,
+        "step": 2,
+        "nametags": 2,
+        "speed": 2,
+        "scaffold": 1,
+        "safewalk": 1,
+        "esp": 1,
+        "tracers": 1,
+        "autotool": 1,
+        "fly_precision": 2
+      }
+    },
+    {
+      "id": "flight_routes",
+      "name": "两条飞行切换 · 候选",
+      "budget": 128,
+      "ranks": {
+        "fly": 3,
+        "airjump": 2,
+        "step": 2,
+        "nametags": 2,
+        "speed": 2,
+        "scaffold": 1,
+        "safewalk": 1,
+        "esp": 1,
+        "tracers": 1,
+        "autotool": 1,
+        "fly_precision": 2
       }
     }
   ]

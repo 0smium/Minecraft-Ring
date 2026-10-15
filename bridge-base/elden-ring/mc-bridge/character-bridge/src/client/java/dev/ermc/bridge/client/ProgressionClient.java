@@ -24,6 +24,7 @@ public final class ProgressionClient {
     private ProgressionClient() {}
 
     public static void initialize() {
+        PrecisionFlightClient.initialize();
         ClientPlayConnectionEvents.INIT.register((handler, mc) -> {
             reset();
             if (mc.getSingleplayerServer() != null && TerrainManager.isBridgeWorld()) {

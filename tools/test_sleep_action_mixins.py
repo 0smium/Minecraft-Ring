@@ -1,4 +1,4 @@
-"""Transform sleep guards against actual MC 1.21.1 and pinned LB #3530, without launching games."""
+"""Transform sleep/custom-flight guards against actual MC 1.21.1 and pinned LB #3530, without launching games."""
 import argparse
 import hashlib
 import json
@@ -22,7 +22,7 @@ def main():
         parser.error("Expected the pinned official LB #3530 JAR")
     OUTPUT.mkdir(parents=True, exist_ok=True)
     for name, package, mixins in [
-        ("sleep-common", "dev.ermc.bridge.mixin", ["ActionLockLivingMixin", "ActionLockPlayerMixin", "PlayerMixin", "LivingEntityMixin"]),
+        ("sleep-common", "dev.ermc.bridge.mixin", ["ActionLockLivingMixin", "ActionLockPlayerMixin", "PrecisionFlightPlayerMixin", "PlayerMixin", "LivingEntityMixin"]),
         ("sleep-mc", "dev.ermc.bridge.client.action.mixin", ["SleepInputMixin", "SleepMinecraftMixin", "SleepGameModeMixin"]),
         ("sleep-lb", "dev.ermc.bridge.client.integrations.liquidbounce", ["CapabilityModuleMixin", "CapabilityAuraMixin",
           "SleepEventMixin", "SleepScheduledActionMixin", "SleepSequenceMixin"]),

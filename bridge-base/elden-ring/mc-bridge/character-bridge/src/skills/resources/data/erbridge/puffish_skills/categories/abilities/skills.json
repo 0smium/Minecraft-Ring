@@ -41,6 +41,18 @@
     "definition": "fly_3",
     "root": false
   },
+  "fly_precision_1": {
+    "x": 0,
+    "y": -246,
+    "definition": "fly_precision_1",
+    "root": false
+  },
+  "fly_precision_2": {
+    "x": 0,
+    "y": -310,
+    "definition": "fly_precision_2",
+    "root": false
+  },
   "airjump_1": {
     "x": 18,
     "y": -149,

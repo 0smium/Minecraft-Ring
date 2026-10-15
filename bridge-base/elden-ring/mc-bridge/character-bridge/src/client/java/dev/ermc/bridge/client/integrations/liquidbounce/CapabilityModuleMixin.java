@@ -23,6 +23,6 @@ public abstract class CapabilityModuleMixin {
     @Inject(method = "getRunning()Z", at = @At("HEAD"), cancellable = true)
     private void erbridge$executionGuard(CallbackInfoReturnable<Boolean> result) {
         if (LiquidBounceActionLock.blocksModule(this)
-                || !LiquidBounceCapabilityAccess.allowModule(this)) result.setReturnValue(false);
+                || !LiquidBounceCapabilityAccess.allowExecution(this)) result.setReturnValue(false);
     }
 }

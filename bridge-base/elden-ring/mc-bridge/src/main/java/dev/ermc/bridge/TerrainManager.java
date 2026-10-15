@@ -463,7 +463,7 @@ public final class TerrainManager {
 			boolean valid = STATE.has(Protocol.STATE_SUPPORT_VALID) && map.zone() == STATE.stageId && recallSettled(400)
 				&& Math.abs(player.getX() - support.x) < .75 && Math.abs(player.getZ() - support.z) < .75;
 			var step = motion.update(valid, STATE.supportEpoch, STATE.supportTravelY / map.unitsPerMeter(), support.y,
-				player.getY(), player.onGround(), player.getAbilities().flying, player.getDeltaMovement().y, System.currentTimeMillis());
+				player.getY(), player.onGround(), dev.ermc.bridge.api.PlayerFlight.isFlying(player), player.getDeltaMovement().y, System.currentTimeMillis());
 			if (wasMoving || step.moving()) platformTraceUntil = traceNow + 750;
 			boolean resetContact = previousEpoch != 0 && previousEpoch != motion.epoch();
 			if (traceNow < platformTraceUntil && (player.tickCount % 5 == 0 || resetContact)) {
@@ -488,7 +488,7 @@ public final class TerrainManager {
 	/** Refresh a verified lift before vanilla validates the client's movement against its floor. */
 	public static void beforePlayerMove(ServerPlayer player) {
 		if (!bridgeWorld || player.serverLevel().dimension() != net.minecraft.world.level.Level.OVERWORLD
-			|| player.getAbilities().flying || player.isSpectator() || player.isPassenger() || !recallSettled(400)) return;
+			|| dev.ermc.bridge.api.PlayerFlight.isFlying(player) || player.isSpectator() || player.isPassenger() || !recallSettled(400)) return;
 		var map = CoordMap.get();
 		var motion = PLATFORM_MOTION.get(player.getUUID());
 		var link = ErLink.get();

@@ -125,7 +125,7 @@ public class B01SkillsCheck {
         var parsed=reader.readCategory("erbridge","abilities",0,context);
         if(parsed.getSuccess().isEmpty())throw new AssertionError(parsed.getFailure().orElseThrow().toString());
         CategoryConfig category=parsed.getSuccess().orElseThrow();
-        check(category.skills().getAll().size()==30,"Existing 29 nodes plus one independent hop branch");
+        check(category.skills().getAll().size()==32,"Existing 29 nodes plus hop and two precision nodes");
         check(category.experience().isEmpty() && category.exchange().isEmpty(),"No extra XP or exchange source");
         check(category.definitions().getAll().stream().allMatch(d -> d.rewards().isEmpty()),"No duplicate attribute rewards");
         var catalog=dev.ermc.bridge.gameplay.capability.AbilityCatalog.instance();
@@ -152,6 +152,7 @@ public class B01SkillsCheck {
         check(routes.getSpentPoints(category)==8 && routes.getPointsLeft(category)==6,"Refund branch preserves original ground nodes/cost");
         a.setPoints(source,100);
         check(!a.canUnlockSkill(category,category.skills().getById("fly_1").orElseThrow(),false),"Flight requires 24 points invested, not merely a large balance");
+        check(!a.canUnlockSkill(category,category.skills().getById("fly_precision_1").orElseThrow(),false),"Precision cannot skip base flight or investment threshold");
         check(!a.canUnlockSkill(category,category.skills().getById("speed_3").orElseThrow(),false),"Mastery stage threshold is real Skills behavior");
         for(var preset:catalog.presets().values()) {
             CategoryData trial=CategoryData.create(category.general());trial.unlock();
@@ -163,6 +164,11 @@ public class B01SkillsCheck {
             check(trial.getPointsLeft(category)==8,"Preset separate point source "+preset.id());
             var resumed=CategoryData.read(trial.writeNbt(new CompoundTag()));
             check(resumed.getPoints(testSource)==preset.budget() && resumed.getUnlockedSkillIds().equals(trial.getUnlockedSkillIds()),"Preset NBT restore "+preset.id());
+            if(preset.id().equals("flight_routes")) {
+                resumed.lockSkill("fly_precision_2");resumed.lockSkill("fly_precision_1");
+                check(resumed.getSpentPoints(category)==102 && resumed.getPointsLeft(category)==34
+                        && resumed.getUnlockedSkillIds().containsAll(List.of("fly_1","fly_2","fly_3")),"Precision refund returns its own 26 points and preserves cruise mastery");
+            }
             resumed.setPoints(source,9);resumed.resetSkills();resumed.setPoints(testSource,0);
             for(String node:catalog.purchaseOrder(before))purchase(resumed,category,node);
             check(resumed.getPointsLeft(category)==1 && resumed.getSpentPoints(category)==8 && resumed.getPoints(testSource)==0
@@ -172,7 +178,7 @@ public class B01SkillsCheck {
         for(String node:List.of("speed_1","speed_2","speed_3","aura_1","aura_2","aura_3"))legacy.unlockSkill(node);
         check(legacy.getPointsLeft(category)<0,"Changed legacy prices cannot silently authorize");
         legacy.resetSkills();check(legacy.getPointsLeft(category)==6 && legacy.getSpentPoints(category)==0,"Explicit migration uses real refund, retains level entitlement");
-        System.out.println("PASS: actual Skills 0.19.2 parser, 30 nodes, branch affordability/prerequisites/refund, preserved nine-point Speed II, all presets, NBT persistence and clear");
+        System.out.println("PASS: actual Skills 0.19.2 parser, 32 nodes, branch affordability/prerequisites/refund, preserved nine-point Speed II, all presets, NBT persistence and clear");
         System.out.println("LIMIT: offline parser/data validation; player callbacks, GUI, config reload and ER/LB co-load remain untested");
     }
 }

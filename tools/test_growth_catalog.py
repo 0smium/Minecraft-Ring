@@ -25,10 +25,10 @@ public class GrowthCatalogCheck {
     static void reject(Action action) throws Exception { try { action.run(); } catch (Exception e) {checks++;return;} throw new AssertionError("Accepted invalid data"); }
     public static void main(String[] args) throws Exception {
         AbilityCatalog c=AbilityCatalog.instance();
-        check(c.entries().size()==15 && c.nodes().size()==30 && c.categories().size()==6,"catalog counts");
+        check(c.entries().size()==16 && c.nodes().size()==32 && c.categories().size()==6,"catalog counts");
         Map<Ability,Integer> basic=new HashMap<>(),full=new HashMap<>();
         c.entries().forEach(e->{if(e.branchOf()==null)basic.put(e.id(),1);full.put(e.id(),e.ranks().size());});
-        check(c.cost(basic)==76,"all foundations budget");check(c.cost(full)==238,"full budget includes optional hop route");
+        check(c.cost(basic)==76,"all foundations budget");check(c.cost(full)==264,"full budget includes independent hop and precision routes");
         check(c.cost(c.presets().get("journey").ranks())==116,"all foundations plus two masteries");
         var air=c.entry(new Ability("airjump"));
         check(air.ranks().get(0).settings().get("Mode").stringValue().equals("DOUBLE_JUMP"),"initial safe jump mode");
@@ -64,6 +64,20 @@ public class GrowthCatalogCheck {
         check(ModuleCapability.resolve(speed,c.policy(3,true).snapshot(binding,Map.of(new Ability("speed_hop"),1))).branches().isEmpty(),"branch cannot grant without base");
         reject(()->c.selectedNodes(Map.of(new Ability("speed_hop"),1)));
         check(ModuleCapability.resolve(speed,oldBuild).settings().get("Mode").type().equals("choice"),"refund projects single safe mode");
+        var fly=c.entry(new Ability("fly"));
+        var precisionPolicy=c.policy(3,true).snapshot(binding,c.presets().get("flight_precision").ranks());
+        var precision=ModuleCapability.resolve(fly,precisionPolicy);
+        check(precision.settings().get("Mode").allowedChoices().equals(Set.of("Creative","Vanilla")),"precision adds mode without removing base");
+        check(precision.limits().get("speed").maximum()==.1 && precision.limits().get("precision_horizontal").maximum()==.4
+                && precision.limits().get("precision_vertical").maximum()==.3,"precision cannot raise creative speed cap");
+        check(!precision.settings().get("Mode/Vanilla/SprintSpeed/Enabled").booleanValue()
+                && !precision.settings().get("Mode/Vanilla/BypassVanillaCheck").booleanValue()
+                && precision.limits().get("precision_glide").minimum()==0 && precision.limits().get("precision_glide").maximum()==0,"precision disables sprint/bypass and glide drift");
+        check(c.cost(c.presets().get("flight_precision").ranks())==102 && c.cost(c.presets().get("flight_routes").ranks())==128,"parallel routes cost separately");
+        reject(()->c.selectedNodes(Map.of(new Ability("fly_precision"),1)));
+        var onlyCreative=ModuleCapability.resolve(fly,c.policy(3,true).snapshot(binding,Map.of(new Ability("fly"),3)));
+        check(onlyCreative.settings().get("Mode").stringValue().equals("Creative") && onlyCreative.branches().isEmpty()
+                && !onlyCreative.limits().containsKey("precision_horizontal"),"refund removes precision settings and retains learned cruise");
         reject(()->learned.authorize(new Ability("timer"),3,"default",Map.of()));
         reject(()->c.entries().clear());reject(()->c.nodes().clear());
         String json=Files.readString(Path.of(args[0]));
@@ -80,7 +94,7 @@ public class GrowthCatalogCheck {
         reject(()->store.load(new CharacterBinding(binding.playerId(),binding.campaignId(),UUID.randomUUID())));
         Files.writeString(store.path(binding),Files.readString(store.path(binding))+"unknown=x\n");reject(()->store.load(binding));
         check(Files.readString(store.path(binding)).contains("unknown=x"),"corrupt journal not silently reset");
-        System.out.println("PASS: "+checks+" actual catalog/policy/journal checks; 76 foundations, 116 broad+two masteries, 238 including hop; no games launched");
+        System.out.println("PASS: "+checks+" actual catalog/policy/journal checks; 76 foundations, 116 broad+two masteries, 264 including both optional routes; no games launched");
     }
 }
 '''

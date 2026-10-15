@@ -1,5 +1,6 @@
 package dev.ermc.bridge.world;
 
+import dev.ermc.bridge.CoordMap;
 import dev.ermc.bridge.world.SurfaceResourcePlan.Candidate;
 import dev.ermc.bridge.world.SurfaceResourcePlan.Kind;
 import java.io.ByteArrayInputStream;
@@ -7,7 +8,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
 
 /** Actual production site evidence and SavedData/NBT; no world or game process is started. */
 public final class SurfaceResourceStateCheck {
@@ -47,7 +51,7 @@ public final class SurfaceResourceStateCheck {
         data.generated(300);
         check(data.count() == 5 && !data.isDirty(), "generated receipt must be idempotent");
         CompoundTag saved = data.save(new CompoundTag(), null);
-        check(saved.getInt("version") == 1 && !saved.getBoolean("enabled"), "version/toggle not serialized");
+        check(saved.getInt("version") == 2 && !saved.getBoolean("enabled"), "version/toggle not serialized");
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         NbtIo.write(saved, new DataOutputStream(bytes));
         CompoundTag reread = NbtIo.read(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray())));
@@ -63,7 +67,7 @@ public final class SurfaceResourceStateCheck {
         CompoundTag duplicated = saved.copy();
         duplicated.putLongArray("generated", new long[]{44,44,44,45});
         check(SurfaceResourceData.load(duplicated).count() == 2, "duplicate serialized receipts counted twice");
-        for (int version : new int[]{0,2,Integer.MAX_VALUE}) {
+        for (int version : new int[]{0,3,Integer.MAX_VALUE}) {
             CompoundTag unknown = saved.copy();
             unknown.putInt("version", version);
             unknown.putBoolean("enabled", true);
@@ -96,6 +100,140 @@ public final class SurfaceResourceStateCheck {
         wrongNumericType.putIntArray("generated",new int[]{44,45});
         check(!SurfaceResourceData.load(wrongNumericType).compatible(), "int-array ledger silently loses long receipts");
         check(!SurfaceResourceData.load(new CompoundTag()).enabled(), "empty existing NBT treated as new world data");
+    }
+
+    private static SurfaceResourceExclusion.Scope scope(int zone, int region, double ax) {
+        return new SurfaceResourceExclusion.Scope(zone, region, ax, 12, 34, 1, true);
+    }
+
+    private static void exclusions() throws Exception {
+        var identity = scope(60, 3, 56);
+        var map = new CoordMap.Mapping(56, 12, 34, 1, true, false, 60, 3);
+        check(SurfaceResourceExclusion.Scope.from(map).equals(identity), "mapping identity lost fields");
+        boolean refused = false;
+        try { SurfaceResourceExclusion.Scope.from(new CoordMap.Mapping(56,12,34,1,true,true,60,3)); }
+        catch (IllegalArgumentException expected) { refused = true; }
+        check(refused, "provisional map accepted for saved exclusions");
+        for (int[] bounds : new int[][]{{0,0,0}, {0,0,257}, {30_000_000,0,1}, {-30_000_000,0,1},
+                {0,30_000_000,1}, {0,-30_000_000,1}, {Integer.MIN_VALUE,Integer.MAX_VALUE,256}}) {
+            refused = false;
+            try { new SurfaceResourceExclusion(1,identity,false,bounds[0],bounds[1],bounds[2],"bad"); }
+            catch (IllegalArgumentException expected) { refused = true; }
+            check(refused,"out-of-bounds circle accepted");
+        }
+        var boundary = new SurfaceResourceExclusion(1,identity,false,29_999_999,-29_999_999,1,"boundary");
+        check(boundary.overlaps(identity,29_999_999,-29_999_999,2),"valid world boundary excluded from policy");
+        for (double scale : new double[]{0,-1,Double.NaN,Double.POSITIVE_INFINITY}) {
+            refused = false;
+            try { new SurfaceResourceExclusion.Scope(60,3,0,0,0,scale,true); }
+            catch (IllegalArgumentException expected) { refused = true; }
+            check(refused,"invalid mapping scale accepted");
+        }
+
+        // v1 contains only original fields; upgrade retains off switch and harvested site receipts.
+        CompoundTag v1 = new CompoundTag();
+        v1.putInt("version", 1); v1.putBoolean("enabled", false); v1.putLongArray("generated", new long[]{91, -3});
+        for (byte flag : new byte[]{2,-1}) {
+            CompoundTag corruptV1 = v1.copy(); corruptV1.putByte("enabled",flag);
+            invalidLedger(corruptV1,"invalid v1 enabled flag " + flag);
+        }
+        var data = SurfaceResourceData.load(v1);
+        check(data.compatible() && !data.enabled() && data.count() == 2 && data.exclusions().isEmpty(), "v1 migration lost state");
+        var a = data.exclude(identity, false, 0, 0, 10, "赐福门口");
+        check(a.id() == 1 && data.isDirty(), "first rule id or dirty state missing");
+        check(data.contains(91) && !data.enabled(), "adding exclusion changes v1 receipts or toggle");
+        check(data.excluded(identity, candidate(0,0,Kind.OAK)), "circle center accepted for generation");
+        check(data.excluded(identity, candidate(12,0,Kind.OAK)), "tree canopy overlapping circle accepted");
+        check(!data.excluded(identity, candidate(13,0,Kind.OAK)), "disjoint canopy excluded");
+        check(data.excluded(identity, candidate(9,9,Kind.OAK)), "diagonal canopy corner intersection ignored");
+        check(!data.excluded(identity, candidate(10,10,Kind.OAK)), "circle incorrectly tested as bounding square");
+        check(data.excluded(identity, candidate(-12,0,Kind.OAK)), "negative-coordinate canopy overlap ignored");
+        check(!data.excluded(identity, candidate(-13,0,Kind.OAK)), "negative disjoint canopy excluded");
+        for (var other : new SurfaceResourceExclusion.Scope[]{scope(61,3,56), scope(60,4,56), scope(60,3,57),
+                new SurfaceResourceExclusion.Scope(60,3,56,13,34,1,true),
+                new SurfaceResourceExclusion.Scope(60,3,56,12,35,1,true),
+                new SurfaceResourceExclusion.Scope(60,3,56,12,34,2,true),
+                new SurfaceResourceExclusion.Scope(60,3,56,12,34,1,false)}) {
+            check(!data.excluded(other,candidate(0,0,Kind.OAK)), "exclusion leaked to different map/anchor transform");
+        }
+        check(data.exclusionCount(identity) == 1 && data.exclusionCount(scope(61,3,56)) == 0, "current-map count incorrect");
+        var b = data.exclude(identity, false, 2, 0, 10, "重叠");
+        var c = data.exclude(scope(61,3,56), true, 0, 0, 0, "整区");
+        check(data.excluded(c.scope(), candidate(-10000,10000,Kind.OAK)), "whole-zone rule only excluded local point");
+        check(!data.excluded(scope(62,3,56), candidate(-10000,10000,Kind.OAK)), "whole-zone rule leaked to other zone");
+        check(data.removeExclusion(a.id()) && data.excluded(identity,candidate(0,0,Kind.OAK)), "removing overlap removes other rule");
+        check(data.removeExclusion(b.id()) && !data.excluded(identity,candidate(0,0,Kind.OAK)), "removal does not restore eligibility");
+        check(data.contains(91) && data.contains(-3) && data.count() == 2, "removing rule clears harvest ledger");
+        data.setDirty(false);
+        check(!data.removeExclusion(a.id()) && !data.isDirty(), "unknown deletion changes data");
+        var d = data.exclude(identity, false, -100, -200, 256, "最大半径");
+        check(d.id() == 4, "removed ids reused and can target a different rule");
+        check(data.excluded(identity,candidate(-356,-200,Kind.ROCK)), "large signed-coordinate circle boundary lost");
+
+        CompoundTag saved = data.save(new CompoundTag(), null);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        NbtIo.write(saved, new DataOutputStream(bytes));
+        var loaded = SurfaceResourceData.load(NbtIo.read(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()))));
+        check(loaded.compatible() && !loaded.enabled() && loaded.count() == 2 && loaded.exclusions().equals(data.exclusions()),
+            "v2 binary NBT reload changed rules, receipts, or enabled state");
+        check(loaded.exclude(identity,false,100,100,1,"次序").id() == 5, "rule id sequence lost across save");
+
+        // Migration and policies never participate in deterministic candidate selection.
+        var before = SurfaceResourcePlan.candidates(123,60,3,0,0,21);
+        loaded.enabled(true); loaded.removeExclusion(d.id());
+        check(before.equals(SurfaceResourcePlan.candidates(123,60,3,0,0,21)), "rules changed seeded candidates");
+        check(loaded.contains(91), "remove/re-enable regenerates previously harvested candidate");
+
+        for (String field : new String[]{"nextExclusionId","exclusions"}) {
+            CompoundTag bad = saved.copy(); bad.remove(field); invalidLedger(bad, "missing " + field);
+            bad = saved.copy(); bad.putString(field,"wrong"); invalidLedger(bad, "wrong type " + field);
+        }
+        CompoundTag bad = saved.copy();
+        ListTag wrongList = new ListTag(); wrongList.add(StringTag.valueOf("not a rule")); bad.put("exclusions",wrongList);
+        invalidLedger(bad, "wrong list element type");
+        bad = saved.copy(); bad.putInt("nextExclusionId",3); invalidLedger(bad,"sequence collision");
+        bad = saved.copy(); bad.putByte("enabled",(byte)2); invalidLedger(bad,"bad enabled flag");
+        bad = saved.copy();
+        ListTag duplicated = bad.getList("exclusions",Tag.TAG_COMPOUND);
+        duplicated.add(duplicated.getCompound(0).copy()); invalidLedger(bad,"duplicate rule id");
+        for (String field : new String[]{"id","zone","region","ax","ay","az","unitsPerMeter","flipZ","wholeZone","x","z","radius","name"}) {
+            bad = saved.copy(); bad.getList("exclusions",Tag.TAG_COMPOUND).getCompound(0).remove(field);
+            invalidLedger(bad,"missing rule " + field);
+            bad = saved.copy(); bad.getList("exclusions",Tag.TAG_COMPOUND).getCompound(0).putString(field,"wrong");
+            if (!field.equals("name")) invalidLedger(bad,"wrong rule type " + field);
+        }
+        bad = saved.copy(); bad.getList("exclusions",Tag.TAG_COMPOUND).getCompound(1).putInt("radius",257);
+        invalidLedger(bad,"radius overflow");
+        bad = saved.copy(); bad.getList("exclusions",Tag.TAG_COMPOUND).getCompound(1).putInt("radius",0);
+        invalidLedger(bad,"zero radius");
+        bad = saved.copy(); bad.getList("exclusions",Tag.TAG_COMPOUND).getCompound(0).putDouble("ax",Double.NaN);
+        invalidLedger(bad,"nonfinite anchor");
+        bad = saved.copy(); bad.getList("exclusions",Tag.TAG_COMPOUND).getCompound(0).putByte("flipZ",(byte)2);
+        invalidLedger(bad,"invalid orientation flag");
+        bad = saved.copy(); bad.getList("exclusions",Tag.TAG_COMPOUND).getCompound(0).putString("name","x".repeat(49));
+        invalidLedger(bad,"oversized name");
+        bad = saved.copy(); bad.getList("exclusions",Tag.TAG_COMPOUND).getCompound(0).putString("name","x\ny");
+        invalidLedger(bad,"control character name");
+        var full = new SurfaceResourceData();
+        for (int i=0;i<128;i++) full.exclude(identity,false,i,0,1,"r"+i);
+        refused = false;
+        try { full.exclude(identity,false,200,0,1,"too many"); } catch (IllegalArgumentException expected) { refused = true; }
+        check(refused && full.exclusions().size() == 128, "unbounded exclusion list");
+        bad = full.save(new CompoundTag(),null);
+        ListTag oversized = bad.getList("exclusions",Tag.TAG_COMPOUND);
+        oversized.add(oversized.getCompound(0).copy());
+        check(!SurfaceResourceData.load(bad).compatible(),"oversized persisted exclusion list accepted");
+    }
+
+    private static void invalidLedger(CompoundTag bad, String why) {
+        var rejected = SurfaceResourceData.load(bad);
+        check(!rejected.compatible() && !rejected.enabled(), why + " permits generation");
+        check(rejected.contains(91) && rejected.contains(-3), why + " discarded harvest receipts");
+        rejected.enabled(true); rejected.generated(100);
+        check(!rejected.enabled() && !rejected.contains(100) && !rejected.isDirty(), why + " mutated corrupt ledger");
+        boolean refused = false;
+        try { rejected.save(new CompoundTag(),null); } catch (IllegalStateException expected) { refused = true; }
+        check(refused, why + " overwrote original ledger");
     }
     private static void sites() {
         Candidate oak = candidate(-17,-33,Kind.OAK);
@@ -184,6 +322,7 @@ public final class SurfaceResourceStateCheck {
     }
     public static void main(String[] args) throws Exception {
         state();
+        exclusions();
         sites();
         System.out.println("Surface resource state: " + checks + " assertions passed (real SavedData, binary NBT, live-evidence policy).");
     }

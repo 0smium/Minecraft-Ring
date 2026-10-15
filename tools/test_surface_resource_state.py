@@ -23,7 +23,8 @@ def main():
     cp = os.pathsep.join(map(str, [classes, PROJECT / "build/classes/java/main", *deps]))
     java = ROOT / ".tools/java/jdk-25.0.4.1+1/bin/java.exe"
     sources = [PROJECT / "src/main/java/dev/ermc/bridge/world" / f"{name}.java"
-               for name in ("SurfaceResourcePlan", "SurfaceResourceSites", "SurfaceResourceData")]
+               for name in ("SurfaceResourcePlan", "SurfaceResourceSites", "SurfaceResourceExclusion",
+                            "SurfaceResourceData", "SurfaceResources")]
     sources.append(PROJECT / "src/testFixtures/world/SurfaceResourceStateCheck.java")
     invoke(java, ["-m", "jdk.compiler/com.sun.tools.javac.Main", "-proc:none", "-encoding", "UTF-8",
                   "-classpath", cp, "-d", classes, *sources], OUTPUT / "compile.log")

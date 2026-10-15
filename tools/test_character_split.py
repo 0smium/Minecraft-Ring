@@ -114,8 +114,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--core-only", action="store_true")
     parser.add_argument("--b01", action="store_true")
-    parser.add_argument("--core-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.6.jar")
-    parser.add_argument("--character-jar", type=Path, default=PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.6.jar")
+    parser.add_argument("--core-jar", type=Path, default=PROJECT / "build/libs/er-bridge-0.3.7.jar")
+    parser.add_argument("--character-jar", type=Path, default=PROJECT / "character-bridge/build/libs/er-character-bridge-0.3.7.jar")
     args = parser.parse_args()
     if args.core_only and args.b01:
         parser.error("--core-only and --b01 are mutually exclusive")
@@ -124,7 +124,7 @@ def main():
     require(not set(core_meta["depends"]) & {"er_character_bridge", "puffish_skills", "liquidbounce", "meteor-client"},
             "Core declares optional character/client dependencies")
     character_types = ("MountRuntime", "MountMotion", "MountPayload", "HostEffectsBridge", "link/HostEffectRules",
-                       "client/HostInventoryScreen", "client/MountClient", "client/ProgressionClient",
+                       "client/HostInventoryScreen", "client/MountClient", "client/ProgressionClient", "client/PrecisionFlightClient",
                        "client/integrations/CapabilityPolicyClient", "client/integrations/LiquidBounceCapabilityAccess")
     for name in character_types:
         require(PREFIX + name + ".class" not in core, f"Character implementation remains in Core: {name}")
@@ -136,7 +136,7 @@ def main():
             for character in character_types:
                 require((PREFIX + character).encode() not in data, f"Core links character type {character}: {name}")
     jars = [args.core_jar.resolve()]
-    names = entrypoints(core_meta)
+    names = entrypoints(core_meta) + ["dev.ermc.bridge.api.PlayerFlight"]
     combined = core
     if not args.core_only:
         meta, character = read_artifact(args.character_jar)

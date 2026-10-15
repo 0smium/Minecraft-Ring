@@ -22,6 +22,7 @@ def effect_text(ability, rank, index):
     if key == 'aura': return f"自动近战距离上限 {upper('range')} 格。单目标、不穿墙，保留武器冷却。"
     if key == 'scaffold': return f"搭桥速度上限 {upper('speed')}，最短放置间隔 {limits['placement_delay'][0]:g} tick。消耗背包中的真实方块。"
     if key == 'fly': return f"创造式飞行，速度上限 {upper('speed')}。本版可悬停；没有时长或高度限制。"
+    if key == 'fly_precision': return f"Vanilla 精确操控：水平上限 {upper('precision_horizontal')}、升降上限 {upper('precision_vertical')} 格/tick，可分别调低至 0.1。松键悬停，无冲刺加成；候选待实机。"
     if key == 'airjump': return '空中可再跳一次。' if index == 0 else '可选择双跳或连续空跳；保留原来的双跳选择。'
     if key == 'step': return f"跨越最高 {upper('height')} 格的台阶。"
     if key == 'velocity': return f"水平击退至少保留 {limits['horizontal'][0]*100:g}%，垂直至少保留 {limits['vertical'][0]*100:g}%。"
@@ -65,14 +66,19 @@ def content(data):
                 connections.extend([[previous, rank['node']] for previous in rank['prerequisites']])
             for branch in (a for a in data['abilities'] if a.get('branchOf') == ability['id']):
                 for index, rank in enumerate(branch['ranks']):
+                    stage = f"；先在本树投入 {rank['requiredSpent']} 点" if rank['requiredSpent'] else ''
+                    title = branch['name'] + (f" · {['入门', '精通'][index]}" if len(branch['ranks']) > 1 else '')
                     definitions[rank['node']] = {
-                        'title': {'text': branch['name'], 'color': COLORS[group_index]},
-                        'description': f"{data['categories'][group]}分支 · 消耗 {rank['cost']} 点\n{effect_text(branch,rank,index)}\n可同时学习两路；模块一次只使用选中的模式。",
+                        'title': {'text': title, 'color': COLORS[group_index]},
+                        'description': f"{data['categories'][group]}分支 · 消耗 {rank['cost']} 点{stage}\n{effect_text(branch,rank,index)}\n可同时学习两路；模块一次只使用选中的模式。",
                         'icon': {'type':'item','data':{'item':branch['icon']}},'frame':'goal','size':1.17,
                         'cost':rank['cost'],'required_skills':len(rank['prerequisites']),
                         'required_spent_points':rank['requiredSpent'],
                     }
-                    branch_angle=angle-12;radius=214+index*64
+                    # Place the two flight nodes between neighboring movement lanes and
+                    # half a stage outward; a parallel -12 degree lane overlaps Speed II/III.
+                    branch_angle=angle+7 if branch['id']=='fly_precision' else angle-12
+                    radius=(246 if branch['id']=='fly_precision' else 214)+index*64
                     skills[rank['node']]={'x':round(math.cos(math.radians(branch_angle))*radius),
                         'y':round(math.sin(math.radians(branch_angle))*radius),'definition':rank['node'],'root':False}
                     connections.extend([[previous,rank['node']] for previous in rank['prerequisites']])
@@ -80,7 +86,7 @@ def content(data):
             'connections.json': {'normal': {'unidirectional': connections}},
             'category.json': {
                 'title': 'ER Bridge · 交界地成长',
-                'description': '机动 / 战斗 / 建造 / 生存 / 情报 / 工具。真实升级每级一点；所有栏目共用同一余额。76 点广修，116 点广修加两项精通；另用6点学习连跳分支，全部238点。',
+                'description': '机动 / 战斗 / 建造 / 生存 / 情报 / 工具。真实升级每级一点；所有栏目共用同一余额。76 点广修，116 点广修加两项精通；连跳另需6点，精确飞行分支另需8+18点，全部264点。',
                 'icon': {'type': 'item', 'data': {'item': 'minecraft:nether_star'}},
                 'background': 'minecraft:textures/block/black_concrete.png',
                 'unlocked_by_default': False, 'starting_points': 0, 'exclusive_root': False, 'erase_on_death': False,
@@ -112,7 +118,7 @@ def preview(data, tree):
                 parts.append(f'<text x="{x}" y="{y+4}" font-size="11">{rank["cost"]}</text>')
                 parts.append(f'<text x="{x}" y="{y+32+n*2}" font-size="10" fill="{COLORS[i]}">{escape(short)} {n+1}</text></g>')
     parts += ['<text y="2" font-size="14">76 点基础</text>', '<text y="22" font-size="12" fill="#a8b8bd">116 点广修双专精</text>',
-              '<text y="354" font-size="12" fill="#a8b8bd">保留既有29节点；迅捷入门后可另学连跳，不改真实点数账本</text>', '</g></svg>']
+              '<text y="354" font-size="12" fill="#a8b8bd">步法：地面 / 连跳 · 飞行：巡航 / 精确 · 分支各自付费，不改旧学习和点数</text>', '</g></svg>']
     return '\n'.join(parts) + '\n'
 
 

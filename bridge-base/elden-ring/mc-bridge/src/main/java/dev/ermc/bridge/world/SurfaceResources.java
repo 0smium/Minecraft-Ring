@@ -1,5 +1,8 @@
 package dev.ermc.bridge.world;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.ermc.bridge.CoordMap;
 import dev.ermc.bridge.LocalHostOwner;
 import dev.ermc.bridge.TerrainManager;
@@ -42,7 +45,28 @@ public final class SurfaceResources {
                 .executes(c -> command(c.getSource(), "status"))
                 .then(Commands.literal("status").executes(c -> command(c.getSource(), "status")))
                 .then(Commands.literal("on").executes(c -> command(c.getSource(), "on")))
-                .then(Commands.literal("off").executes(c -> command(c.getSource(), "off"))))));
+                .then(Commands.literal("off").executes(c -> command(c.getSource(), "off")))
+                .then(exclusionCommands()))));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> exclusionCommands() {
+        return Commands.literal("exclude")
+            .executes(c -> listExclusions(c.getSource(), 1))
+            .then(Commands.literal("here")
+                .then(Commands.argument("radius", IntegerArgumentType.integer(1, SurfaceResourceExclusion.MAX_RADIUS))
+                    .executes(c -> addExclusion(c.getSource(), false, IntegerArgumentType.getInteger(c, "radius"), "局部禁区"))
+                    .then(Commands.argument("name", StringArgumentType.greedyString())
+                        .executes(c -> addExclusion(c.getSource(), false, IntegerArgumentType.getInteger(c, "radius"),
+                            StringArgumentType.getString(c, "name"))))))
+            .then(Commands.literal("zone")
+                .executes(c -> addExclusion(c.getSource(), true, 0, "区域禁区"))
+                .then(Commands.argument("name", StringArgumentType.greedyString())
+                    .executes(c -> addExclusion(c.getSource(), true, 0, StringArgumentType.getString(c, "name")))))
+            .then(Commands.literal("list").executes(c -> listExclusions(c.getSource(), 1))
+                .then(Commands.argument("page", IntegerArgumentType.integer(1, SurfaceResourceExclusion.MAX_RULES / 8))
+                    .executes(c -> listExclusions(c.getSource(), IntegerArgumentType.getInteger(c, "page")))))
+            .then(Commands.literal("remove").then(Commands.argument("id", IntegerArgumentType.integer(1))
+                .executes(c -> removeExclusion(c.getSource(), IntegerArgumentType.getInteger(c, "id")))));
     }
 
     public static void reset() {
@@ -86,6 +110,9 @@ public final class SurfaceResources {
         lastTick = time;
         SurfaceResourceData data = SurfaceResourceData.get(level);
         if (!data.enabled()) { status = data.compatible() ? "disabled" : "unsupported save version"; return; }
+        SurfaceResourceExclusion.Scope scope;
+        try { scope = SurfaceResourceExclusion.Scope.from(map); }
+        catch (IllegalArgumentException invalid) { status = "waiting for stable map identity"; return; }
 
         long seed = level.getSeed() ^ Double.doubleToLongBits(map.ax())
             ^ Long.rotateLeft(Double.doubleToLongBits(map.ay()), 17)
@@ -93,6 +120,10 @@ public final class SurfaceResources {
             ^ Double.doubleToLongBits(map.unitsPerMeter()) ^ (map.flipZ() ? 0x51f0a28cL : 0);
         var candidates = new ArrayList<>(SurfaceResourcePlan.candidates(seed, map.zone(), map.region(),
             owner.blockPosition().getX(), owner.blockPosition().getZ(), 21));
+        // Reject complete footprints before queueing native surface queries, without changing
+        // candidate ids or claiming receipts. Removing a rule cannot respawn harvested sites.
+        candidates.removeIf(candidate -> data.excluded(scope, candidate));
+        if (candidates.isEmpty()) { status = "no eligible candidates (check region exclusions)"; return; }
         candidates.sort(Comparator.comparingDouble(c -> distanceSq(c, owner.getX(), owner.getZ())));
         long now = System.currentTimeMillis();
         if (now - lastRefresh >= 1000) {
@@ -180,18 +211,93 @@ public final class SurfaceResources {
         return true;
     }
 
-    private static int command(CommandSourceStack source, String action) {
+    private static SurfaceResourceData commandData(CommandSourceStack source) {
         if (!TerrainManager.isBridgeWorld() || source.getLevel() != source.getServer().overworld()
-                || !LocalHostOwner.isOwner(source.getPlayer())) {
-            source.sendFailure(Component.literal("地表资源命令只用于 ER Bridge 本机宿主。")); return 0;
+                || !source.hasPermission(2) || !LocalHostOwner.isOwner(source.getPlayer())) {
+            source.sendFailure(Component.literal("地表资源命令只用于 ER Bridge 本机宿主管理员。")); return null;
         }
         var data = SurfaceResourceData.get(source.getLevel());
-        if (!data.compatible()) { source.sendFailure(Component.literal("资源记录版本不兼容，已停止生成。")); return 0; }
+        if (!data.compatible()) {
+            source.sendFailure(Component.literal("资源记录损坏或版本不兼容，已停止生成并保留原记录。")); return null;
+        }
+        return data;
+    }
+
+    private static int command(CommandSourceStack source, String action) {
+        var data = commandData(source);
+        if (data == null) return 0;
         if (action.equals("on")) data.enabled(true);
         if (action.equals("off")) { data.enabled(false); TerrainManager.clearResourceSurfaceRequests(); }
+        long here = 0;
+        try { here = data.exclusionCount(SurfaceResourceExclusion.Scope.from(CoordMap.get())); }
+        catch (IllegalArgumentException ignored) { /* A disconnected status query still reports the saved ledger. */ }
+        long current = here;
         source.sendSuccess(() -> Component.literal("地表资源 " + (data.enabled() ? "开启" : "关闭")
             + "；已生成 " + data.count() + " 处；地表采样 " + SITES.size() + "；" + status
-            + "。关闭仅停止新增，已采集位置不会补回。"), false);
+            + "；禁区 " + data.exclusions().size() + " 条（当前映射 " + current + "）"
+            + "。关闭/禁区仅停止新增，已采集位置不会补回。"), false);
+        return 1;
+    }
+
+    private static int addExclusion(CommandSourceStack source, boolean wholeZone, int radius, String name) {
+        var data = commandData(source);
+        if (data == null) return 0;
+        var map = CoordMap.get();
+        ErLink link = ErLink.get();
+        GameState state = new GameState();
+        if (map == null || map.provisional() || !link.poll() || !link.snapshot(state)
+                || !state.has(Protocol.STATE_PLAYER_VALID) || !state.has(Protocol.STATE_CAM_OVERRIDDEN)
+                || !source.getPlayer().isAlive() || state.stageId != map.zone()
+                || state.has(Protocol.STATE_HOST_BUSY | Protocol.STATE_PLAYER_DEAD)
+                || !TerrainManager.recallSettled(1500) || !map.contains(source.getPlayer().getX())) {
+            source.sendFailure(Component.literal("请回到 MC 控制，等待当前法环区域加载/坐标同步完成，再记录禁区。")); return 0;
+        }
+        try {
+            BlockPos pos = source.getPlayer().blockPosition();
+            var rule = data.exclude(SurfaceResourceExclusion.Scope.from(map), wholeZone,
+                wholeZone ? 0 : pos.getX(), wholeZone ? 0 : pos.getZ(), radius, name.trim());
+            // Pending requests may predate the new restriction; recollect only eligible sites.
+            TerrainManager.clearResourceSurfaceRequests();
+            source.sendSuccess(() -> Component.literal("已添加禁区 #" + rule.id() + " " + rule.name() + "："
+                + (wholeZone ? "当前法环区域及坐标映射" : "MC (" + rule.x() + ", " + rule.z() + ") 半径 " + radius + " 格、全部高度")
+                + "。仅停止后续新增，不删除现有资源或采集记录。"), false);
+            return 1;
+        } catch (IllegalArgumentException invalid) {
+            source.sendFailure(Component.literal(invalid.getMessage())); return 0;
+        }
+    }
+
+    private static int listExclusions(CommandSourceStack source, int page) {
+        var data = commandData(source);
+        if (data == null) return 0;
+        var rules = data.exclusions();
+        int pages = Math.max(1, (rules.size() + 7) / 8);
+        if (page < 1 || page > pages) {
+            source.sendFailure(Component.literal("禁区列表共 " + pages + " 页。")); return 0;
+        }
+        SurfaceResourceExclusion.Scope current = null;
+        try { current = SurfaceResourceExclusion.Scope.from(CoordMap.get()); }
+        catch (IllegalArgumentException ignored) { /* All saved regions remain removable while disconnected. */ }
+        source.sendSuccess(() -> Component.literal("资源禁区 " + rules.size() + "/128；第 " + page + "/" + pages
+            + " 页。规则只影响后续新增；remove <编号> 不清除采集记录。"), false);
+        for (int i = (page - 1) * 8; i < Math.min(page * 8, rules.size()); i++) {
+            var rule = rules.get(i);
+            boolean here = rule.scope().equals(current);
+            source.sendSuccess(() -> Component.literal("#" + rule.id() + " " + rule.name()
+                + (here ? " [当前映射]" : " [其他映射]") + " zone=" + rule.scope().zone() + " region=" + rule.scope().region()
+                + (rule.wholeZone() ? " 整区" : " MC(" + rule.x() + "," + rule.z() + ") r=" + rule.radius())), false);
+        }
+        return 1;
+    }
+
+    private static int removeExclusion(CommandSourceStack source, int id) {
+        var data = commandData(source);
+        if (data == null) return 0;
+        if (!data.removeExclusion(id)) {
+            source.sendFailure(Component.literal("没有禁区 #" + id + "；可用 exclude list 查看。")); return 0;
+        }
+        source.sendSuccess(() -> Component.literal("已移除禁区 #" + id
+            + "。未生成位置可再次参与筛选；其他重叠禁区仍有效，已采集位置不会补回，现有方块不变。"), false);
         return 1;
     }
 }

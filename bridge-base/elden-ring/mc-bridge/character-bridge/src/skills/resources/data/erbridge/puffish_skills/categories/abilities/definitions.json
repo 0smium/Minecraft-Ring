@@ -125,6 +125,42 @@
     "required_skills": 1,
     "required_spent_points": 60
   },
+  "fly_precision_1": {
+    "title": {
+      "text": "精确飞行 · 入门",
+      "color": "#81cdb2"
+    },
+    "description": "机动分支 · 消耗 8 点；先在本树投入 40 点\nVanilla 精确操控：水平上限 0.25、升降上限 0.2 格/tick，可分别调低至 0.1。松键悬停，无冲刺加成；候选待实机。\n可同时学习两路；模块一次只使用选中的模式。",
+    "icon": {
+      "type": "item",
+      "data": {
+        "item": "minecraft:feather"
+      }
+    },
+    "frame": "goal",
+    "size": 1.17,
+    "cost": 8,
+    "required_skills": 1,
+    "required_spent_points": 40
+  },
+  "fly_precision_2": {
+    "title": {
+      "text": "精确飞行 · 精通",
+      "color": "#81cdb2"
+    },
+    "description": "机动分支 · 消耗 18 点；先在本树投入 60 点\nVanilla 精确操控：水平上限 0.4、升降上限 0.3 格/tick，可分别调低至 0.1。松键悬停，无冲刺加成；候选待实机。\n可同时学习两路；模块一次只使用选中的模式。",
+    "icon": {
+      "type": "item",
+      "data": {
+        "item": "minecraft:feather"
+      }
+    },
+    "frame": "goal",
+    "size": 1.17,
+    "cost": 18,
+    "required_skills": 1,
+    "required_spent_points": 60
+  },
   "airjump_1": {
     "title": {
       "text": "空中跳跃 · 入门",

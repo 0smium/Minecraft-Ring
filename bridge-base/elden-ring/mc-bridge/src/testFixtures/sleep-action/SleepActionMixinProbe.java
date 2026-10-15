@@ -20,7 +20,7 @@ public final class SleepActionMixinProbe {
         MixinExtrasBootstrap.init();
         Map<String, List<String>> targets = new LinkedHashMap<>();
         targets.put("net.minecraft.class_1309", List.of("suspendMovementInput", "suspendJump", "suspendUse"));
-        targets.put("net.minecraft.class_1657", List.of("suspendAttack"));
+        targets.put("net.minecraft.class_1657", List.of("suspendAttack", "customFlightTravel", "customFlightLanding"));
         targets.put("net.minecraft.class_746", List.of("sleepBeforeInput", "sleepAfterInput", "sleepBeforeTravel"));
         targets.put("net.minecraft.class_310", List.of("sleepAttack", "sleepMining", "sleepUse"));
         targets.put("net.minecraft.class_636", List.of("sleepDestroy", "sleepInteract", "sleepAttack"));
@@ -45,8 +45,17 @@ public final class SleepActionMixinProbe {
             if (target.getKey().equals("net.minecraft.class_636") && count != 8)
                 throw new AssertionError("Expected all eight interaction boundaries, found " + count);
             if (target.getKey().equals("net.minecraft.class_1657")) {
-                boolean guardedMarker = false, cancellableAttack = false;
+                boolean guardedMarker = false, cancellableAttack = false, customTravel = false;
                 for (MethodNode method : node.methods) {
+                    if (method.name.contains("erbridge$customFlightTravel")) {
+                        if (!method.desc.equals("(Z)Z")) throw new AssertionError("Precision flight must modify a read, not write abilities");
+                        for (AbstractInsnNode instruction : method.instructions) {
+                            if (instruction.getOpcode() == org.objectweb.asm.Opcodes.PUTFIELD)
+                                throw new AssertionError("Precision travel cannot mutate Creative's stored flight state");
+                            if (instruction instanceof MethodInsnNode call && call.owner.equals("dev/ermc/bridge/api/PlayerFlight")
+                                    && call.name.equals("customActive")) customTravel = true;
+                        }
+                    }
                     if (method.name.contains("erbridge$noteCritical")) {
                         boolean allowed = false, earlyReturn = false;
                         for (AbstractInsnNode instruction : method.instructions) {
@@ -68,11 +77,11 @@ public final class SleepActionMixinProbe {
                         }
                     }
                 }
-                if (!guardedMarker || !cancellableAttack) throw new AssertionError("Core marker guard or Character attack cancellation missing");
+                if (!guardedMarker || !cancellableAttack || !customTravel) throw new AssertionError("Core attack guard or nonmutating precision travel guard missing");
             }
             total += count;
             System.out.println("PASS " + target.getKey() + ": " + count + " production hook calls");
         }
-        System.out.println("PASS sleep guards: " + targets.size() + " actual MC/LB classes; " + total + " hook calls");
+        System.out.println("PASS sleep/custom-flight guards: " + targets.size() + " actual MC/LB classes; " + total + " hook calls");
     }
 }

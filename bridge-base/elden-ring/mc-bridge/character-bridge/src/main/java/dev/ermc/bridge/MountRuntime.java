@@ -117,7 +117,7 @@ public final class MountRuntime {
         if (!RETIRED.isEmpty()) return fail(source, "上一匹测试马的装备尚未归还，请腾出背包空间。");
         ErLink link = ErLink.get();
         var map = CoordMap.get();
-        if (!player.isAlive() || player.isPassenger() || !player.onGround() || player.getAbilities().flying
+        if (!player.isAlive() || player.isPassenger() || !player.onGround() || dev.ermc.bridge.api.PlayerFlight.isFlying(player)
                 || player.isInWater() || player.isInLava() || !link.poll() || !link.snapshot(STATE)
                 || link.hostStartMs() <= 0 || !STATE.has(Protocol.STATE_PLAYER_VALID)
                 || !STATE.has(Protocol.STATE_CAM_OVERRIDDEN) || STATE.has(Protocol.STATE_HOST_BUSY)

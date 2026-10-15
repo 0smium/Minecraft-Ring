@@ -142,6 +142,33 @@ public final class LiquidBounceCapabilityAccess {
         return false;
     }
 
+    /** Raw Enabled preference, not getRunning (which itself waits for the flight acknowledgement). */
+    public static String activeFlyMode() {
+        for (Binding binding : bindings.values()) if (binding.name.equals("Fly") && !binding.failed && allowModule(binding.module)) {
+            try {
+                if (!Boolean.TRUE.equals(access.raw.invoke(binding.required("Enabled")))) return "";
+                Object mode = binding.required("Mode"), selected = access.activeChoiceField.get(mode);
+                // Do not advertise a stale, refunded raw choice as a currently permitted mode.
+                if (challenge()) {
+                    Setting setting = capability(binding).settings().get("Mode");
+                    if (setting == null || !allowedChoices(binding, mode, setting).contains(selected)) return "";
+                }
+                return (String) access.name.invoke(selected);
+            } catch (Throwable error) { return ""; }
+        }
+        return "";
+    }
+
+    public static boolean allowExecution(Object module) {
+        if (!allowModule(module)) return false;
+        Binding binding = bindings.get(module);
+        if (binding == null || !binding.name.equals("Fly") || !activeFlyMode().equals("Vanilla")) return true;
+        Minecraft mc = Minecraft.getInstance();
+        // Keep external multiplayer untouched: this protocol belongs to our integrated bridge world.
+        return mc.getSingleplayerServer() == null || !dev.ermc.bridge.TerrainManager.isBridgeWorld()
+            || dev.ermc.bridge.client.PrecisionFlightClient.active();
+    }
+
     /** Guards setters, config imports, scripts, direct backing writes and delegated execution reads. */
     public static Object normalizeValue(Object value, Object input, boolean write) {
         if (!challenge()) return input;
@@ -232,7 +259,7 @@ public final class LiquidBounceCapabilityAccess {
         if (!challenge() || !configurable.getClass().getName().equals(STRAFE)) return false;
         Minecraft mc = Minecraft.getInstance();
         return !isActive("Speed") || mc.player == null || !mc.player.onGround()
-                || mc.player.isInWaterOrBubble() || mc.player.isInLava() || mc.player.isPassenger() || mc.player.getAbilities().flying;
+                || mc.player.isInWaterOrBubble() || mc.player.isInLava() || mc.player.isPassenger() || dev.ermc.bridge.api.PlayerFlight.isFlying(mc.player);
     }
     /** Only the learned top-level LegitHop choice may use LB's automatic ordinary jump. */
     public static boolean allowBHop(Object choice) {
