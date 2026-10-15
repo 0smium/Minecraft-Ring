@@ -8,7 +8,7 @@
 
 ![由当前节点数据生成的布局预览](diagrams/growth-tree-layout.svg)
 
-这是由实际32节点生成的矢量预览，不是游戏截图。步法支线从同一Speed I分开，飞行从Fly I分开，Skills负责前置、6点消费和退款；并非把旧Speed II改名成新路线。
+这是由实际32节点生成的矢量预览，不是游戏截图。步法支线从同一Speed I分开（6点），飞行从Fly I分开（8/18点），Skills负责前置、消费和退款；并非把旧Speed II改名成新路线。
 
 ## 本次可测试的Speed分支
 
@@ -69,3 +69,7 @@ Fly Vanilla与Creative有一个关键差异：Vanilla直接设置原MC速度，�
 ## 与建造和战斗成长的关系
 
 建造路线应获得“能采集、能放置且能挡住敌人的建筑”，而非只有放置速度。资源采集/原生碰撞一旦落地，可以形成资源→搭建掩体→较安全战斗的投入回报；这比继续加 Scaffold 隐藏参数更有策略价值。战斗则保留 Aura距离与Velocity抗击退的不同投入，不把所有自动功能捆绑免费开启。相关机制见 [EldenCraft研究](eldencraft-physics-research.md)。
+
+## 外部玩法参考
+
+[法环模组分类与借鉴](elden-ring-mod-landscape.md)补充Reforged的职业取舍、Convergence的分阶探索获取和塔类短循环。可以据此评估专精选择、地图目标和局内奖励分账；这些是设计提案，尚未增加专精栏或改变本页既有价格、学习权益与存档。

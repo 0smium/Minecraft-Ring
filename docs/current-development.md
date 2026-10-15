@@ -18,6 +18,8 @@
 
 **当前集成候选为0.3.7。** 按用户“继续推进不需要实机测试的内容”补入资源禁区与Fly精确分支。禁区保存到世界，支持当前位置半径/整区域、列表和按编号撤销，完整树冠先筛选再补采；旧生成收据保留。Fly新增独立8+18点分支和两套可撤销预设，本机服务端确认活动后才将原LB Vanilla计作飞行；原Creative、旧学习/消费保留。具体见[本批记录](experiments/2026-10-15-resource-exclusions-precision-flight.md)。原版树形/生物群系已形成[有界接入方案](vanilla-surface-features-plan.md)，尚未接入；实际区域分布仍留集中验证。
 
+**外部模组参考已补充**：[法环模组分类与借鉴](elden-ring-mod-landscape.md)核查 Reforged、Convergence、Graceborne、塔类/随机化与数据工具，提出构筑取舍、探索奖励和受约束遭遇的候选方向。用户所见爬塔名称尚不确定。本次仅研究，不改变0.3.7代码/技能价格或现有验收顺序。
+
 ## 一个集成候选，四个实现 PR
 
 上一轮代码审查点是 `3f7447096556f11db4bad6066198e6306e5f205f`，当前候选继续位于 [PR #6](https://github.com/0smium/Minecraft-Ring/pull/6) 的 `codex/b02-character-slice`。已同步架构文档 `5401039`，随后在同分支落实独立角色 JAR、公共事件/运动服务与启动预检。所有后续开发与配套测试从这个最新集成候选前进；不把旧 `main` 当作已包含这些功能。
